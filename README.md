@@ -13,8 +13,8 @@ later, be reused by native clients against the same API.
 
 - **self.chat** (this repo) — the client. SvelteKit, built static, served by
   nginx. Web first; Android, iOS, and Qt clients are net-new and come later.
-- **[self.ai](../self.ai)** — the FastAPI **API server** plus the Flux deploy
-  manifests for the whole `self-ai` tenant. The primary deploy repo.
+- **[self.ai](https://github.com/selfdothost/self.ai)** — the FastAPI **API
+  server** plus the docker files for the whole stack. The primary deploy repo.
 
 ## How it reaches the API
 
@@ -31,7 +31,7 @@ post-web change.
 self.chat carries the frontend of a **hard fork of Open-WebUI v0.5.4** — the last
 MIT-licensed release. **No code from post-v0.5.4 Open-WebUI may ever be merged,
 cherry-picked, or copied in.** We are the upstream. The full firewall and license
-record lives in **[self.ai/DIVERGENCE.md](../self.ai/DIVERGENCE.md)**. The MIT
+record lives in **[self.ai/DIVERGENCE.md](https://github.com/selfdothost/self.ai/blob/public-alpha/DIVERGENCE.md)**. The MIT
 baseline is retained in `NOTICE`; the combined work and our additions are
 GPL-3.0. self.chat is **not affiliated with or endorsed by Open-WebUI** — it was
 forked from Open-WebUI's MIT v0.5.4 for its multi-user focus.
@@ -51,7 +51,7 @@ Node `>=18 <=22`. The build is self-contained — no backend in this repo.
 
 `Dockerfile` builds the static bundle and serves it with nginx on `:8080`
 (`nginx.conf` does the SPA fallback). The image is frontend-only — it does not
-bundle or proxy the API; traefik handles that at the VIP.
+bundle or proxy the API; the deploy's ingress handles that.
 
 ## License
 
