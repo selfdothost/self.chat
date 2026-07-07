@@ -1,0 +1,70 @@
+# self.chat CI — build the SvelteKit client image and publish to the yard's
+# private registry.
+#
+# Nothing builds on the bastion; CI builds and publishes. kaniko (daemonless)
+# NOT buildah — the runner pods have no /dev/fuse. Image lands at
+#   $CI_REGISTRY_IMAGE:<short-sha>
+# Flux's ImagePolicy promotes from there; CI only builds + pushes.
+#
+# Runner #28 is run_untagged=false → every job MUST carry a tag. Light jobs use
+# `yard`; the frontend build runs on `yard-midbuild` (2x 8c/16Gi, floating) —
+# 16Gi fits the vite 6GB+ heap (see Dockerfile NODE_OPTIONS) and keeps us off
+# `bigbuild`, which is reserved for the heavy from-source builds (e.g. llamolotl).
+
+stages: [lint, build, publish]
+
+include:
+  - project: 'selfshipyard/selfai/self.ai'
+    ref: main
+    file: '.gitlab/ci-templates/sync-public-alpha.yml'
+
+default:
+  tags: [yard]
+
+# --- publish: mirror main -> public-alpha (GitLab + GitHub), scheduled only -
+sync:public-alpha:
+  extends: .sync-public-alpha
+  variables:
+    MIRROR_EXCLUDE_PATHS: ""
+
+# --- lint: advisory, runs on the bare scaffold too --------------------------
+lint:
+  stage: lint
+  image: node:22-alpine3.20
+  before_script:
+    - npm ci
+  script:
+    - npm run lint:types   # svelte-check; advisory until the UI settles
+  allow_failure: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: [src/**/*, package.json, package-lock.json]
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [src/**/*, package.json, package-lock.json]
+
+# --- build: static SvelteKit bundle -> nginx image --------------------------
+# Heavy build (npm ci + vite build, 6GB heap). Runs when the app, deps, or the
+# image recipe change — not on doc-only commits.
+build:web:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  tags: [yard-midbuild]
+  timeout: 1h
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_JOB_TOKEN" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  script:
+    - >
+      /kaniko/executor --context "$CI_PROJECT_DIR"
+      --dockerfile Dockerfile
+      --build-arg APP_BUILD_HASH="$CI_COMMIT_SHORT_SHA"
+      --cache=true --cache-repo "$CI_REGISTRY_IMAGE/cache"
+      --destination "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+      --destination "$CI_REGISTRY_IMAGE:latest"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]

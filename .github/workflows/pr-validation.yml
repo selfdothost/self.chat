@@ -1,0 +1,23 @@
+# Validation for incoming pull requests. `pull_request` trigger runs fork PRs
+# secret-less; pair with "require approval for first-time contributors".
+name: pr-validation
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run lint:types --if-present
+      - run: npm run build
