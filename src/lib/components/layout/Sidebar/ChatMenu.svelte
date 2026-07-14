@@ -1,6 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { DropdownMenu } from 'bits-ui';
-	import { flyAndScale } from '$lib/utils/transitions';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
+	import DropdownMenuSubContent from '$lib/components/common/DropdownMenuSubContent.svelte';
 	import { getContext, createEventDispatcher } from 'svelte';
 
 	import fileSaver from 'file-saver';
@@ -23,19 +27,18 @@
 		getChatPinnedStatusById,
 		toggleChatPinnedStatusById
 	} from '$lib/apis/chats';
-	import { chats } from '$lib/stores';
 	import { createMessagesList } from '$lib/utils';
 	import { downloadChatAsPDF } from '$lib/apis/utils';
 	import Download from '$lib/components/icons/Download.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let shareHandler: Function;
-	export let cloneChatHandler: Function;
-	export let archiveChatHandler: Function;
-	export let renameHandler: Function;
-	export let deleteHandler: Function;
-	export let onClose: Function;
+	export let shareHandler: AnyFn;
+	export let cloneChatHandler: AnyFn;
+	export let archiveChatHandler: AnyFn;
+	export let renameHandler: AnyFn;
+	export let deleteHandler: AnyFn;
+	export let onClose: AnyFn;
 
 	export let chatId = '';
 
@@ -54,7 +57,7 @@
 	const getChatAsText = async (chat) => {
 		const history = chat.chat.history;
 		const messages = createMessagesList(history, history.currentId);
-		const chatText = messages.reduce((a, message, i, arr) => {
+		const chatText = messages.reduce((a, message, _i, _arr) => {
 			return `${a}### ${message.role.toUpperCase()}\n${message.content}\n\n`;
 		}, '');
 
@@ -133,16 +136,15 @@
 	</Tooltip>
 
 	<div slot="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full max-w-[200px] rounded-xl px-1 py-1.5 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 			sideOffset={-2}
 			side="bottom"
 			align="start"
-			transition={flyAndScale}
 		>
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					pinHandler();
 				}}
 			>
@@ -157,7 +159,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					renameHandler();
 				}}
 			>
@@ -167,7 +169,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					cloneChatHandler();
 				}}
 			>
@@ -177,7 +179,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					archiveChatHandler();
 				}}
 			>
@@ -187,7 +189,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800  rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					shareHandler();
 				}}
 			>
@@ -203,14 +205,13 @@
 
 					<div class="flex items-center">{$i18n.t('Download')}</div>
 				</DropdownMenu.SubTrigger>
-				<DropdownMenu.SubContent
+				<DropdownMenuSubContent
 					class="w-full rounded-xl px-1 py-1.5 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
-					transition={flyAndScale}
 					sideOffset={8}
 				>
 					<DropdownMenu.Item
 						class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-						on:click={() => {
+						onSelect={() => {
 							downloadJSONExport();
 						}}
 					>
@@ -218,7 +219,7 @@
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-						on:click={() => {
+						onSelect={() => {
 							downloadTxt();
 						}}
 					>
@@ -227,17 +228,17 @@
 
 					<DropdownMenu.Item
 						class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-						on:click={() => {
+						onSelect={() => {
 							downloadPdf();
 						}}
 					>
 						<div class="flex items-center line-clamp-1">{$i18n.t('PDF document (.pdf)')}</div>
 					</DropdownMenu.Item>
-				</DropdownMenu.SubContent>
+				</DropdownMenuSubContent>
 			</DropdownMenu.Sub>
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					deleteHandler();
 				}}
 			>
@@ -272,6 +273,6 @@
 					}}
 				/>
 			</div>
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</div>
 </Dropdown>

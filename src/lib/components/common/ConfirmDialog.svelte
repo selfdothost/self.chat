@@ -1,6 +1,8 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext, createEventDispatcher } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	import { fade } from 'svelte/transition';
@@ -61,7 +63,6 @@
 </script>
 
 {#if show}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div
 		bind:this={modalElement}
@@ -133,19 +134,3 @@
 	</div>
 {/if}
 
-<style>
-	.modal-content {
-		animation: scaleUp 0.1s ease-out forwards;
-	}
-
-	@keyframes scaleUp {
-		from {
-			transform: scale(0.985);
-			opacity: 0;
-		}
-		to {
-			transform: scale(1);
-			opacity: 1;
-		}
-	}
-</style>

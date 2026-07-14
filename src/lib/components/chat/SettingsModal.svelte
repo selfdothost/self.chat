@@ -1,10 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { models, settings, user } from '$lib/stores';
 	import { updateUserSettings } from '$lib/apis/users';
 	import { getModels as _getModels } from '$lib/apis';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import Modal from '../common/Modal.svelte';
 	import Account from './Settings/Account.svelte';
@@ -15,10 +18,9 @@
 	import Chats from './Settings/Chats.svelte';
 	import User from '../icons/User.svelte';
 	import Personalization from './Settings/Personalization.svelte';
-	import SearchInput from '../layout/Sidebar/SearchInput.svelte';
 	import Search from '../icons/Search.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 
@@ -574,7 +576,7 @@
 										? ''
 										: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
 									on:click={async () => {
-										await goto('/admin/settings');
+										await goto(resolve('/(app)/admin/settings'));
 										show = false;
 									}}
 								>
@@ -665,9 +667,5 @@
 	.tabs {
 		-ms-overflow-style: none; /* IE and Edge */
 		scrollbar-width: none; /* Firefox */
-	}
-
-	input[type='number'] {
-		-moz-appearance: textfield; /* Firefox */
 	}
 </style>

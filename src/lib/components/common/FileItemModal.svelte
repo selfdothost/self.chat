@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 	import { formatFileSize, getLineCount } from '$lib/utils';
-
-	const i18n = getContext('i18n');
 
 	import Modal from './Modal.svelte';
 	import XMark from '../icons/XMark.svelte';
@@ -35,6 +33,7 @@
 						<a
 							href={item.url ? (item.type === 'file' ? `${item.url}/content` : `${item.url}`) : '#'}
 							target="_blank"
+							rel="external"
 							class="hover:underline line-clamp-1"
 						>
 							{item?.name ?? 'File'}

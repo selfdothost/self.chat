@@ -16,12 +16,6 @@
 	let showWindowModal = false;
 	let editingWindow: JobWindow | null = null;
 
-	function openWindowEdit(w: JobWindow, e: Event) {
-		e.stopPropagation();
-		editingWindow = w;
-		showWindowModal = true;
-	}
-
 	function handleWindowSaved(event: CustomEvent<JobWindow>) {
 		const saved = event.detail;
 		windows = windows.map((w) => (w.id === saved.id ? saved : w));
@@ -174,10 +168,10 @@
 	};
 
 	// Selected slot for new event creation
-	let selectedSlot: { date: string; hour?: number } | null = null;
-	const selectSlot = (date: string, hour?: number) => {
-		selectedSlot = { date, hour };
-	};
+	// NOTE: this only records the click target — nothing currently reads it
+	// (no "create event" modal is wired up yet). Left as a no-op click
+	// handler rather than guessing at the intended follow-up UI.
+	const selectSlot = (_date: string, _hour?: number) => {};
 
 	onMount(async () => {
 		if (viewMode === 'week' || viewMode === 'day') {
@@ -229,7 +223,7 @@
 
 		<!-- Right: view tabs -->
 		<div class="flex items-center gap-0.5 bg-gray-200/60 dark:bg-gray-800 rounded-lg p-0.5">
-			{#each VIEW_MODES as v}
+			{#each VIEW_MODES as v (v)}
 				<button
 					class="px-2.5 py-1 rounded-md text-xs font-medium transition
 						{viewMode === v
@@ -247,7 +241,7 @@
 	{#if viewMode === 'month'}
 		<!-- Day-of-week headers -->
 		<div class="grid grid-cols-7 border-b border-gray-200 dark:border-gray-800 flex-none">
-			{#each DAY_SHORT as label}
+			{#each DAY_SHORT as label (label)}
 				<div class="py-1.5 text-center text-[11px] font-medium text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-850">
 					{label}
 				</div>
@@ -256,18 +250,26 @@
 
 		<!-- Month grid -->
 		<div class="flex-1 overflow-y-auto">
-			{#each monthWeeks as week, wi}
+			{#each monthWeeks as week, wi (week[0].format('YYYY-MM-DD'))}
 				<div class="grid grid-cols-7 {wi < monthWeeks.length - 1 ? 'border-b border-gray-100 dark:border-gray-800/60' : ''}">
-					{#each week as day}
+					{#each week as day (day.format('YYYY-MM-DD'))}
 						{@const isCurrentMonth = day.month() === current.month()}
 						{@const isToday = day.isSame(today, 'day')}
 						{@const dayJobs = jobsByDay[day.format('YYYY-MM-DD')] ?? []}
 						{@const dayWindows = windows.filter((w) => windowCoversDay(w, day) && w.status !== 'completed')}
-						<button
+						<div
+							role="button"
+							tabindex="0"
 							class="min-h-[80px] p-1.5 border-r border-gray-100 dark:border-gray-800/60 last:border-r-0 text-left
 								{isCurrentMonth ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50' : 'bg-gray-50/60 dark:bg-gray-900/40'}
 								transition"
 							on:click={() => selectSlot(day.format('YYYY-MM-DD'))}
+							on:keydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									selectSlot(day.format('YYYY-MM-DD'));
+								}
+							}}
 						>
 							<div class="mb-1 flex justify-center">
 								<span
@@ -292,7 +294,7 @@
 								</button>
 							{/each}
 							<div class="flex flex-col gap-0.5">
-								{#each dayJobs.slice(0, 3) as job}
+								{#each dayJobs.slice(0, 3) as job (job.id)}
 									<div class="flex items-center gap-1 rounded px-1 py-0.5 {statusPill(job.status)}">
 										<span class="size-1.5 rounded-full flex-none {statusDot(job.status)}"></span>
 										<span class="text-[10px] truncate">{jobLabel(job)}</span>
@@ -304,7 +306,7 @@
 									</div>
 								{/if}
 							</div>
-						</button>
+						</div>
 					{/each}
 				</div>
 			{/each}
@@ -318,7 +320,7 @@
 			style="display: grid; grid-template-columns: 48px repeat({weekDays.length}, 1fr)"
 		>
 			<div class="bg-gray-50 dark:bg-gray-850"></div>
-			{#each weekDays as day}
+			{#each weekDays as day (day.format('YYYY-MM-DD'))}
 				{@const isToday = day.isSame(today, 'day')}
 				<div class="py-2 text-center border-l border-gray-100 dark:border-gray-800/60 bg-gray-50 dark:bg-gray-850">
 					<div class="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase">{day.format('ddd')}</div>
@@ -338,7 +340,7 @@
 
 		<!-- Time grid (scrollable) -->
 		<div class="flex-1 overflow-y-auto" bind:this={timeGridEl}>
-			{#each HOURS as hour}
+			{#each HOURS as hour (hour)}
 				<div
 					class="border-b border-gray-100 dark:border-gray-800/40"
 					style="display: grid; grid-template-columns: 48px repeat({weekDays.length}, 1fr); min-height: 48px"
@@ -353,7 +355,7 @@
 					</div>
 
 					<!-- Day cells -->
-					{#each weekDays as day}
+					{#each weekDays as day (day.format('YYYY-MM-DD'))}
 						{@const slotJobs = jobsByDayHour[`${day.format('YYYY-MM-DD')}-${hour}`] ?? []}
 						{@const isToday = day.isSame(today, 'day')}
 						{@const isCurrentHour = isToday && today.hour() === hour}
@@ -365,7 +367,7 @@
 								hover:bg-gray-50 dark:hover:bg-gray-800/30 transition"
 							on:click={() => selectSlot(day.format('YYYY-MM-DD'), hour)}
 						>
-							{#each slotJobs as job}
+							{#each slotJobs as job (job.id)}
 								<div class="rounded px-1 py-0.5 text-[10px] truncate {statusPill(job.status)} mb-0.5 flex items-center gap-1">
 									<span class="size-1.5 rounded-full flex-none {statusDot(job.status)}"></span>
 									{jobLabel(job)}

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import * as ort from 'onnxruntime-web';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { AutoModel, AutoTokenizer } from '@huggingface/transformers';
 
 	import { onMount, getContext } from 'svelte';
@@ -9,7 +10,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import MagnifyingGlass from '$lib/components/icons/MagnifyingGlass.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const EMBEDDING_MODEL = 'TaylorAI/bge-micro-v2';
 
@@ -22,6 +23,10 @@
 
 	let query = '';
 
+	// A memoization cache, mutated in place via .has()/.set() -- never read
+	// by the template or a $: block, so Svelte never needs to observe its
+	// mutations. SvelteMap would add proxy overhead for no benefit.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	let tagEmbeddings = new Map();
 	let loadingLeaderboard = true;
 	let debounceTimer;
@@ -73,9 +78,14 @@
 				};
 			})
 			.sort((a, b) => {
-				if (a.rating === '-' && b.rating !== '-') return 1;
-				if (b.rating === '-' && a.rating !== '-') return -1;
-				if (a.rating !== '-' && b.rating !== '-') return b.rating - a.rating;
+				// `rating` is `number | '-'` ('-' when a model has no feedback yet);
+				// narrow via typeof rather than `!== '-'` so TS treats the arithmetic
+				// branch below as numeric.
+				const aRating = typeof a.rating === 'number' ? a.rating : null;
+				const bRating = typeof b.rating === 'number' ? b.rating : null;
+				if (aRating === null && bRating !== null) return 1;
+				if (bRating === null && aRating !== null) return -1;
+				if (aRating !== null && bRating !== null) return bRating - aRating;
 				return a.name.localeCompare(b.name);
 			});
 
@@ -86,6 +96,9 @@
 		feedbacks: Feedback[],
 		similarities: Map<string, number>
 	): Map<string, ModelStats> {
+		// Function-local, built and returned synchronously -- never touches
+		// component state or Svelte's reactivity at all.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const stats = new Map<string, ModelStats>();
 		const K = 32;
 
@@ -224,6 +237,9 @@
 	};
 
 	const getTagEmbeddings = async (tags: string[]) => {
+		// Function-local, built and returned synchronously -- never touches
+		// component state or Svelte's reactivity at all.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const embeddings = new Map();
 		for (const tag of tags) {
 			if (!tagEmbeddings.has(tag)) {
@@ -246,6 +262,10 @@
 
 		debounceTimer = setTimeout(async () => {
 			const queryEmbedding = await getEmbeddings(query);
+			// Function-local, built then passed as a plain argument to
+			// rankHandler() -- never touches component state or Svelte's
+			// reactivity at all.
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity
 			const similarities = new Map<string, number>();
 
 			for (const feedback of feedbacks) {
@@ -259,6 +279,9 @@
 		}, 1500); // Debounce for 1.5 seconds
 	};
 
+	// Svelte idiom: the comma-expression registers `query` as this reactive statement's
+	// dependency so Svelte re-runs debouncedQueryHandler() whenever query changes; not dead code.
+	// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 	$: query, debouncedQueryHandler();
 
 	onMount(async () => {

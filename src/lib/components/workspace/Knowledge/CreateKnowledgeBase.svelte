@@ -1,6 +1,8 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { getContext } from 'svelte';
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	import { createNewKnowledge, getKnowledgeBases } from '$lib/apis/knowledge';
@@ -37,7 +39,7 @@
 		if (res) {
 			toast.success($i18n.t('Knowledge created successfully.'));
 			knowledge.set(await getKnowledgeBases(localStorage.token));
-			goto(`/workspace/knowledge/${res.id}`);
+			goto(resolve('/(app)/workspace/knowledge/[id]', { id: res.id }));
 		}
 
 		loading = false;
@@ -48,7 +50,7 @@
 	<button
 		class="flex space-x-1"
 		on:click={() => {
-			goto('/workspace/knowledge');
+			goto(resolve('/(app)/workspace/knowledge'));
 		}}
 	>
 		<div class=" self-center">

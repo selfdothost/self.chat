@@ -1,6 +1,7 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	export let token;
-	export let onClick: Function = () => {};
+	export let onClick: AnyFn = () => {};
 
 	let id = '';
 	function extractDataAttribute(input) {

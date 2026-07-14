@@ -1,19 +1,15 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { marked } from 'marked';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	import { onMount, getContext, tick } from 'svelte';
-	const i18n = getContext('i18n');
+	import { onMount, getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { WEBUI_NAME, config, mobile, models as _models, settings, user, modelLoadStatus } from '$lib/stores';
-	import {
-		createNewModel,
-		deleteAllModels,
-		getBaseModels,
-		toggleModelById,
-		updateModelById
-	} from '$lib/apis/models';
+	import { models as _models, user, modelLoadStatus } from '$lib/stores';
+	import { createNewModel, getBaseModels, toggleModelById, updateModelById } from '$lib/apis/models';
 
 	import { getModels } from '$lib/apis';
 	import Search from '$lib/components/icons/Search.svelte';
@@ -24,7 +20,6 @@
 
 	import ModelEditor from '$lib/components/workspace/Models/ModelEditor.svelte';
 	import { toast } from 'svelte-sonner';
-	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ConfigureModelsModal from './Models/ConfigureModelsModal.svelte';
 
@@ -91,7 +86,7 @@
 		model.base_model_id = null;
 
 		if (workspaceModels.find((m) => m.id === model.id)) {
-			const res = await updateModelById(localStorage.token, model.id, model).catch((error) => {
+			const res = await updateModelById(localStorage.token, model.id, model).catch((_error) => {
 				return null;
 			});
 
@@ -99,7 +94,7 @@
 				toast.success($i18n.t('Model updated successfully'));
 			}
 		} else {
-			const res = await createNewModel(localStorage.token, model).catch((error) => {
+			const res = await createNewModel(localStorage.token, model).catch((_error) => {
 				return null;
 			});
 
@@ -122,7 +117,7 @@
 				params: {},
 				access_control: {},
 				is_active: model.is_active
-			}).catch((error) => {
+			}).catch((_error) => {
 				return null;
 			});
 		} else {
@@ -183,7 +178,7 @@
 
 		<div class=" my-2 mb-5" id="model-list">
 			{#if models.length > 0}
-				{#each filteredModels as model, modelIdx (model.id)}
+				{#each filteredModels as model, _modelIdx (model.id)}
 					<div
 						class=" flex space-x-4 cursor-pointer w-full px-3 py-2 dark:hover:bg-white/5 hover:bg-black/5 rounded-lg transition"
 						id="model-item-{model.id}"
@@ -212,11 +207,12 @@
 							<div class=" flex-1 self-center {(model?.is_active ?? true) ? '' : 'text-gray-500'}">
 								<Tooltip
 									content={marked.parse(
-										!!model?.meta?.description
+										model?.meta?.description
 											? model?.meta?.description
 											: model?.ollama?.digest
 												? `${model?.ollama?.digest} **(${model?.ollama?.modified_at})**`
-												: model.id
+												: model.id,
+										{ async: false }
 									)}
 									className=" w-fit"
 									placement="top-start"
@@ -228,7 +224,7 @@
 								</Tooltip>
 								<div class=" text-xs overflow-hidden text-ellipsis line-clamp-1 text-gray-500">
 									<span class=" line-clamp-1">
-										{!!model?.meta?.description
+										{model?.meta?.description
 											? model?.meta?.description
 											: model?.ollama?.digest
 												? `${model.id} (${model?.ollama?.digest})`
@@ -300,7 +296,7 @@
 
 							let reader = new FileReader();
 							reader.onload = async (event) => {
-								let savedModels = JSON.parse(event.target.result);
+								let savedModels = JSON.parse(event.target.result as string);
 								console.log(savedModels);
 
 								for (const model of savedModels) {

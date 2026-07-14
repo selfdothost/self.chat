@@ -1,6 +1,8 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { DropdownMenu } from 'bits-ui';
-	import { flyAndScale } from '$lib/utils/transitions';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import Fuse from 'fuse.js';
 
 	import dayjs from 'dayjs';
@@ -9,7 +11,7 @@
 
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { WEBUI_NAME, knowledge } from '$lib/stores';
 	import {
@@ -19,6 +21,7 @@
 	} from '$lib/apis/knowledge';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import DeleteConfirmDialog from '../common/ConfirmDialog.svelte';
 	import ItemMenu from './Knowledge/ItemMenu.svelte';
@@ -124,17 +127,16 @@
 					</button>
 
 					<div slot="content">
-						<DropdownMenu.Content
+						<DropdownMenuContent
 							class="w-full max-w-56 rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
 							sideOffset={4}
 							side="bottom"
 							align="end"
-							transition={flyAndScale}
 						>
 							<DropdownMenu.Item
 								class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-								on:click={() => {
-									goto('/workspace/knowledge/create');
+								onSelect={() => {
+									goto(resolve('/(app)/workspace/knowledge/create'));
 								}}
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
@@ -145,8 +147,8 @@
 
 							<DropdownMenu.Item
 								class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-								on:click={() => {
-									goto('/workspace/knowledge/dataset/create');
+								onSelect={() => {
+									goto(resolve('/(app)/workspace/knowledge/dataset/create'));
 								}}
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
@@ -154,7 +156,7 @@
 								</svg>
 								<div class="flex items-center">{$i18n.t('Add Dataset')}</div>
 							</DropdownMenu.Item>
-						</DropdownMenu.Content>
+						</DropdownMenuContent>
 					</div>
 				</Dropdown>
 			</div>
@@ -162,7 +164,7 @@
 	</div>
 
 	<div class="mb-5 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2">
-		{#each filteredItems as item}
+		{#each filteredItems as item (item.id)}
 			<button
 				class=" flex space-x-4 cursor-pointer text-left w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-850 transition rounded-xl"
 				on:click={() => {
@@ -173,7 +175,7 @@
 							)
 						);
 					} else {
-						goto(`/workspace/knowledge/${item.id}`);
+						goto(resolve('/(app)/workspace/knowledge/[id]', { id: item.id }));
 					}
 				}}
 			>

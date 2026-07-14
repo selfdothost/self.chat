@@ -16,11 +16,11 @@
 	import Documents from './Settings/Documents.svelte';
 	import WebSearch from './Settings/WebSearch.svelte';
 
-	import ChartBar from '../icons/ChartBar.svelte';
 	import DocumentChartBar from '../icons/DocumentChartBar.svelte';
 	import Evaluations from './Settings/Evaluations.svelte';
 	import Benchmarks from './Settings/Benchmarks.svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let selectedTab = 'general';

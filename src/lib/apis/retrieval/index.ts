@@ -28,6 +28,7 @@ export const getRAGConfig = async (token: string) => {
 };
 
 type ChunkConfigForm = {
+	text_splitter?: string;
 	chunk_size: number;
 	chunk_overlap: number;
 };
@@ -46,9 +47,15 @@ type YoutubeConfigForm = {
 type RAGConfigForm = {
 	pdf_extract_images?: boolean;
 	enable_google_drive_integration?: boolean;
+	file?: { max_size?: number | null; max_count?: number | null };
 	chunk?: ChunkConfigForm;
 	content_extraction?: ContentExtractConfigForm;
 	web_loader_ssl_verification?: boolean;
+	// Web search config: one of ~13 engines (searxng, google_pse, brave, kagi,
+	// mojeek, serpstack, serper, serply, searchapi, duckduckgo, tavily, jina,
+	// bing), each with its own distinct set of keys -- genuinely dynamic.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	web?: Record<string, any>;
 	youtube?: YoutubeConfigForm;
 };
 
@@ -204,8 +211,14 @@ type OpenAIConfigForm = {
 	url: string;
 };
 
+type OllamaConfigForm = {
+	key: string;
+	url: string;
+};
+
 type EmbeddingModelUpdateForm = {
 	openai_config?: OpenAIConfigForm;
+	ollama_config?: OllamaConfigForm;
 	embedding_engine: string;
 	embedding_model: string;
 	embedding_batch_size?: number;

@@ -1,6 +1,6 @@
 import { CODE_EVAL_API_BASE_URL } from '$lib/constants';
 
-type CodeEvalConfig = {
+export type CodeEvalConfig = {
 	ENABLE_CODE_EVAL_API: boolean;
 	CODE_EVAL_BASE_URLS: string[];
 };
@@ -38,10 +38,11 @@ export const updateCodeEvalConfig = async (
 	return res;
 };
 
+// Not called anywhere yet (no caller to infer a response shape from).
 export const verifyCodeEvalConnection = async (
 	token: string = '',
 	url: string = ''
-): Promise<any> => {
+): Promise<unknown> => {
 	const res = await fetch(`${CODE_EVAL_API_BASE_URL}/verify`, {
 		method: 'POST',
 		headers: {

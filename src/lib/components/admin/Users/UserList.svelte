@@ -1,8 +1,7 @@
 <script>
 	import { WEBUI_BASE_URL } from '$lib/constants';
-	import { WEBUI_NAME, config, user, showSidebar } from '$lib/stores';
-	import { goto } from '$app/navigation';
-	import { onMount, getContext } from 'svelte';
+	import { config, user } from '$lib/stores';
+	import { getContext } from 'svelte';
 
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -25,8 +24,8 @@
 	import Plus from '$lib/components/icons/Plus.svelte';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
-	import About from '$lib/components/chat/Settings/About.svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	export let users = [];
@@ -321,7 +320,7 @@
 			</tr>
 		</thead>
 		<tbody class="">
-			{#each filteredUsers as user, userIdx}
+			{#each filteredUsers as user, _userIdx (user.id)}
 				<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs">
 					<td class="px-3 py-1 min-w-[7rem] w-28">
 						<button

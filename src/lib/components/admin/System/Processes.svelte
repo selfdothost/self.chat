@@ -1,7 +1,9 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let processData;
 	export let sortBy: string = 'cpu_percent';
@@ -51,7 +53,7 @@
 	<table class="w-full text-sm text-left">
 		<thead class="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
 			<tr>
-				{#each columns as col}
+				{#each columns as col (col.key)}
 					<th class="px-3 py-2">
 						<button
 							class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200 transition"

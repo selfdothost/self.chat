@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	const i18n = getContext<any>('i18n');
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
+	import type { AnyFn } from '$lib/types';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
-	export let onDelete = () => {};
-	export let onSubmit = () => {};
+	export let onDelete: AnyFn = () => {};
+	export let onSubmit: AnyFn = () => {};
 
 	export let url = '';
 	export let idx = 0;

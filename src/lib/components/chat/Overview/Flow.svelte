@@ -26,7 +26,7 @@
 			: 'light'}
 	nodesConnectable={false}
 	nodesDraggable={false}
-	on:nodeclick={(e) => dispatch('nodeclick', e.detail)}
+	onnodeclick={(data) => dispatch('nodeclick', data)}
 	oninit={() => {
 		console.log('Flow initialized');
 	}}

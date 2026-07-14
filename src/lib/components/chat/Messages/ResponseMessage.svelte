@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
 
@@ -12,13 +13,7 @@
 	import { config, models, settings, user } from '$lib/stores';
 	import { synthesizeOpenAISpeech } from '$lib/apis/audio';
 	import { imageGenerations } from '$lib/apis/images';
-	import {
-		copyToClipboard as _copyToClipboard,
-		approximateToHumanReadable,
-		getMessageContentParts,
-		sanitizeResponseContent,
-		createMessagesList
-	} from '$lib/utils';
+	import { copyToClipboard as _copyToClipboard, getMessageContentParts, sanitizeResponseContent, createMessagesList } from '$lib/utils';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
 	import Name from './Name.svelte';
@@ -37,7 +32,7 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import ContentRenderer from './ContentRenderer.svelte';
-	import { createNewFeedback, getFeedbackById, updateFeedbackById } from '$lib/apis/evaluations';
+	import { createNewFeedback, updateFeedbackById } from '$lib/apis/evaluations';
 	import { getChatById } from '$lib/apis/chats';
 	import { generateTags } from '$lib/apis';
 
@@ -54,6 +49,7 @@
 			description: string;
 			urls?: string[];
 			query?: string;
+			hidden?: boolean;
 		}[];
 		status?: {
 			done: boolean;
@@ -61,10 +57,20 @@
 			description: string;
 			urls?: string[];
 			query?: string;
+			hidden?: boolean;
 		};
 		done: boolean;
 		error?: boolean | { content: string };
-		sources?: string[];
+		// RAG citation records -- shape matches Citations.svelte's local `Citation`
+		// type (that component's own comment notes these vary by retrieval
+		// backend and are read positionally/dynamically).
+		sources?: {
+			id?: string;
+			document: unknown[];
+			metadata?: Record<string, unknown>[];
+			distances?: number[];
+			source?: Record<string, unknown>;
+		}[];
 		code_executions?: {
 			uuid: string;
 			name: string;
@@ -89,7 +95,19 @@
 			load_duration?: number;
 			usage?: unknown;
 		};
-		annotation?: { type: string; rating: number };
+		annotation?: { type: string; rating: number; tags?: string[] };
+		arena?: boolean;
+		citations?: {
+			id?: string;
+			document: unknown[];
+			metadata?: Record<string, unknown>[];
+			distances?: number[];
+			source?: Record<string, unknown>;
+		}[];
+		feedbackId?: string;
+		parentId?: string;
+		selectedModelId?: string;
+		usage?: unknown;
 	}
 
 	export let chatId = '';
@@ -105,20 +123,20 @@
 
 	export let siblings;
 
-	export let showPreviousMessage: Function;
-	export let showNextMessage: Function;
+	export let showPreviousMessage: AnyFn;
+	export let showNextMessage: AnyFn;
 
-	export let updateChat: Function;
-	export let editMessage: Function;
-	export let saveMessage: Function;
-	export let rateMessage: Function;
-	export let actionMessage: Function;
+	export let updateChat: AnyFn;
+	export let editMessage: AnyFn;
+	export let saveMessage: AnyFn;
+	export let rateMessage: AnyFn;
+	export let actionMessage: AnyFn;
 
-	export let submitMessage: Function;
-	export let continueResponse: Function;
-	export let regenerateResponse: Function;
+	export let submitMessage: AnyFn;
+	export let continueResponse: AnyFn;
+	export let regenerateResponse: AnyFn;
 
-	export let addMessages: Function;
+	export let addMessages: AnyFn;
 
 	export let isLastMessage = true;
 	export let readOnly = false;
@@ -177,7 +195,10 @@
 					audioParts[speakingIdx]!.pause();
 					audioParts[speakingIdx]!.currentTime = 0;
 				}
-			} catch {}
+			} catch {
+				// Best-effort playback stop — ignore if speechSynthesis/audio is
+				// already unavailable or in a state that can't be cancelled.
+			}
 
 			speaking = false;
 			speakingIdx = undefined;
@@ -382,7 +403,9 @@
 				model_id: message.model,
 				message_id: message.id,
 				message_index: messages.length,
-				chat_id: chatId
+				chat_id: chatId,
+				// Filled in below once base models for the rated model(s) are resolved.
+				base_models: undefined
 			},
 			snapshot: {
 				chat: chat
@@ -404,15 +427,13 @@
 		}, {});
 		feedbackItem.meta.base_models = baseModels;
 
-		let feedback = null;
+		let feedback;
 		if (message?.feedbackId) {
-			feedback = await updateFeedbackById(
-				localStorage.token,
-				message.feedbackId,
-				feedbackItem
-			).catch((error) => {
-				toast.error(error);
-			});
+			await updateFeedbackById(localStorage.token, message.feedbackId, feedbackItem).catch(
+				(error) => {
+					toast.error(error);
+				}
+			);
 		} else {
 			feedback = await createNewFeedback(localStorage.token, feedbackItem).catch((error) => {
 				toast.error(error);
@@ -477,13 +498,13 @@
 	<div
 		class=" flex w-full message-{message.id}"
 		id="message-{message.id}"
-		dir={$settings.chatDirection}
+		dir={$settings.chatDirection === 'RTL' ? 'rtl' : 'ltr'}
 	>
 		<div class={`flex-shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'}`}>
 			<ProfileImage
 				src={model?.info?.meta?.profile_image_url ??
 					($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/favicon.png`)}
-				className={'size-8'}
+				className="size-8"
 			/>
 		</div>
 
@@ -507,7 +528,7 @@
 			<div>
 				{#if message?.files && message.files?.filter((f) => f.type === 'image').length > 0}
 					<div class="my-2.5 w-full flex overflow-x-auto gap-2 flex-wrap">
-						{#each message.files as file}
+						{#each message.files as file (file.url)}
 							<div>
 								{#if file.type === 'image'}
 									<Image src={file.url} alt={message.content} />
@@ -532,7 +553,9 @@
 									{/if}
 
 									{#if status?.action === 'web_search' && status?.urls}
-										<WebSearchResults {status}>
+										<WebSearchResults
+											status={{ urls: status?.urls ?? [], query: status?.query ?? '' }}
+										>
 											<div class="flex flex-col justify-center -space-y-0.5">
 												<div
 													class="{status?.done === false
@@ -603,8 +626,8 @@
 									class=" bg-transparent outline-none w-full resize-none"
 									bind:value={editedContent}
 									on:input={(e) => {
-										e.target.style.height = '';
-										e.target.style.height = `${e.target.scrollHeight}px`;
+										(e.target as HTMLTextAreaElement).style.height = '';
+										(e.target as HTMLTextAreaElement).style.height = `${(e.target as HTMLTextAreaElement).scrollHeight}px`;
 									}}
 									on:keydown={(e) => {
 										if (e.key === 'Escape') {
@@ -671,17 +694,25 @@
 										floatingButtons={message?.done}
 										save={!readOnly}
 										{model}
-										onSourceClick={(e) => {
+										onSourceClick={((e) => {
 											console.log(e);
 											const sourceButton = document.getElementById(`source-${e}`);
 
 											if (sourceButton) {
 												sourceButton.click();
 											}
-										}}
-										onAddMessages={({ modelId, parentId, messages }) => {
+											// ContentRenderer.svelte's `onSourceClick`/`onAddMessages` props are
+											// declared with no-arg defaults (`() => {}`), inferring a `() => void`
+											// prop type -- but ContentRenderer actually invokes them with real
+											// arguments internally (source id / {modelId,parentId,messages}).
+											// That prop declaration is out of scope for this pass; cast here so
+											// the (correct, argument-reading) callback isn't rejected.
+											// eslint-disable-next-line @typescript-eslint/no-explicit-any
+										}) as any}
+										onAddMessages={(({ modelId, parentId, messages }) => {
 											addMessages({ modelId, parentId, messages });
-										}}
+											// eslint-disable-next-line @typescript-eslint/no-explicit-any
+										}) as any}
 										on:update={(e) => {
 											const { raw, oldContent, newContent } = e.detail;
 
@@ -708,7 +739,11 @@
 								{/if}
 
 								{#if message?.error}
-									<Error content={message?.error?.content ?? message.content} />
+									<Error
+										content={typeof message.error === 'object'
+											? (message.error?.content ?? message.content)
+											: message.content}
+									/>
 								{/if}
 
 								{#if (message?.sources || message?.citations) && (model?.info?.meta?.capabilities?.citations ?? true)}
@@ -1174,7 +1209,7 @@
 									</Tooltip>
 
 									{#if isLastMessage}
-										{#each model?.actions ?? [] as action}
+										{#each model?.actions ?? [] as action (action.id)}
 											<Tooltip content={action.name} placement="bottom">
 												<button
 													type="button"

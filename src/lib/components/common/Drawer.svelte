@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { onDestroy, onMount, createEventDispatcher } from 'svelte';
-	import { flyAndScale } from '$lib/utils/transitions';
-	import { fade, fly, slide } from 'svelte/transition';
+	import { onDestroy, createEventDispatcher } from 'svelte';
+	import { fly } from 'svelte/transition';
 
 	const dispatch = createEventDispatcher();
 
@@ -9,7 +8,6 @@
 	export let className = '';
 
 	let modalElement = null;
-	let mounted = false;
 
 	const handleKeyDown = (event: KeyboardEvent) => {
 		if (event.key === 'Escape' && isTopModal()) {
@@ -22,10 +20,6 @@
 		const modals = document.getElementsByClassName('modal');
 		return modals.length && modals[modals.length - 1] === modalElement;
 	};
-
-	onMount(() => {
-		mounted = true;
-	});
 
 	$: if (show && modalElement) {
 		document.body.appendChild(modalElement);
@@ -52,7 +46,6 @@
 	});
 </script>
 
-<!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 
 <div

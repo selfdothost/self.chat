@@ -1,11 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	dayjs.extend(relativeTime);
 
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { WEBUI_NAME } from '$lib/stores';
 	import { getEvalJobs, createEvalJob, cancelEvalJob, type EvalJob } from '$lib/apis/evaluations/jobs';
@@ -408,7 +410,7 @@
 	const loadModels = async () => {
 		try {
 			const allModels = await getModels(getToken());
-			modelItems = (allModels ?? []).map((m: any) => ({
+			modelItems = (allModels ?? []).map((m: { id: string; name?: string }) => ({
 				value: m.id,
 				label: m.name ?? m.id
 			}));
@@ -429,6 +431,10 @@
 	};
 
 	const toggleTask = (taskId: string) => {
+		// Built as a fresh copy and reassigned to `selectedTasks` below (never
+		// mutated in place after) -- reactivity comes from the reassignment,
+		// so SvelteSet would add nothing here.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const next = new Set(selectedTasks);
 		if (next.has(taskId)) {
 			next.delete(taskId);
@@ -569,7 +575,7 @@
 
 	<!-- Language & Understanding Benchmark Cards -->
 	<div class="mt-3 mb-5 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-		{#each leaderboardGroups as group}
+		{#each leaderboardGroups as group (group.id)}
 			<button
 				class="flex flex-col text-left w-full px-4 py-3 rounded-xl border transition group {group.gated
 					? 'border-gray-200 dark:border-gray-800 opacity-60 cursor-not-allowed'
@@ -625,7 +631,7 @@
 
 	<!-- Benchmark Family Cards -->
 	<div class="mt-3 mb-5 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-		{#each benchmarkGroups as group}
+		{#each benchmarkGroups as group (group.id)}
 			<button
 				class="flex flex-col text-left w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition group"
 				on:click={() => openGroupModal(group)}
@@ -660,7 +666,7 @@
 				<span class="text-gray-500 dark:text-gray-400 font-normal">{jobs.length}</span>
 			</div>
 			<div class="space-y-1.5">
-				{#each jobs as job}
+				{#each jobs as job (job.id)}
 					<div class="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-800 text-sm">
 						<div class="flex items-center gap-3">
 							<span class="px-2 py-0.5 rounded-lg text-[11px] font-medium {statusColor(job.status)}">
@@ -774,7 +780,7 @@
 								/>
 							</div>
 							<div class="max-h-48 overflow-y-auto px-1 pb-1">
-								{#each filteredModels as model}
+								{#each filteredModels as model (model.value)}
 									<button
 										type="button"
 										class="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition {jobModelId === model.value ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''}"
@@ -823,7 +829,7 @@
 						</div>
 					</div>
 					<div class="overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-800">
-						{#each categories as cat}
+						{#each categories as cat (cat)}
 							{@const catTasks = cat ? activeGroup.tasks.filter((t) => t.category === cat) : activeGroup.tasks}
 							{#if cat}
 								<div class="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10">
@@ -850,8 +856,7 @@
 									</div>
 								</div>
 							{/if}
-							{#each catTasks as task}
-								<!-- svelte-ignore a11y-click-events-have-key-events -->
+							{#each catTasks as task (task.id)}
 								<label class="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition">
 									<input
 										type="checkbox"

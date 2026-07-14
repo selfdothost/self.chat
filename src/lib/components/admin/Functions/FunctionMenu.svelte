@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { DropdownMenu } from 'bits-ui';
-	import { flyAndScale } from '$lib/utils/transitions';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import { getContext } from 'svelte';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
@@ -11,17 +14,17 @@
 	import Switch from '$lib/components/common/Switch.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let func;
 
-	export let editHandler: Function;
-	export let cloneHandler: Function;
-	export let exportHandler: Function;
-	export let deleteHandler: Function;
-	export let toggleGlobalHandler: Function;
+	export let editHandler: AnyFn;
+	export let cloneHandler: AnyFn;
+	export let exportHandler: AnyFn;
+	export let deleteHandler: AnyFn;
+	export let toggleGlobalHandler: AnyFn;
 
-	export let onClose: Function;
+	export let onClose: AnyFn;
 
 	let show = false;
 </script>
@@ -39,12 +42,11 @@
 	</Tooltip>
 
 	<div slot="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full max-w-[180px] rounded-xl px-1 py-1.5 border border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
 			sideOffset={-2}
 			side="bottom"
 			align="start"
-			transition={flyAndScale}
 		>
 			{#if ['filter', 'action'].includes(func.type)}
 				<div
@@ -66,7 +68,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800  rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					editHandler();
 				}}
 			>
@@ -90,7 +92,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					cloneHandler();
 				}}
 			>
@@ -101,7 +103,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					exportHandler();
 				}}
 			>
@@ -114,13 +116,13 @@
 
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					deleteHandler();
 				}}
 			>
 				<GarbageBin strokeWidth="2" />
 				<div class="flex items-center">{$i18n.t('Delete')}</div>
 			</DropdownMenu.Item>
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</div>
 </Dropdown>

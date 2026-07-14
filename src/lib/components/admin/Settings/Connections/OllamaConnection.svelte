@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { getContext, tick } from 'svelte';
-	const i18n = getContext('i18n');
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
+	import { getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 	import AddConnectionModal from './AddConnectionModal.svelte';
 
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
@@ -11,11 +13,18 @@
 	import ManageOllamaModal from './ManageOllamaModal.svelte';
 
 	export let onDelete = () => {};
-	export let onSubmit = () => {};
+	// Called with the updated connection object from AddConnectionModal's
+	// onSubmit handler below -- a bare `() => {}` (0-arg) type doesn't match
+	// that call.
+	export let onSubmit: AnyFn = () => {};
 
 	export let url = '';
 	export let idx = 0;
-	export let config = {};
+	// Config bag round-tripped through AddConnectionModal, which also reads
+	// generic fields (prefix_id, model_ids, ...) off it for any connection
+	// type -- only `key`/`enable` are read directly in this file.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	export let config: { key?: string; enable?: boolean; [key: string]: any } = {};
 
 	let showManageModal = false;
 	let showConfigModal = false;

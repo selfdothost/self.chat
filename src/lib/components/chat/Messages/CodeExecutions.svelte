@@ -14,6 +14,10 @@
 		updateSelectedCodeExecution();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const updateSelectedCodeExecution = () => {
 		if (selectedCodeExecution) {
 			selectedCodeExecution = codeExecutions.find(

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 
 	import dayjs from 'dayjs';
@@ -9,7 +10,7 @@
 	dayjs.extend(relativeTime);
 	dayjs.extend(isToday);
 	dayjs.extend(isYesterday);
-	import { tick, getContext, onMount, createEventDispatcher } from 'svelte';
+	import { tick } from 'svelte';
 
 	import { settings, user } from '$lib/stores';
 
@@ -18,16 +19,14 @@
 	import Spinner from '../common/Spinner.svelte';
 	import { addReaction, deleteMessage, removeReaction, updateMessage } from '$lib/apis/channels';
 
-	const i18n = getContext('i18n');
-
 	export let id = null;
 	export let channel = null;
 	export let messages = [];
 	export let top = false;
 	export let thread = false;
 
-	export let onLoad: Function = () => {};
-	export let onThread: Function = () => {};
+	export let onLoad: AnyFn = () => {};
+	export let onThread: AnyFn = () => {};
 
 	let messagesLoading = false;
 
@@ -50,7 +49,7 @@
 	<div>
 		{#if !top}
 			<Loader
-				on:visible={(e) => {
+				on:visible={(_e) => {
 					console.log('visible');
 					if (!messagesLoading) {
 						loadMoreMessages();
@@ -100,7 +99,7 @@
 				onDelete={() => {
 					messages = messages.filter((m) => m.id !== message.id);
 
-					const res = deleteMessage(localStorage.token, message.channel_id, message.id).catch(
+					deleteMessage(localStorage.token, message.channel_id, message.id).catch(
 						(error) => {
 							toast.error(error);
 							return null;
@@ -115,7 +114,7 @@
 						return m;
 					});
 
-					const res = updateMessage(localStorage.token, message.channel_id, message.id, {
+					updateMessage(localStorage.token, message.channel_id, message.id, {
 						content: content
 					}).catch((error) => {
 						toast.error(error);
@@ -148,7 +147,7 @@
 							return m;
 						});
 
-						const res = removeReaction(
+						removeReaction(
 							localStorage.token,
 							message.channel_id,
 							message.id,
@@ -178,7 +177,7 @@
 							return m;
 						});
 
-						const res = addReaction(localStorage.token, message.channel_id, message.id, name).catch(
+						addReaction(localStorage.token, message.channel_id, message.id, name).catch(
 							(error) => {
 								toast.error(error);
 								return null;

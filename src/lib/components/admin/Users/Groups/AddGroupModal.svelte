@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { getContext, onMount } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
-	export let onSubmit: Function = () => {};
+	export let onSubmit: AnyFn = () => {};
 	export let show = false;
 
 	let name = '';
 	let description = '';
-	let userIds = [];
 
 	let loading = false;
 
@@ -29,7 +30,6 @@
 
 		name = '';
 		description = '';
-		userIds = [];
 	};
 
 	onMount(() => {

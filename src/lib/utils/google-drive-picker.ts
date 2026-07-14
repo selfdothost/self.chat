@@ -1,4 +1,12 @@
 // Google Drive Picker API configuration
+// gapi/google are injected globally by the Google API script tags
+// (apis.google.com/js/api.js, accounts.google.com/gsi/client) loaded
+// dynamically elsewhere -- no @types package models this ad-hoc usage.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const gapi: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const google: any;
+
 let API_KEY = '';
 let CLIENT_ID = '';
 
@@ -31,7 +39,6 @@ const validateCredentials = () => {
 	}
 };
 
-let pickerApiLoaded = false;
 let oauthToken: string | null = null;
 let initialized = false;
 
@@ -41,8 +48,11 @@ export const loadGoogleDriveApi = () => {
 			const script = document.createElement('script');
 			script.src = 'https://apis.google.com/js/api.js';
 			script.onload = () => {
-				gapi.load('picker', () => {
-					pickerApiLoaded = true;
+				// By the time onload fires, gapi is genuinely defined -- TS's
+				// `typeof gapi === 'undefined'` narrowing (even on an `any`
+				// global) doesn't know that across this async callback boundary.
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(gapi as any).load('picker', () => {
 					resolve(true);
 				});
 			};
@@ -50,7 +60,6 @@ export const loadGoogleDriveApi = () => {
 			document.body.appendChild(script);
 		} else {
 			gapi.load('picker', () => {
-				pickerApiLoaded = true;
 				resolve(true);
 			});
 		}
@@ -77,7 +86,10 @@ export const getAuthToken = async () => {
 			const tokenClient = google.accounts.oauth2.initTokenClient({
 				client_id: CLIENT_ID,
 				scope: SCOPE.join(' '),
-				callback: (response: any) => {
+				// Google Identity Services TokenResponse/error shapes — no @types
+				// package is installed for this ambient `google` global, so these
+				// are hand-declared from GIS's documented callback payloads.
+				callback: (response: { access_token?: string }) => {
 					if (response.access_token) {
 						oauthToken = response.access_token;
 						resolve(oauthToken);
@@ -85,7 +97,7 @@ export const getAuthToken = async () => {
 						reject(new Error('Failed to get access token'));
 					}
 				},
-				error_callback: (error: any) => {
+				error_callback: (error: { message?: string; type?: string }) => {
 					reject(new Error(error.message || 'OAuth error occurred'));
 				}
 			});
@@ -104,8 +116,18 @@ const initialize = async () => {
 	}
 };
 
+// Resolved shape of a successful pick; resolves to null when the user cancels.
+export interface GoogleDrivePickedFile {
+	id: string;
+	name: string;
+	url: string;
+	blob: Blob;
+	headers: Record<string, string>;
+}
+
 export const createPicker = () => {
-	return new Promise(async (resolve, reject) => {
+	// eslint-disable-next-line no-async-promise-executor -- the whole executor body is wrapped in try/catch below with an explicit reject(error) in the catch, so a synchronous throw or rejected await here can't become an unhandled rejection
+	return new Promise<GoogleDrivePickedFile | null>(async (resolve, reject) => {
 		try {
 			console.log('Initializing Google Drive Picker...');
 			await initialize();
@@ -131,13 +153,14 @@ export const createPicker = () => {
 				.setOAuthToken(token)
 				.setDeveloperKey(API_KEY)
 				// Remove app ID setting as it's not needed and can cause 404 errors
-				.setCallback(async (data: any) => {
+				// Keyed dynamically via google.picker.Response.*/Document.* (an
+				// untyped ambient global), not a fixed set of properties.
+				.setCallback(async (data: Record<string, unknown>) => {
 					if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
 						try {
 							const doc = data[google.picker.Response.DOCUMENTS][0];
 							const fileId = doc[google.picker.Document.ID];
 							const fileName = doc[google.picker.Document.NAME];
-							const fileUrl = doc[google.picker.Document.URL];
 
 							if (!fileId || !fileName) {
 								throw new Error('Required file details missing');

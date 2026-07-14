@@ -1,14 +1,23 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import DOMPurify from 'dompurify';
 	import { toast } from 'svelte-sonner';
 
 	import type { Token } from 'marked';
 	import { getContext } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
-	import { copyToClipboard, revertSanitizedResponseContent, unescapeHtml } from '$lib/utils';
+	import {
+		copyToClipboard,
+		matchTrustedFileIframeSrc,
+		resizeIframeToContent,
+		revertSanitizedResponseContent,
+		unescapeHtml
+	} from '$lib/utils';
 
 	import Image from '$lib/components/common/Image.svelte';
 	import KatexRenderer from './KatexRenderer.svelte';
@@ -16,18 +25,30 @@
 
 	export let id: string;
 	export let tokens: Token[];
-	export let onSourceClick: Function = () => {};
+	export let onSourceClick: AnyFn = () => {};
 </script>
 
-{#each tokens as token}
+<!-- marked Token union has no stable identity field and raw text can repeat (e.g. duplicate words/formatting); tokens are only ever rendered in the fixed order marked produced, never reordered/filtered, so index is fine -->
+{#each tokens as token, tokenIdx (tokenIdx)}
 	{#if token.type === 'escape'}
 		{unescapeHtml(token.text)}
 	{:else if token.type === 'html'}
 		{@const html = DOMPurify.sanitize(token.text)}
 		{#if html && html.includes('<video')}
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- `html` is DOMPurify.sanitize(token.text) with default (safe) config, no added tags/attrs -->
 			{@html html}
-		{:else if token.text.includes(`<iframe src="${WEBUI_BASE_URL}/api/v1/files/`)}
-			{@html DOMPurify.sanitize(token.text, { ADD_TAGS: ['iframe'], ADD_ATTR: ['src', 'title', 'width', 'frameborder', 'onload'] })}
+		{:else if matchTrustedFileIframeSrc(token.text)}
+			<!-- self.chat#7: real Svelte element, not {@html} -- the src is extracted only
+			     after anchoring the WHOLE token text to the one shape we generate
+			     (see matchTrustedFileIframeSrc), and the resize behavior is a fixed
+			     bound handler, never an onload value taken from the content. -->
+			<iframe
+				src={matchTrustedFileIframeSrc(token.text)}
+				title={$i18n.t('Embedded file preview')}
+				width="100%"
+				frameborder="0"
+				on:load={resizeIframeToContent}
+			></iframe>
 		{:else if token.text.includes(`<source_id`)}
 			<Source {token} onClick={onSourceClick} />
 		{:else}
@@ -35,11 +56,11 @@
 		{/if}
 	{:else if token.type === 'link'}
 		{#if token.tokens}
-			<a href={token.href} target="_blank" rel="nofollow" title={token.title}>
+			<a href={token.href} target="_blank" rel="nofollow external" title={token.title}>
 				<svelte:self id={`${id}-a`} tokens={token.tokens} {onSourceClick} />
 			</a>
 		{:else}
-			<a href={token.href} target="_blank" rel="nofollow" title={token.title}>{token.text}</a>
+			<a href={token.href} target="_blank" rel="nofollow external" title={token.title}>{token.text}</a>
 		{/if}
 	{:else if token.type === 'image'}
 		<Image src={token.href} alt={token.text} />
@@ -77,7 +98,7 @@
 			title={token.fileId}
 			width="100%"
 			frameborder="0"
-			onload="this.style.height=(this.contentWindow.document.body.scrollHeight+20)+'px';"
+			on:load={resizeIframeToContent}
 		></iframe>
 	{:else if token.type === 'text'}
 		{token.raw}

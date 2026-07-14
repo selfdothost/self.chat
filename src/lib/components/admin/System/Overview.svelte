@@ -1,10 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import CpuCard from './CpuCard.svelte';
 	import GpuCard from './GpuCard.svelte';
 	import MemoryCard from './MemoryCard.svelte';
 	import GpuTotalCard from './GpuTotalCard.svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let resources;
 	export let onViewProcesses: (sortBy: string) => void;

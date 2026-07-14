@@ -1,18 +1,17 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
-	import { getContext, createEventDispatcher } from 'svelte';
-
-	const dispatch = createEventDispatcher();
+	import { getContext } from 'svelte';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import AddMemoryModal from './AddMemoryModal.svelte';
 	import { deleteMemoriesByUserId, deleteMemoryById, getMemories } from '$lib/apis/memories';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import { error } from '@sveltejs/kit';
 	import EditMemoryModal from './EditMemoryModal.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 
@@ -24,12 +23,18 @@
 
 	let selectedMemory = null;
 
+	// `memories` and `loading` are part of this block's own condition, but
+	// this is a deliberate fetch-once guard: whatever getMemories() resolves
+	// to, `loading` always becomes false afterward, which permanently
+	// disables the condition -- it can't re-fire, so this isn't a loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if (show && memories.length === 0 && loading) {
 		(async () => {
 			memories = await getMemories(localStorage.token);
 			loading = false;
 		})();
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 </script>
 
 <Modal size="xl" bind:show>
@@ -75,7 +80,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each memories as memory}
+									{#each memories as memory (memory.id)}
 										<tr class="border-b dark:border-gray-800 items-center">
 											<td class="px-3 py-1">
 												<div class="line-clamp-1">

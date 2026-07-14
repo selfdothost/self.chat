@@ -27,11 +27,32 @@ export const getAudioConfig = async (token: string) => {
 	return res;
 };
 
+// Matches the actual `{ tts, stt }` shape sent from Audio.svelte's
+// updateConfigHandler — the previous `{ url, key, model, speaker }` shape
+// here was stale and didn't match any real call site.
+type TTSConfigForm = {
+	OPENAI_API_BASE_URL: string;
+	OPENAI_API_KEY: string;
+	API_KEY: string;
+	ENGINE: string;
+	MODEL: string;
+	VOICE: string;
+	SPLIT_ON: string;
+	AZURE_SPEECH_REGION: string;
+	AZURE_SPEECH_OUTPUT_FORMAT: string;
+};
+
+type STTConfigForm = {
+	OPENAI_API_BASE_URL: string;
+	OPENAI_API_KEY: string;
+	ENGINE: string;
+	MODEL: string;
+	WHISPER_MODEL: string;
+};
+
 type OpenAIConfigForm = {
-	url: string;
-	key: string;
-	model: string;
-	speaker: string;
+	tts: TTSConfigForm;
+	stt: STTConfigForm;
 };
 
 export const updateAudioConfig = async (token: string, payload: OpenAIConfigForm) => {

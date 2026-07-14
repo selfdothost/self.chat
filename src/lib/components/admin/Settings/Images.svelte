@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
@@ -18,7 +20,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let loading = false;
 
@@ -132,7 +134,10 @@
 			if (obj && typeof obj === 'object') {
 				return true;
 			}
-		} catch (e) {}
+		} catch {
+			// Invalid JSON — fall through to `return false` below, this is the
+			// intended "not a valid JSON object" path, not a swallowed bug.
+		}
 		return false;
 	};
 
@@ -383,7 +388,7 @@
 									/>
 
 									<datalist id="sampler-list">
-										{#each samplers ?? [] as sampler}
+										{#each samplers ?? [] as sampler (sampler)}
 											<option value={sampler}>{sampler}</option>
 										{/each}
 									</datalist>
@@ -405,7 +410,7 @@
 									/>
 
 									<datalist id="scheduler-list">
-										{#each schedulers ?? [] as scheduler}
+										{#each schedulers ?? [] as scheduler (scheduler)}
 											<option value={scheduler}>{scheduler}</option>
 										{/each}
 									</datalist>
@@ -503,15 +508,16 @@
 									type="file"
 									accept=".json"
 									on:change={(e) => {
-										const file = e.target.files[0];
+										const target = e.target as HTMLInputElement;
+										const file = target.files[0];
 										const reader = new FileReader();
 
 										reader.onload = (e) => {
 											config.comfyui.COMFYUI_WORKFLOW = e.target.result;
-											e.target.value = null;
 										};
 
 										reader.readAsText(file);
+										target.value = '';
 									}}
 								/>
 
@@ -537,7 +543,7 @@
 							<div class=" mb-2 text-sm font-medium">{$i18n.t('ComfyUI Workflow Nodes')}</div>
 
 							<div class="text-xs flex flex-col gap-1.5">
-								{#each requiredWorkflowNodes as node}
+								{#each requiredWorkflowNodes as node (node.type)}
 									<div class="flex w-full items-center border dark:border-gray-850 rounded-lg">
 										<div class="flex-shrink-0">
 											<div
@@ -618,7 +624,7 @@
 										/>
 
 										<datalist id="model-list">
-											{#each models ?? [] as model}
+											{#each models ?? [] as model (model.id)}
 												<option value={model.id}>{model.name}</option>
 											{/each}
 										</datalist>

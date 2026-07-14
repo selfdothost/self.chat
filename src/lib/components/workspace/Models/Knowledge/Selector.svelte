@@ -1,16 +1,19 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import Fuse from 'fuse.js';
 
 	import { DropdownMenu } from 'bits-ui';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import { onMount, getContext, createEventDispatcher } from 'svelte';
-	import { flyAndScale } from '$lib/utils/transitions';
 	import { knowledge } from '$lib/stores';
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
-	export let onClose: Function = () => {};
+	export let onClose: AnyFn = () => {};
 
 	let query = '';
 
@@ -26,9 +29,24 @@
 			: items;
 	}
 
+	// Synthetic "legacy collection" entries built below don't come from the
+	// `knowledge` store's Document type, but get merged into the same `items`
+	// array as real Documents -- `meta` is optional here (and never actually
+	// populated on these synthetic entries) purely so that union member access
+	// like `item?.meta?.document` type-checks against both halves.
+	type LegacyCollection = {
+		name: string;
+		legacy: boolean;
+		type: string;
+		description: string;
+		title?: string;
+		collection_names: string[];
+		meta?: { document?: boolean; tags?: { name: string }[] };
+	};
+
 	onMount(() => {
 		let legacy_documents = $knowledge.filter((item) => item?.meta?.document);
-		let legacy_collections =
+		let legacy_collections: LegacyCollection[] =
 			legacy_documents.length > 0
 				? [
 						{
@@ -59,10 +77,16 @@
 				: [];
 
 		items = [...$knowledge, ...legacy_collections].map((item) => {
+			// `meta.legacy` isn't part of either union member's declared `meta`
+			// shape (Document's or LegacyCollection's) -- this is a defensive
+			// belt-and-suspenders check against backend payloads that may carry
+			// it dynamically, so it's read via a narrow structural cast rather
+			// than widening the shared Document type for one optional field.
+			const meta = item?.meta as { legacy?: boolean; document?: boolean } | undefined;
 			return {
 				...item,
-				...(item?.legacy || item?.meta?.legacy || item?.meta?.document ? { legacy: true } : {}),
-				type: item?.meta?.document ? 'document' : 'collection'
+				...(item?.legacy || meta?.legacy || meta?.document ? { legacy: true } : {}),
+				type: meta?.document ? 'document' : 'collection'
 			};
 		});
 
@@ -83,12 +107,11 @@
 	<slot />
 
 	<div slot="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full max-w-80 rounded-lg px-1 py-1.5 border border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 			sideOffset={8}
 			side="bottom"
 			align="start"
-			transition={flyAndScale}
 		>
 			<div class=" flex w-full space-x-2 py-0.5 px-2">
 				<div class="flex flex-1">
@@ -122,10 +145,10 @@
 						{$i18n.t('No knowledge found')}
 					</div>
 				{:else}
-					{#each filteredItems as item}
+					{#each filteredItems as item (item.id ?? item.name)}
 						<DropdownMenu.Item
 							class="flex gap-2.5 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-							on:click={() => {
+							onSelect={() => {
 								dispatch('select', item);
 							}}
 						>
@@ -162,6 +185,6 @@
 					{/each}
 				{/if}
 			</div>
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</div>
 </Dropdown>

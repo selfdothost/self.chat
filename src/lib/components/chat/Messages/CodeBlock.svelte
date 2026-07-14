@@ -1,11 +1,12 @@
 <script lang="ts">
-	import hljs from 'highlight.js';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { loadPyodide } from 'pyodide';
 	import mermaid from 'mermaid';
 
 	import { v4 as uuidv4 } from 'uuid';
 
-	import { getContext, getAllContexts, onMount, tick, createEventDispatcher } from 'svelte';
+	import { getContext, onMount, tick, createEventDispatcher } from 'svelte';
 	import { copyToClipboard } from '$lib/utils';
 
 	import 'highlight.js/styles/github-dark.min.css';
@@ -14,7 +15,7 @@
 	import CodeEditor from '$lib/components/common/CodeEditor.svelte';
 	import SvgPanZoom from '$lib/components/common/SVGPanZoom.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let id = '';
@@ -35,6 +36,10 @@
 		updateCode();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const updateCode = () => {
 		_code = code;
 	};
@@ -43,7 +48,6 @@
 
 	let mermaidHtml = null;
 
-	let highlightedCode = null;
 	let executing = false;
 
 	let stdout = null;
@@ -233,9 +237,9 @@ __builtins__.input = input`);
 
 			console.log(id, data);
 
-			data['stdout'] && (stdout = data['stdout']);
-			data['stderr'] && (stderr = data['stderr']);
-			data['result'] && (result = data['result']);
+			if (data['stdout']) stdout = data['stdout'];
+			if (data['stderr']) stderr = data['stderr'];
+			if (data['result']) result = data['result'];
 
 			executing = false;
 		};
@@ -245,8 +249,6 @@ __builtins__.input = input`);
 			executing = false;
 		};
 	};
-
-	let debounceTimeout;
 
 	const drawMermaidDiagram = async () => {
 		try {

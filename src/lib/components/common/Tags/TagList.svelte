@@ -2,13 +2,12 @@
 	import { createEventDispatcher } from 'svelte';
 	import Tooltip from '../Tooltip.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
-	import Badge from '../Badge.svelte';
 	const dispatch = createEventDispatcher();
 
 	export let tags = [];
 </script>
 
-{#each tags as tag}
+{#each tags as tag (tag.name)}
 	<Tooltip content={tag.name}>
 		<div
 			class="relative group/tags px-1.5 py-[0.2px] gap-0.5 flex justify-between h-fit max-h-fit w-fit items-center rounded-full bg-gray-500/20 text-gray-700 dark:text-gray-200 transition cursor-pointer"

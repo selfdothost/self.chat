@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import type { BenchmarkConfig, BenchmarkConfigUpdate } from '$lib/apis/benchmarks';
 	import { listBenchmarks, updateBenchmark } from '$lib/apis/benchmarks';
 
-	const i18n: any = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let items: BenchmarkConfig[] = [];
 	let loading = true;
@@ -38,6 +40,7 @@
 			};
 			const updated = await updateBenchmark(localStorage.token, b.id, form);
 			items = items.map((x) => (x.id === b.id ? updated : x));
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			errors = { ...errors, [b.id]: typeof e === 'string' ? e : $i18n.t('Save failed') };
 		}
@@ -80,7 +83,7 @@
 			{$i18n.t('No benchmarks configured. Run migrations to seed defaults.')}
 		</div>
 	{:else}
-		{#each evalTypes as evalType}
+		{#each evalTypes as evalType (evalType)}
 			<div>
 				<h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
 					{typeLabel(evalType)}

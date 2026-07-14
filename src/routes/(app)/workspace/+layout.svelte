@@ -1,51 +1,44 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext } from 'svelte';
-	import {
-		WEBUI_NAME,
-		showSidebar,
-		functions,
-		user,
-		mobile,
-		models,
-		prompts,
-		knowledge,
-		tools
-	} from '$lib/stores';
+	import { WEBUI_NAME, showSidebar, user } from '$lib/stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import MenuLines from '$lib/components/icons/MenuLines.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let loaded = false;
 
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
 			if ($page.url.pathname.includes('/models') && !$user?.permissions?.workspace?.models) {
-				goto('/');
+				goto(resolve('/(app)'));
 			} else if (
 				$page.url.pathname.includes('/knowledge') &&
 				!$user?.permissions?.workspace?.knowledge
 			) {
-				goto('/');
+				goto(resolve('/(app)'));
 			} else if (
 				$page.url.pathname.includes('/prompts') &&
 				!$user?.permissions?.workspace?.prompts
 			) {
-				goto('/');
+				goto(resolve('/(app)'));
 			} else if (
 				$page.url.pathname.includes('/training') &&
 				!$user?.permissions?.workspace?.training
 			) {
-				goto('/');
+				goto(resolve('/(app)'));
 			} else if (
 				$page.url.pathname.includes('/evaluations') &&
 				!$user?.permissions?.workspace?.evaluations
 			) {
-				goto('/');
+				goto(resolve('/(app)'));
 			} else if ($page.url.pathname.includes('/tools') && !$user?.permissions?.workspace?.tools) {
-				goto('/');
+				goto(resolve('/(app)'));
 			}
 		}
 
@@ -93,7 +86,7 @@
 								)
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-								href="/workspace/models">{$i18n.t('Models')}</a
+								href={resolve('/(app)/workspace/models')}>{$i18n.t('Models')}</a
 							>
 						{/if}
 
@@ -104,7 +97,7 @@
 								)
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-								href="/workspace/knowledge"
+								href={resolve('/(app)/workspace/knowledge')}
 							>
 								{$i18n.t('Knowledge')}
 							</a>
@@ -117,7 +110,7 @@
 								)
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-								href="/workspace/prompts">{$i18n.t('Prompts')}</a
+								href={resolve('/(app)/workspace/prompts')}>{$i18n.t('Prompts')}</a
 							>
 						{/if}
 
@@ -128,7 +121,7 @@
 								)
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-								href="/workspace/training"
+								href={resolve('/(app)/workspace/training')}
 							>
 								{$i18n.t('Training')}
 							</a>
@@ -141,7 +134,7 @@
 								)
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-								href="/workspace/evaluations"
+								href={resolve('/(app)/workspace/evaluations')}
 							>
 								{$i18n.t('Evaluations')}
 							</a>
@@ -152,7 +145,7 @@
 								class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes('/workspace/tools')
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-								href="/workspace/tools"
+								href={resolve('/(app)/workspace/tools')}
 							>
 								{$i18n.t('Tools')}
 							</a>

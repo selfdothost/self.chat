@@ -1,9 +1,11 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext, onMount } from 'svelte';
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let filters = [];
 	export let selectedFilterIds = [];
@@ -35,7 +37,7 @@
 	<div class="flex flex-col">
 		{#if filters.length > 0}
 			<div class=" flex items-center mt-2 flex-wrap">
-				{#each Object.keys(_filters) as filter, filterIdx}
+				{#each Object.keys(_filters) as filter, _filterIdx (filter)}
 					<div class=" flex items-center gap-2 mr-3">
 						<div class="self-center flex items-center">
 							<Checkbox

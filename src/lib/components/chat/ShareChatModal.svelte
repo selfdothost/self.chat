@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import { getContext } from 'svelte';
+	import { resolve } from '$app/paths';
 
 	import { toast } from 'svelte-sonner';
 	import { deleteSharedChatById, getChatById, shareChatById } from '$lib/apis/chats';
@@ -12,11 +15,9 @@
 
 	let chat = null;
 	let shareUrl = null;
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const shareLocalChat = async () => {
-		const _chat = chat;
-
 		const sharedChat = await shareChatById(localStorage.token, chatId);
 		shareUrl = `${window.location.origin}/s/${sharedChat.id}`;
 		console.log(shareUrl);
@@ -37,6 +38,10 @@
 		return chat.id !== _chat.id || chat.share_id !== _chat.share_id;
 	};
 
+	// Assignments run inside an async IIFE triggered by this block; `chat`
+	// isn't part of the block's own condition (`show`), so setting it can't
+	// retrigger this reactive statement -- not an infinite loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if (show) {
 		(async () => {
 			if (chatId) {
@@ -50,6 +55,7 @@
 			}
 		})();
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 </script>
 
 <Modal bind:show size="md">
@@ -79,7 +85,7 @@
 			<div class="px-5 pt-4 pb-5 w-full flex flex-col justify-center">
 				<div class=" text-sm dark:text-gray-300 mb-1">
 					{#if chat.share_id}
-						<a href="/s/{chat.share_id}" target="_blank"
+						<a href={resolve('/s/[id]', { id: chat.share_id })} target="_blank"
 							>{$i18n.t('You have shared this chat')}
 							<span class=" underline">{$i18n.t('before')}</span>.</a
 						>

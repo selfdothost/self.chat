@@ -1,15 +1,16 @@
 <script>
-	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { models } from '$lib/stores';
 
-	import { onMount, tick, getContext } from 'svelte';
-	import { createNewModel, getModelById } from '$lib/apis/models';
+	import { onMount, getContext } from 'svelte';
+	import { createNewModel } from '$lib/apis/models';
 	import { getModels } from '$lib/apis';
 
 	import ModelEditor from '$lib/components/workspace/Models/ModelEditor.svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	const onSubmit = async (modelInfo) => {
@@ -44,7 +45,7 @@
 			if (res) {
 				await models.set(await getModels(localStorage.token));
 				toast.success($i18n.t('Model created successfully!'));
-				await goto('/workspace/models');
+				await goto(resolve('/(app)/workspace/models'));
 			}
 		}
 	};

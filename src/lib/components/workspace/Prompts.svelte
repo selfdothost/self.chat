@@ -1,11 +1,14 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount, getContext } from 'svelte';
-	import { WEBUI_NAME, config, prompts as _prompts, user } from '$lib/stores';
+	import { WEBUI_NAME, prompts as _prompts, user } from '$lib/stores';
 
 	import {
 		createNewPrompt,
@@ -23,11 +26,14 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import { capitalizeFirstLetter } from '$lib/utils';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	let promptsImportInputElement: HTMLInputElement;
 	let loaded = false;
 
-	let importFiles = '';
+	// bind:files below hands back the real FileList the browser populates on
+	// the <input type="file"> -- this was `''` (a string), which is why the
+	// indexing/readAsText/reset below never actually worked as intended.
+	let importFiles: FileList | null = null;
 	let query = '';
 
 	let prompts = [];
@@ -35,12 +41,12 @@
 	let showDeleteConfirm = false;
 	let deletePrompt = null;
 
-	let filteredItems = [];
+	let filteredItems;
 	$: filteredItems = prompts.filter((p) => query === '' || p.command.includes(query));
 
 	const cloneHandler = async (prompt) => {
 		sessionStorage.prompt = JSON.stringify(prompt);
-		goto('/workspace/prompts/create');
+		goto(resolve('/(app)/workspace/prompts/create'));
 	};
 
 	const exportHandler = async (prompt) => {
@@ -112,7 +118,7 @@
 			<div>
 				<a
 					class=" px-2 py-2 rounded-xl hover:bg-gray-700/10 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-medium text-sm flex items-center space-x-1"
-					href="/workspace/prompts/create"
+					href={resolve('/(app)/workspace/prompts/create')}
 				>
 					<Plus className="size-3.5" />
 				</a>
@@ -121,12 +127,16 @@
 	</div>
 
 	<div class="mb-5 gap-2 grid lg:grid-cols-2 xl:grid-cols-3">
-		{#each filteredItems as prompt}
+		{#each filteredItems as prompt (prompt.command)}
 			<div
 				class=" flex space-x-4 cursor-pointer w-full px-3 py-2 dark:hover:bg-white/5 hover:bg-black/5 rounded-xl transition"
 			>
 				<div class=" flex flex-1 space-x-4 cursor-pointer w-full">
-					<a href={`/workspace/prompts/edit?command=${encodeURIComponent(prompt.command)}`}>
+					<a
+						href={resolve(
+							`/(app)/workspace/prompts/edit?command=${encodeURIComponent(prompt.command)}`
+						)}
+					>
 						<div class=" flex-1 flex items-center gap-2 self-center">
 							<div class=" font-semibold line-clamp-1 capitalize">{prompt.title}</div>
 							<div class=" text-xs overflow-hidden text-ellipsis line-clamp-1">
@@ -155,7 +165,9 @@
 					<a
 						class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 						type="button"
-						href={`/workspace/prompts/edit?command=${encodeURIComponent(prompt.command)}`}
+						href={resolve(
+							`/(app)/workspace/prompts/edit?command=${encodeURIComponent(prompt.command)}`
+						)}
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -213,7 +225,7 @@
 
 						const reader = new FileReader();
 						reader.onload = async (event) => {
-							const savedPrompts = JSON.parse(event.target.result);
+							const savedPrompts = JSON.parse(event.target.result as string);
 							console.log(savedPrompts);
 
 							for (const prompt of savedPrompts) {
@@ -231,8 +243,12 @@
 							prompts = await getPromptList(localStorage.token);
 							await _prompts.set(await getPrompts(localStorage.token));
 
-							importFiles = [];
+							// `importFiles = []` here previously assigned a plain array to
+							// what should be a FileList, which never actually cleared
+							// anything -- resetting the input's value does clear its real
+							// FileList, so read that back instead.
 							promptsImportInputElement.value = '';
+							importFiles = promptsImportInputElement.files;
 						};
 
 						reader.readAsText(importFiles[0]);

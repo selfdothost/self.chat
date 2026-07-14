@@ -1,33 +1,27 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount, tick, getContext } from 'svelte';
 
-	import {
-		OLLAMA_API_BASE_URL,
-		OPENAI_API_BASE_URL,
-		WEBUI_API_BASE_URL,
-		WEBUI_BASE_URL
-	} from '$lib/constants';
-	import { WEBUI_NAME, config, user, models, settings } from '$lib/stores';
+	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { config, user, models, settings } from '$lib/stores';
 
-	import { chatCompletion, generateOpenAIChatCompletion } from '$lib/apis/openai';
+	import { chatCompletion } from '$lib/apis/openai';
 
 	import { splitStream } from '$lib/utils';
 	import Collapsible from '../common/Collapsible.svelte';
 
 	import Messages from '$lib/components/playground/Chat/Messages.svelte';
 	import ChevronUp from '../icons/ChevronUp.svelte';
-	import ChevronDown from '../icons/ChevronDown.svelte';
 	import Pencil from '../icons/Pencil.svelte';
 	import Cog6 from '../icons/Cog6.svelte';
 	import Sidebar from '../common/Sidebar.svelte';
 	import ArrowRight from '../icons/ArrowRight.svelte';
 
-	const i18n = getContext('i18n');
-
-	let loaded = false;
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let selectedModelId = '';
 	let loading = false;
@@ -173,7 +167,7 @@
 
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
-			await goto('/');
+			await goto(resolve('/'));
 		}
 
 		if ($settings?.models) {
@@ -183,7 +177,6 @@
 		} else {
 			selectedModelId = '';
 		}
-		loaded = true;
 	});
 </script>
 
@@ -215,7 +208,7 @@
 								class="w-full bg-transparent border border-gray-50 dark:border-gray-850 rounded-lg py-1 px-2 -mx-0.5 text-sm outline-none"
 								bind:value={selectedModelId}
 							>
-								{#each $models as model}
+								{#each $models as model (model.id)}
 									<option value={model.id} class="bg-gray-50 dark:bg-gray-700">{model.name}</option>
 								{/each}
 							</select>
@@ -307,12 +300,12 @@
 								role: role === 'user' ? $i18n.t('a user') : $i18n.t('an assistant')
 							})}
 							on:input={(e) => {
-								e.target.style.height = '';
-								e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+								(e.target as HTMLTextAreaElement).style.height = '';
+								(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 150) + 'px';
 							}}
 							on:focus={(e) => {
-								e.target.style.height = '';
-								e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+								(e.target as HTMLTextAreaElement).style.height = '';
+								(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 150) + 'px';
 							}}
 							rows="2"
 						/>

@@ -1,13 +1,21 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import DOMPurify from 'dompurify';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	import { createEventDispatcher, getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
 	import { marked, type Token } from 'marked';
-	import { revertSanitizedResponseContent, unescapeHtml } from '$lib/utils';
+	import {
+		matchTrustedFileIframeSrc,
+		resizeIframeToContent,
+		revertSanitizedResponseContent,
+		unescapeHtml
+	} from '$lib/utils';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
@@ -25,7 +33,7 @@
 	export let top = true;
 
 	export let save = false;
-	export let onSourceClick: Function = () => {};
+	export let onSourceClick: AnyFn = () => {};
 
 	const headerComponent = (depth: number) => {
 		return 'h' + depth;
@@ -108,7 +116,8 @@
 						class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-850 dark:text-gray-400 border-none"
 					>
 						<tr class="">
-							{#each token.header as header, headerIdx}
+							<!-- marked table-header cells are anonymous tokens with no id; index is fine, position comes straight from parsed markdown and is never reordered -->
+							{#each token.header as header, headerIdx (headerIdx)}
 								<th
 									scope="col"
 									class="!px-3 !py-1.5 cursor-pointer border border-gray-50 dark:border-gray-850"
@@ -128,9 +137,10 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each token.rows as row, rowIdx}
+						<!-- marked table rows/cells are anonymous tokens with no id; index is fine, order comes straight from parsed markdown and is never reordered -->
+						{#each token.rows as row, rowIdx (rowIdx)}
 							<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs">
-								{#each row ?? [] as cell, cellIdx}
+								{#each row ?? [] as cell, cellIdx (cellIdx)}
 									<td
 										class="!px-3 !py-1.5 text-gray-900 dark:text-white w-max border border-gray-50 dark:border-gray-850"
 										style={token.align[cellIdx] ? '' : `text-align: ${token.align[cellIdx]}`}
@@ -171,7 +181,8 @@
 	{:else if token.type === 'list'}
 		{#if token.ordered}
 			<ol start={token.start || 1}>
-				{#each token.items as item, itemIdx}
+				<!-- marked list items are anonymous tokens with no id; index is fine, order comes straight from parsed markdown and is never reordered -->
+				{#each token.items as item, itemIdx (itemIdx)}
 					<li>
 						<svelte:self
 							id={`${id}-${tokenIdx}-${itemIdx}`}
@@ -183,7 +194,8 @@
 			</ol>
 		{:else}
 			<ul>
-				{#each token.items as item, itemIdx}
+				<!-- marked list items are anonymous tokens with no id; index is fine, order comes straight from parsed markdown and is never reordered -->
+				{#each token.items as item, itemIdx (itemIdx)}
 					<li>
 						<svelte:self
 							id={`${id}-${tokenIdx}-${itemIdx}`}
@@ -203,9 +215,20 @@
 	{:else if token.type === 'html'}
 		{@const html = DOMPurify.sanitize(token.text)}
 		{#if html && html.includes('<video')}
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- `html` is DOMPurify.sanitize(token.text) with default (safe) config, no added tags/attrs -->
 			{@html html}
-		{:else if token.text.includes(`<iframe src="${WEBUI_BASE_URL}/api/v1/files/`)}
-			{@html DOMPurify.sanitize(token.text, { ADD_TAGS: ['iframe'], ADD_ATTR: ['src', 'title', 'width', 'frameborder', 'onload'] })}
+		{:else if matchTrustedFileIframeSrc(token.text)}
+			<!-- self.chat#7: real Svelte element, not {@html} -- the src is extracted only
+			     after anchoring the WHOLE token text to the one shape we generate
+			     (see matchTrustedFileIframeSrc), and the resize behavior is a fixed
+			     bound handler, never an onload value taken from the content. -->
+			<iframe
+				src={matchTrustedFileIframeSrc(token.text)}
+				title={$i18n.t('Embedded file preview')}
+				width="100%"
+				frameborder="0"
+				on:load={resizeIframeToContent}
+			></iframe>
 		{:else}
 			{token.text}
 		{/if}
@@ -215,7 +238,7 @@
 			title={token.fileId}
 			width="100%"
 			frameborder="0"
-			onload="this.style.height=(this.contentWindow.document.body.scrollHeight+20)+'px';"
+			on:load={resizeIframeToContent}
 		></iframe>
 	{:else if token.type === 'paragraph'}
 		<p>

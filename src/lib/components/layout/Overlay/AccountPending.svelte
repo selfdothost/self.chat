@@ -1,8 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getAdminDetails } from '$lib/apis/auths';
-	import { onMount, tick, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let adminDetails = null;
 

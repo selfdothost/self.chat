@@ -1,9 +1,9 @@
 <script>
 	import { toast } from 'svelte-sonner';
 
-	import { createEventDispatcher, getContext, onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	import { models } from '$lib/stores';
 	import { deleteAllModels } from '$lib/apis/models';
@@ -37,7 +37,9 @@
 		config = await getModelsConfig(localStorage.token);
 
 		if (config?.DEFAULT_MODELS) {
-			defaultModelIds = (config?.DEFAULT_MODELS).split(',').filter((id) => id);
+			// Already guarded by the check above, so config.DEFAULT_MODELS is
+			// known non-nullish here — no optional chaining needed.
+			defaultModelIds = config.DEFAULT_MODELS.split(',').filter((id) => id);
 		} else {
 			defaultModelIds = [];
 		}
@@ -145,7 +147,7 @@
 
 								{#if defaultModelIds.length > 0}
 									<div class="flex flex-col">
-										{#each defaultModelIds as modelId, modelIdx}
+										{#each defaultModelIds as modelId, modelIdx (modelId)}
 											<div class=" flex gap-2 w-full justify-between items-center">
 												<div class=" text-sm flex-1 py-1 rounded-lg">
 													{$models.find((model) => model.id === modelId)?.name}
@@ -181,7 +183,7 @@
 										bind:value={selectedModelId}
 									>
 										<option value="">{$i18n.t('Select a model')}</option>
-										{#each $models as model}
+										{#each $models as model (model.id)}
 											<option value={model.id} class="bg-gray-50 dark:bg-gray-700"
 												>{model.name}</option
 											>

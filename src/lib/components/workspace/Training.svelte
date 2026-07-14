@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import Fuse from 'fuse.js';
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -6,9 +8,9 @@
 
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { WEBUI_NAME, models, prompts } from '$lib/stores';
+	import { WEBUI_NAME, prompts } from '$lib/stores';
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
 	import { getLlamolotlTrainingConfigs, getLlamolotlTrainingConfig, getLlamolotlTrainingStatus, getAvailableLlamolotlModels, type TrainingConfigSummary } from '$lib/apis/llamolotl';
 	import {
@@ -37,9 +39,13 @@
 	let editingId: string | null = null;
 
 	let courses: TrainingCourse[] = [];
-	let fuse: Fuse<TrainingCourse> | null = null;
+	let fuse: Fuse<TrainingCourse> | null;
 
-	let knowledgeBases: any[] = [];
+	// Only the fields this view reads — see KnowledgeBase.svelte for the full
+	// Knowledge shape (id/name/description/data/files); `meta.dataset` marks a
+	// curator-produced dataset vs. a regular knowledge collection.
+	type TrainingKnowledgeBase = { id: string; name: string; meta?: { dataset?: boolean } };
+	let knowledgeBases: TrainingKnowledgeBase[] = [];
 	let availableConfigs: TrainingConfigSummary[] = [];
 
 	// ── Job submission modal ─────────────────────────────────────────────
@@ -128,8 +134,8 @@
 		  )
 		: trainableModels;
 
-	$: knowledgeItems = knowledgeBases.filter((k: any) => !k?.meta?.dataset);
-	$: datasetItems = knowledgeBases.filter((k: any) => k?.meta?.dataset);
+	$: knowledgeItems = knowledgeBases.filter((k: TrainingKnowledgeBase) => !k?.meta?.dataset);
+	$: datasetItems = knowledgeBases.filter((k: TrainingKnowledgeBase) => k?.meta?.dataset);
 
 	// ── Config param loading ─────────────────────────────────────────────
 	const parseYamlValue = (content: string, key: string) => {
@@ -182,6 +188,9 @@
 
 	let prevBaseConfig = '';
 	$: if (formBaseConfig !== prevBaseConfig) {
+		// Read by this same comparison on the next invocation -- ESLint can't
+		// see reads across $: re-invocations.
+		// eslint-disable-next-line no-useless-assignment
 		prevBaseConfig = formBaseConfig;
 		loadConfigParams(formBaseConfig);
 	}
@@ -264,8 +273,8 @@
 		try {
 			const allModels = await getAvailableLlamolotlModels(getToken());
 			trainableModels = (allModels ?? [])
-				.filter((m: any) => m.trainable && m.hf_repo)
-				.map((m: any) => ({
+				.filter((m: { trainable?: boolean; hf_repo?: string }) => m.trainable && m.hf_repo)
+				.map((m: { hf_repo: string; name: string }) => ({
 					value: m.hf_repo,
 					label: `${m.name} (${m.hf_repo})`
 				}));
@@ -315,10 +324,11 @@
 		arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
 
 	const getKnowledgeName = (id: string) =>
-		knowledgeBases.find((k: any) => k.id === id)?.name ?? id;
+		knowledgeBases.find((k: TrainingKnowledgeBase) => k.id === id)?.name ?? id;
 
 	const getPromptName = (cmd: string) =>
-		($prompts ?? []).find((p: any) => p.command === cmd)?.title ?? cmd;
+		($prompts ?? []).find((p: { command: string; title: string }) => p.command === cmd)?.title ??
+		cmd;
 
 	onMount(async () => {
 		try {
@@ -409,7 +419,7 @@
 				<div>
 					<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Visibility')}</div>
 					<div class="flex gap-2">
-						{#each [['public', 'Public'], ['private', 'Private']] as [val, label]}
+						{#each [['public', 'Public'], ['private', 'Private']] as [val, label] (val)}
 							<button
 								class="px-3 py-1.5 rounded-lg text-xs font-medium transition border {formAccess === val
 									? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
@@ -429,7 +439,7 @@
 						<select class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800"
 							bind:value={formBaseConfig}>
 							<option value="">{$i18n.t('Select a base config...')}</option>
-							{#each availableConfigs as cfg}
+							{#each availableConfigs as cfg (cfg.path)}
 								<option value={cfg.path}>{cfg.name}</option>
 							{/each}
 						</select>
@@ -448,7 +458,7 @@
 					</div>
 					{#if knowledgeItems.length > 0}
 						<div class="flex flex-wrap gap-1.5">
-							{#each knowledgeItems as item}
+							{#each knowledgeItems as item (item.id)}
 								<button
 									class="px-2.5 py-1 rounded-lg text-xs transition border {formKnowledgeIds.includes(item.id)
 										? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
@@ -470,7 +480,7 @@
 					</div>
 					{#if datasetItems.length > 0}
 						<div class="flex flex-wrap gap-1.5">
-							{#each datasetItems as item}
+							{#each datasetItems as item (item.id)}
 								<button
 									class="px-2.5 py-1 rounded-lg text-xs transition border {formDatasetIds.includes(item.id)
 										? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
@@ -492,7 +502,7 @@
 					</div>
 					{#if ($prompts ?? []).length > 0}
 						<div class="flex flex-wrap gap-1.5">
-							{#each $prompts ?? [] as prompt}
+							{#each $prompts ?? [] as prompt (prompt.command)}
 								<button
 									class="px-2.5 py-1 rounded-lg text-xs transition border {formPromptIds.includes(prompt.command)
 										? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
@@ -524,45 +534,55 @@
 							<div>
 								<div class="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2 pl-3">{$i18n.t('Training')}</div>
 								<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pl-3">
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Epochs')}</label>
-										<input type="number" min="1" step="1" bind:value={formAdvanced.num_epochs} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Micro Batch Size')}</label>
-										<input type="number" min="1" step="1" bind:value={formAdvanced.micro_batch_size} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Grad Accum Steps')}</label>
-										<input type="number" min="1" step="1" bind:value={formAdvanced.gradient_accumulation_steps} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Learning Rate')}</label>
-										<input type="number" min="0" step="0.00001" bind:value={formAdvanced.learning_rate} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('LR Scheduler')}</label>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Epochs')}
+										<input type="number" min="1" step="1" bind:value={formAdvanced.num_epochs} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Micro Batch Size')}
+										<input type="number" min="1" step="1" bind:value={formAdvanced.micro_batch_size} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Grad Accum Steps')}
+										<input type="number" min="1" step="1" bind:value={formAdvanced.gradient_accumulation_steps} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Learning Rate')}
+										<input type="number" min="0" step="0.00001" bind:value={formAdvanced.learning_rate} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('LR Scheduler')}
 										<select bind:value={formAdvanced.lr_scheduler} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800">
 											<option value="cosine">cosine</option><option value="linear">linear</option><option value="constant">constant</option><option value="constant_with_warmup">constant_with_warmup</option>
-										</select></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Optimizer')}</label>
+										</select>
+										</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Optimizer')}
 										<select bind:value={formAdvanced.optimizer} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800">
 											<option value="adamw_bnb_8bit">adamw_bnb_8bit</option><option value="adamw_torch">adamw_torch</option><option value="paged_adamw_32bit">paged_adamw_32bit</option><option value="paged_adamw_8bit">paged_adamw_8bit</option><option value="sgd">sgd</option>
-										</select></div>
+										</select>
+										</label></div>
 								</div>
 							</div>
 
 							<div>
 								<div class="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2 pl-3">{$i18n.t('LoRA / Adapter')}</div>
 								<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pl-3">
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Adapter')}</label>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Adapter')}
 										<select bind:value={formAdvanced.adapter} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800">
 											<option value="lora">lora</option><option value="qlora">qlora</option>
-										</select></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('LoRA Rank (r)')}</label>
-										<input type="number" min="1" step="1" bind:value={formAdvanced.lora_r} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('LoRA Alpha')}</label>
-										<input type="number" min="1" step="1" bind:value={formAdvanced.lora_alpha} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('LoRA Dropout')}</label>
-										<input type="number" min="0" max="1" step="0.01" bind:value={formAdvanced.lora_dropout} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
+										</select>
+										</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('LoRA Rank (r)')}
+										<input type="number" min="1" step="1" bind:value={formAdvanced.lora_r} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('LoRA Alpha')}
+										<input type="number" min="1" step="1" bind:value={formAdvanced.lora_alpha} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('LoRA Dropout')}
+										<input type="number" min="0" max="1" step="0.01" bind:value={formAdvanced.lora_dropout} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
 								</div>
 							</div>
 
 							<div>
 								<div class="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2 pl-3">{$i18n.t('Performance')}</div>
 								<div class="flex flex-wrap gap-3 pl-3">
-									{#each [['load_in_8bit', 'Load in 8-bit'], ['load_in_4bit', 'Load in 4-bit'], ['sample_packing', 'Sample Packing'], ['gradient_checkpointing', 'Gradient Checkpointing'], ['flash_attention', 'Flash Attention']] as [key, label]}
+									{#each [['load_in_8bit', 'Load in 8-bit'], ['load_in_4bit', 'Load in 4-bit'], ['sample_packing', 'Sample Packing'], ['gradient_checkpointing', 'Gradient Checkpointing'], ['flash_attention', 'Flash Attention']] as [key, label] (key)}
 										<label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
 											<input type="checkbox" checked={isAdvancedChecked(key)} on:change={() => toggleAdvanced(key)} class="rounded" />
 											{$i18n.t(label)}
@@ -570,12 +590,14 @@
 									{/each}
 								</div>
 								<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pl-3 mt-2">
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('Sequence Length')}</label>
-										<input type="number" min="1" step="1" bind:value={formAdvanced.sequence_len} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" /></div>
-									<div><label class="text-[11px] text-gray-400">{$i18n.t('BF16')}</label>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('Sequence Length')}
+										<input type="number" min="1" step="1" bind:value={formAdvanced.sequence_len} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800" />
+									</label></div>
+									<div><label class="text-[11px] text-gray-400">{$i18n.t('BF16')}
 										<select bind:value={formAdvanced.bf16} class="w-full rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800">
 											<option value="auto">auto</option><option value="true">true</option><option value="false">false</option>
-										</select></div>
+										</select>
+										</label></div>
 								</div>
 							</div>
 						</div>
@@ -599,7 +621,7 @@
 
 	<!-- Course List -->
 	<div class="mb-5 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2">
-		{#each filteredCourses as course}
+		{#each filteredCourses as course (course.id)}
 			<div class="flex flex-col text-left w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-850 transition rounded-xl">
 				<div class="flex items-center justify-between -mt-1">
 					<div class="flex items-center gap-1.5">
@@ -645,13 +667,13 @@
 								{course.data.base_config.split('/').pop()}
 							</span>
 						{/if}
-						{#each (course.data?.knowledge_ids ?? []) as kid}
+						{#each (course.data?.knowledge_ids ?? []) as kid (kid)}
 							<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">{getKnowledgeName(kid)}</span>
 						{/each}
-						{#each (course.data?.dataset_ids ?? []) as did}
+						{#each (course.data?.dataset_ids ?? []) as did (did)}
 							<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">{getKnowledgeName(did)}</span>
 						{/each}
-						{#each (course.data?.prompt_ids ?? []) as pid}
+						{#each (course.data?.prompt_ids ?? []) as pid (pid)}
 							<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300">{getPromptName(pid)}</span>
 						{/each}
 						{#if course.data?.advanced_config}
@@ -714,7 +736,7 @@
 							/>
 						</div>
 						<div class="max-h-48 overflow-y-auto px-1 pb-1">
-							{#each filteredTrainableModels as model}
+							{#each filteredTrainableModels as model (model.value)}
 								<button
 									type="button"
 									class="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition {jobModelId === model.value ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''}"

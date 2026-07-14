@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { DropdownMenu } from 'bits-ui';
-	import { flyAndScale } from '$lib/utils/transitions';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import { getContext, createEventDispatcher } from 'svelte';
 	const dispatch = createEventDispatcher();
 
@@ -11,9 +14,9 @@
 	import FolderOpen from '$lib/components/icons/FolderOpen.svelte';
 	import ArrowPath from '$lib/components/icons/ArrowPath.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let onClose: Function = () => {};
+	export let onClose: AnyFn = () => {};
 	export let webLoaderEngine: string = '';
 
 	let show = false;
@@ -50,16 +53,15 @@
 	</Tooltip>
 
 	<div slot="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full max-w-44 rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
 			sideOffset={4}
 			side="bottom"
 			align="end"
-			transition={flyAndScale}
 		>
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					dispatch('upload', { type: 'files' });
 				}}
 			>
@@ -69,7 +71,7 @@
 
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					dispatch('upload', { type: 'directory' });
 				}}
 			>
@@ -85,7 +87,7 @@
 			>
 				<DropdownMenu.Item
 					class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-					on:click={() => {
+					onSelect={() => {
 						dispatch('sync', { type: 'directory' });
 					}}
 				>
@@ -96,7 +98,7 @@
 
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					dispatch('upload', { type: 'text' });
 				}}
 			>
@@ -107,7 +109,7 @@
 			{#if webLoaderEngine === 'firecrawl'}
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					dispatch('upload', { type: 'scrape' });
 				}}
 			>
@@ -117,7 +119,7 @@
 
 			<DropdownMenu.Item
 				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				on:click={() => {
+				onSelect={() => {
 					dispatch('upload', { type: 'crawl' });
 				}}
 			>
@@ -125,6 +127,6 @@
 				<div class="flex items-center">{$i18n.t('Crawl a website')}</div>
 			</DropdownMenu.Item>
 		{/if}
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</div>
 </Dropdown>

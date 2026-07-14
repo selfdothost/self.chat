@@ -3,7 +3,7 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let config: Record<string, any> = {};
+	export let config: Record<string, unknown> = {};
 
 	const ALL_EXTENSIONS = [
 		{ ext: '.txt', label: 'TXT' },
@@ -43,7 +43,7 @@
 		File Types
 	</div>
 	<div class="flex flex-wrap gap-1">
-		{#each ALL_EXTENSIONS as { ext, label }}
+		{#each ALL_EXTENSIONS as { ext, label } (ext)}
 			<button
 				class="px-1.5 py-0.5 rounded text-[10px] font-medium transition border"
 				class:bg-emerald-100={selectedExtensions.includes(ext)}

@@ -1,14 +1,16 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import Bolt from '$lib/components/icons/Bolt.svelte';
-	import { onMount, getContext, createEventDispatcher } from 'svelte';
+	import { getContext, createEventDispatcher } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let suggestionPrompts = [];
 	export let className = '';
 
-	let prompts = [];
+	let prompts;
 
 	$: prompts = (suggestionPrompts ?? [])
 		.reduce((acc, current) => [...acc, ...[current]], [])
@@ -23,7 +25,7 @@
 {/if}
 
 <div class=" h-40 max-h-full overflow-auto scrollbar-none {className}">
-	{#each prompts as prompt, promptIdx}
+	{#each prompts as prompt, _promptIdx (prompt.content)}
 		<button
 			class="flex flex-col flex-1 shrink-0 w-full justify-between px-3 py-2 rounded-xl bg-transparent hover:bg-black/5 dark:hover:bg-white/5 transition group"
 			on:click={() => {

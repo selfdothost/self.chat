@@ -1,8 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 
-	import { config, functions, models, settings, tools, user } from '$lib/stores';
-	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
+	import { functions, tools } from '$lib/stores';
+	import { createEventDispatcher, getContext, tick } from 'svelte';
 
 	import {
 		getUserValvesSpecById as getToolUserValvesSpecById,
@@ -17,13 +19,12 @@
 		getFunctions
 	} from '$lib/apis/functions';
 
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Valves from '$lib/components/common/Valves.svelte';
 
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 
@@ -121,6 +122,10 @@
 		init();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const init = async () => {
 		loading = true;
 
@@ -172,7 +177,7 @@
 									>{$i18n.t('Select a tool')}</option
 								>
 
-								{#each $tools as tool, toolIdx}
+								{#each $tools as tool, _toolIdx (tool.id)}
 									<option value={tool.id} class="bg-gray-100 dark:bg-gray-800">{tool.name}</option>
 								{/each}
 							{:else if tab === 'functions'}
@@ -180,7 +185,7 @@
 									>{$i18n.t('Select a function')}</option
 								>
 
-								{#each $functions as func, funcIdx}
+								{#each $functions as func, _funcIdx (func.id)}
 									<option value={func.id} class="bg-gray-100 dark:bg-gray-800">{func.name}</option>
 								{/each}
 							{/if}

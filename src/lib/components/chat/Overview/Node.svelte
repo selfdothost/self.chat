@@ -1,12 +1,31 @@
 <script lang="ts">
-	import { WEBUI_BASE_URL } from '$lib/constants';
-	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
+	import { Handle, Position, type Node, type NodeProps } from '@xyflow/svelte';
+	import type { Model } from '$lib/stores';
 
 	import ProfileImage from '../Messages/ProfileImage.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Heart from '$lib/components/icons/Heart.svelte';
 
-	type $$Props = NodeProps;
+	// Shape of the flow node `data` prop built in Overview.svelte's drawFlow()
+	// (`{ user: $user, message: history.messages[id], model: ... }`). Only the
+	// fields this component actually reads/writes are listed.
+	type OverviewNodeData = {
+		user?: {
+			profile_image_url?: string;
+			name?: string;
+		};
+		message: {
+			id: string;
+			role: string;
+			content: string;
+			model?: string;
+			error?: boolean | { content: string };
+			favorite?: boolean | null;
+		};
+		model?: Model;
+	};
+
+	type $$Props = NodeProps<Node<OverviewNodeData>>;
 	export let data: $$Props['data'];
 </script>
 
@@ -14,15 +33,17 @@
 	class="px-4 py-3 shadow-md rounded-xl dark:bg-black bg-white border dark:border-gray-900 w-60 h-20 group"
 >
 	<Tooltip
-		content={data?.message?.error ? data.message.error.content : data.message.content}
-		class="w-full"
+		content={typeof data?.message?.error === 'object'
+			? data.message.error.content
+			: data.message.content}
+		className="w-full"
 		allowHTML={false}
 	>
 		{#if data.message.role === 'user'}
 			<div class="flex w-full">
 				<ProfileImage
 					src={data.user?.profile_image_url ?? '/user.png'}
-					className={'size-5 -translate-y-[1px]'}
+					className="size-5 -translate-y-[1px]"
 				/>
 				<div class="ml-2">
 					<div class=" flex justify-between items-center">
@@ -32,7 +53,9 @@
 					</div>
 
 					{#if data?.message?.error}
-						<div class="text-red-500 line-clamp-2 text-xs mt-0.5">{data.message.error.content}</div>
+						<div class="text-red-500 line-clamp-2 text-xs mt-0.5">
+							{typeof data.message.error === 'object' ? data.message.error.content : data.message.content}
+						</div>
 					{:else}
 						<div class="text-gray-500 line-clamp-2 text-xs mt-0.5">{data.message.content}</div>
 					{/if}
@@ -42,7 +65,7 @@
 			<div class="flex w-full">
 				<ProfileImage
 					src={data?.model?.info?.meta?.profile_image_url ?? ''}
-					className={'size-5 -translate-y-[1px]'}
+					className="size-5 -translate-y-[1px]"
 				/>
 
 				<div class="ml-2">
@@ -68,7 +91,7 @@
 
 					{#if data?.message?.error}
 						<div class="text-red-500 line-clamp-2 text-xs mt-0.5">
-							{data.message.error.content}
+							{typeof data.message.error === 'object' ? data.message.error.content : data.message.content}
 						</div>
 					{:else}
 						<div class="text-gray-500 line-clamp-2 text-xs mt-0.5">{data.message.content}</div>

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	const i18n = getContext<any>('i18n');
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
@@ -21,7 +23,7 @@
 			class="w-full text-sm bg-transparent outline-none"
 			placeholder={$i18n.t('Enter URL (e.g. http://self-language-eval:8096)')}
 			bind:value={url}
-			on:change={() => onSubmit({ url })}
+			on:change={() => onSubmit()}
 		/>
 	</Tooltip>
 

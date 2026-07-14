@@ -110,7 +110,9 @@ export const updateCuratorConfig = async (token: string = '', config: CuratorCon
 
 type StageConfig = {
 	type: string;
-	params: Record<string, any>;
+	// Stage-specific params vary per stage `type` and are only ever
+	// round-tripped through the API as JSON, never read here.
+	params: Record<string, unknown>;
 };
 
 type CurationJobCreate = {
@@ -140,26 +142,39 @@ async function curatorFetch<T>(token: string, path: string, options: RequestInit
 	return res.json();
 }
 
+// Only the fields actually read by callers (see PipelineJobsPanel.svelte) —
+// the curator daemon's job records carry more than this, but nothing here
+// destructures beyond job_id/name/status/created_at.
+export type CuratorJob = {
+	job_id: string;
+	name: string;
+	status: string;
+	created_at: string | number;
+};
+
 export const listCuratorJobs = (token: string = '') =>
-	curatorFetch<any[]>(token, '/api/jobs');
+	curatorFetch<CuratorJob[]>(token, '/api/jobs');
 
 export const getCuratorJobLogs = (token: string = '', jobId: string, tail = 50) =>
 	curatorFetch<{ lines: string[] }>(token, `/api/jobs/${jobId}/logs?tail=${tail}`);
 
+// schedule/unschedule/approve/cancel aren't called anywhere in the app yet
+// (see the eslint burn-down issue) — `unknown` rather than a guessed shape,
+// since no caller exists to infer one from.
 export const scheduleCuratorJob = (token: string = '', jobId: string, scheduledFor: number) =>
-	curatorFetch<any>(token, `/api/jobs/${jobId}/schedule`, {
+	curatorFetch<unknown>(token, `/api/jobs/${jobId}/schedule`, {
 		method: 'POST',
 		body: JSON.stringify({ scheduled_for: scheduledFor })
 	});
 
 export const unscheduleCuratorJob = (token: string = '', jobId: string) =>
-	curatorFetch<any>(token, `/api/jobs/${jobId}/unschedule`, { method: 'POST', body: '{}' });
+	curatorFetch<unknown>(token, `/api/jobs/${jobId}/unschedule`, { method: 'POST', body: '{}' });
 
 export const approveCuratorJob = (token: string = '', jobId: string) =>
-	curatorFetch<any>(token, `/api/jobs/${jobId}/approve`, { method: 'POST', body: '{}' });
+	curatorFetch<unknown>(token, `/api/jobs/${jobId}/approve`, { method: 'POST', body: '{}' });
 
 export const cancelCuratorJob = (token: string = '', jobId: string) =>
-	curatorFetch<any>(token, `/api/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' });
+	curatorFetch<unknown>(token, `/api/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' });
 
 // Legacy: direct-to-curator job creation (used internally by daemon proxy)
 // Frontend should use queueCuratorJob() instead.
@@ -190,7 +205,7 @@ type QueueCuratorJobRequest = {
 };
 
 export const queueCuratorJob = (token: string = '', req: QueueCuratorJobRequest) =>
-	curatorFetch<any>(token, '/queue', {
+	curatorFetch<{ id: string }>(token, '/queue', {
 		method: 'POST',
 		body: JSON.stringify(req)
 	});

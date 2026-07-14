@@ -1,37 +1,23 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { getContext } from 'svelte';
-	import { toast } from 'svelte-sonner';
 
-	import {
-		WEBUI_NAME,
-		chatId,
-		mobile,
-		settings,
-		showArchivedChats,
-		showControls,
-		showSidebar,
-		temporaryChatEnabled,
-		user
-	} from '$lib/stores';
+	import { chatId, mobile, showArchivedChats, showControls, showSidebar, temporaryChatEnabled, user } from '$lib/stores';
 
-	import { slide } from 'svelte/transition';
 	import ShareChatModal from '../chat/ShareChatModal.svelte';
 	import ModelSelector from '../chat/ModelSelector.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import Menu from './Navbar/Menu.svelte';
-	import { page } from '$app/stores';
 	import UserMenu from './Sidebar/UserMenu.svelte';
 	import MenuLines from '../icons/MenuLines.svelte';
 	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
-	import Map from '../icons/Map.svelte';
-	import { stringify } from 'postcss';
 	import PencilSquare from '../icons/PencilSquare.svelte';
-	import Plus from '../icons/Plus.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let initNewChat: Function;
-	export let title: string = $WEBUI_NAME;
+	export let initNewChat: AnyFn;
 	export let shareEnabled: boolean = false;
 
 	export let chat;
@@ -39,7 +25,6 @@
 	export let showModelSelector = true;
 
 	let showShareChatModal = false;
-	let showDownloadChatModal = false;
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -88,9 +73,6 @@
 						{shareEnabled}
 						shareHandler={() => {
 							showShareChatModal = !showShareChatModal;
-						}}
-						downloadHandler={() => {
-							showDownloadChatModal = !showDownloadChatModal;
 						}}
 					>
 						<button

@@ -96,8 +96,14 @@ export type LiveEvalEvent = {
 export const getEvalJobEvents = (
 	token: string,
 	jobId: string
-): Promise<{ events: LiveEvalEvent[]; status: string; job: Record<string, unknown> }> =>
-	apiFetch(token, `/jobs/${jobId}/events`);
+): Promise<{
+	events: LiveEvalEvent[];
+	status: string;
+	job: Record<string, unknown>;
+	// present for language-eval jobs; language-eval callers in
+	// LiveEvalView.svelte read this straight off the response.
+	benchmarks?: Record<string, number>;
+}> => apiFetch(token, `/jobs/${jobId}/events`);
 
 export function streamEvalJobLive(
 	token: string,

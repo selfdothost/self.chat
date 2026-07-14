@@ -1,14 +1,11 @@
 <script lang="ts">
 	import { Select } from 'bits-ui';
+	import SelectContent from '$lib/components/common/SelectContent.svelte';
 
-	import { flyAndScale } from '$lib/utils/transitions';
 
-	import { createEventDispatcher } from 'svelte';
 	import ChevronDown from '../icons/ChevronDown.svelte';
 	import Check from '../icons/Check.svelte';
 	import Search from '../icons/Search.svelte';
-
-	const dispatch = createEventDispatcher();
 
 	export let value = '';
 	export let placeholder = 'Select a model';
@@ -31,13 +28,11 @@
 </script>
 
 <Select.Root
+	type="single"
 	{items}
+	bind:value
 	onOpenChange={() => {
 		searchValue = '';
-	}}
-	selected={items.find((item) => item.value === value)}
-	onSelectedChange={(selectedItem) => {
-		value = selectedItem.value;
 	}}
 >
 	<Select.Trigger class="relative w-full" aria-label={placeholder}>
@@ -47,9 +42,8 @@
 		/>
 		<ChevronDown className="absolute end-2 top-1/2 -translate-y-[45%] size-3.5" strokeWidth="2.5" />
 	</Select.Trigger>
-	<Select.Content
+	<SelectContent
 		class="w-full rounded-lg  bg-white dark:bg-gray-900 dark:text-white shadow-lg border border-gray-300/30 dark:border-gray-700/40  outline-none"
-		transition={flyAndScale}
 		sideOffset={4}
 	>
 		<slot>
@@ -68,7 +62,7 @@
 			{/if}
 
 			<div class="px-3 my-2 max-h-80 overflow-y-auto">
-				{#each filteredItems as item}
+				{#each filteredItems as item (item.value)}
 					<Select.Item
 						class="flex w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm  text-gray-700 dark:text-gray-100  outline-none transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-850 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
 						value={item.value}
@@ -91,5 +85,5 @@
 				{/each}
 			</div>
 		</slot>
-	</Select.Content>
+	</SelectContent>
 </Select.Root>

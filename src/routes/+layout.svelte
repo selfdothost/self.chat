@@ -25,6 +25,7 @@
 		isLastActiveTab
 	} from '$lib/stores';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { Toaster, toast } from 'svelte-sonner';
 
@@ -36,7 +37,7 @@
 
 	import 'tippy.js/dist/tippy.css';
 
-	import { WEBUI_BASE_URL, WEBUI_HOSTNAME } from '$lib/constants';
+	import { WEBUI_BASE_URL } from '$lib/constants';
 	import i18n, { initI18n, getLanguages } from '$lib/i18n';
 	import { bestMatchingLanguage } from '$lib/utils';
 	import { getAllTags, getChatList } from '$lib/apis/chats';
@@ -98,8 +99,6 @@
 	};
 
 	const chatEventHandler = async (event) => {
-		const chat = $page.url.pathname.includes(`/c/${event.chat_id}`);
-
 		if (
 			(event.chat_id !== $chatId && !$temporaryChatEnabled) ||
 			document.visibilityState !== 'visible'
@@ -124,7 +123,7 @@
 					toast.custom(NotificationToast, {
 						componentProps: {
 							onClick: () => {
-								goto(`/c/${event.chat_id}`);
+								goto(resolve('/(app)/c/[id]', { id: event.chat_id }));
 							},
 							content: content,
 							title: title
@@ -164,7 +163,7 @@
 				toast.custom(NotificationToast, {
 					componentProps: {
 						onClick: () => {
-							goto(`/channels/${event.channel_id}`);
+							goto(resolve('/(app)/channels/[id]', { id: event.channel_id }));
 						},
 						content: data?.content,
 						title: event?.channel?.name
@@ -176,9 +175,28 @@
 		}
 	};
 
+	// Split out from the async onMount below: an async onMount's return value
+	// is a Promise, so Svelte can't use it as a synchronous cleanup function
+	// (its type is `() => (() => any) | Promise<never>` -- an async callback
+	// must never resolve to a real value). Keeping the resize listener in its
+	// own synchronous onMount lets its `removeEventListener` cleanup actually
+	// run on unmount.
+	onMount(() => {
+		mobile.set(window.innerWidth < BREAKPOINT);
+		const onResize = () => {
+			mobile.set(window.innerWidth < BREAKPOINT);
+		};
+
+		window.addEventListener('resize', onResize);
+
+		return () => {
+			window.removeEventListener('resize', onResize);
+		};
+	});
+
 	onMount(async () => {
 		// Listen for messages on the BroadcastChannel
-		
+
 		bc.onmessage = (event) => {
 			if (event.data === 'active') {
 				
@@ -202,19 +220,6 @@
 
 		theme.set(localStorage.theme);
 
-		mobile.set(window.innerWidth < BREAKPOINT);
-		const onResize = () => {
-			
-			if (window.innerWidth < BREAKPOINT) {
-				mobile.set(true);
-				
-			} else {
-				mobile.set(false);
-			}
-		};
-
-		window.addEventListener('resize', onResize);
-
 		let backendConfig = null;
 		try {
 			backendConfig = await getBackendConfig();
@@ -225,12 +230,12 @@
 		// Initialize i18n even if we didn't get a backend config,
 		// so `/error` can show something that's not `undefined`.
 
-		initI18n();
+		initI18n(backendConfig?.default_locale);
 		if (!localStorage.locale) {
 			const languages = await getLanguages();
-			const browserLanguages = navigator.languages
-				? navigator.languages
-				: [navigator.language || navigator.userLanguage];
+			// navigator.languages covers every evergreen browser we support;
+			// no IE-only navigator.userLanguage fallback needed here.
+			const browserLanguages = navigator.languages ? navigator.languages : [navigator.language];
 			const lang = backendConfig.default_locale
 				? backendConfig.default_locale
 				: bestMatchingLanguage(languages, browserLanguages, 'en-US');
@@ -264,19 +269,19 @@
 					} else {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
-						await goto('/auth');
+						await goto(resolve('/auth'));
 					}
 				} else {
 					// Don't redirect if we're already on the auth page
 					// Needed because we pass in tokens from OAuth logins via URL fragments
 					if ($page.url.pathname !== '/auth') {
-						await goto('/auth');
+						await goto(resolve('/auth'));
 					}
 				}
 			}
 		} else {
 			// Redirect to /error when Backend Not Detected
-			await goto(`/error`);
+			await goto(resolve('/error'));
 		}
 
 		await tick();
@@ -310,10 +315,6 @@
 			document.getElementById('splash-screen')?.remove();
 			loaded = true;
 		}
-
-		return () => {
-			window.removeEventListener('resize', onResize);
-		};
 	});
 </script>
 

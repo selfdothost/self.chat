@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
 	import { getContext, onMount } from 'svelte';
 
@@ -8,7 +10,7 @@
 
 	export let selectedToolIds = [];
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	onMount(() => {
 		_tools = tools.reduce((acc, tool) => {
@@ -34,7 +36,7 @@
 	<div class="flex flex-col">
 		{#if tools.length > 0}
 			<div class=" flex items-center mt-2 flex-wrap">
-				{#each Object.keys(_tools) as tool, toolIdx}
+				{#each Object.keys(_tools) as tool, _toolIdx (tool)}
 					<div class=" flex items-center gap-2 mr-3">
 						<div class="self-center flex items-center">
 							<Checkbox

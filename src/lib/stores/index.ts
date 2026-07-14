@@ -75,14 +75,42 @@ export const currentChatPage = writable(1);
 export const isLastActiveTab = writable(true);
 export const playingNotificationSound = writable(false);
 
-export type Model = OpenAIModel | OllamaModel;
+export type Model = OpenAIModel | OllamaModel | ArenaModel | LlamolotlModel;
 
 type BaseModel = {
 	id: string;
 	name: string;
 	info?: ModelConfig;
-	owned_by: 'ollama' | 'openai' | 'arena';
+	owned_by: 'ollama' | 'openai' | 'arena' | 'llamolotl';
+	// Client-side-only flags used to exclude local/preset or arena pseudo-model
+	// entries when picking a real base model (never sent by the backend on the
+	// wire; set/read only in this frontend).
+	preset?: boolean;
+	arena?: boolean;
 };
+
+// Arena models (model-vs-model comparison entries) are filtered out of most
+// model pickers via `owned_by !== 'arena'` (Leaderboard.svelte, ModelEditor.svelte,
+// Permissions.svelte, ArenaModelModal.svelte) — a real, used category, not a typo.
+export interface ArenaModel extends BaseModel {
+	owned_by: 'arena';
+	meta?: {
+		profile_image_url?: string;
+		description?: string;
+		model_ids?: string[];
+		filter_mode?: string;
+		access_control?: object;
+	};
+}
+
+// self.llamolotl-backed models — served through llamolotl's connection type
+// (distinct from a generic OpenAI-compatible connection; see
+// AddConnectionModal.svelte's separate `llamolotl` connection flag).
+export interface LlamolotlModel extends BaseModel {
+	owned_by: 'llamolotl';
+	external?: boolean;
+	source?: string;
+}
 
 export interface OpenAIModel extends BaseModel {
 	owned_by: 'openai';
@@ -135,7 +163,9 @@ type Settings = {
 	notificationEnabled?: boolean;
 	title?: TitleSettings;
 	splitLargeDeltas?: boolean;
-	chatDirection: 'LTR' | 'RTL';
+	// Only non-optional field in this type, but the store is initialized
+	// `writable({})` before settings load -- optional like everything else.
+	chatDirection?: 'LTR' | 'RTL';
 
 	system?: string;
 	requestFormat?: string;
@@ -149,6 +179,32 @@ type Settings = {
 	num_batch?: string;
 	num_keep?: string;
 	options?: ModelOptions;
+
+	autoTags?: boolean;
+	backgroundImageUrl?: string;
+	chatBubble?: boolean;
+	hapticFeedback?: boolean;
+	imageCompression?: boolean;
+	imageCompressionSize?: { width?: string; height?: string };
+	landingPageMode?: string;
+	largeTextAsFile?: boolean;
+	memory?: boolean;
+	notificationSound?: boolean;
+	notifications?: { webhook_url?: string };
+	// Spread directly into request payloads alongside per-request overrides --
+	// genuinely an open bag of advanced-params fields, not a fixed shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	params?: Record<string, any>;
+	responseAutoCopy?: boolean;
+	richTextInput?: boolean;
+	scrollOnBranchChange?: boolean;
+	showChangelog?: boolean;
+	showEmojiInCall?: boolean;
+	splitLargeChunks?: boolean;
+	userLocation?: boolean;
+	version?: string;
+	voiceInterruption?: boolean;
+	widescreenMode?: boolean;
 };
 
 type ModelOptions = {
@@ -161,6 +217,13 @@ type AudioSettings = {
 	speaker?: string;
 	model?: string;
 	nonLocalVoices?: boolean;
+	tts?: {
+		voice?: string;
+		defaultVoice?: string;
+		playbackRate?: number;
+		nonLocalVoices?: boolean;
+	};
+	stt?: { engine?: string };
 };
 
 type TitleSettings = {
@@ -179,10 +242,15 @@ type Prompt = {
 };
 
 type Document = {
+	id?: string;
 	collection_name: string;
 	filename: string;
 	name: string;
 	title: string;
+	description?: string;
+	legacy?: boolean;
+	meta?: { document?: boolean; tags?: { name: string }[]; name?: string };
+	files?: Record<string, unknown>[];
 };
 
 type Config = {
@@ -199,6 +267,11 @@ type Config = {
 		enable_signup: boolean;
 		enable_login_form: boolean;
 		enable_web_search?: boolean;
+		enable_websocket?: boolean;
+		enable_ldap?: boolean;
+		enable_curator?: boolean;
+		enable_message_rating?: boolean;
+		enable_channels?: boolean;
 		enable_google_drive_integration: boolean;
 		enable_image_generation: boolean;
 		enable_admin_export: boolean;
@@ -210,6 +283,12 @@ type Config = {
 			[key: string]: string;
 		};
 	};
+	audio?: {
+		stt?: { engine?: string };
+		tts?: { engine?: string; voice?: string; split_on?: string };
+	};
+	file?: { max_size?: number; max_count?: number };
+	onboarding?: boolean;
 };
 
 type PromptSuggestion = {
@@ -223,4 +302,9 @@ type SessionUser = {
 	name: string;
 	role: string;
 	profile_image_url: string;
+	token?: string;
+	// Spans multiple independent namespaces (chat.*, model.*, workspace.*) --
+	// genuinely an open permission bag, not a fixed shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	permissions?: Record<string, any>;
 };

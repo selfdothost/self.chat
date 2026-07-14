@@ -1,22 +1,15 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { goto, invalidate, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount, getContext, createEventDispatcher, tick, onDestroy } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const dispatch = createEventDispatcher();
 
-	import {
-		archiveChatById,
-		cloneChatById,
-		deleteChatById,
-		getAllTags,
-		getChatById,
-		getChatList,
-		getChatListByTagName,
-		getPinnedChatList,
-		updateChatById
-	} from '$lib/apis/chats';
+	import { archiveChatById, cloneChatById, deleteChatById, getAllTags, getChatById, getChatList, getPinnedChatList, updateChatById } from '$lib/apis/chats';
 	import {
 		chatId,
 		chatTitle as _chatTitle,
@@ -55,6 +48,10 @@
 		loadChat();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const loadChat = async () => {
 		if (!chat) {
 			draggable = false;
@@ -93,7 +90,7 @@
 		});
 
 		if (res) {
-			goto(`/c/${res.id}`);
+			goto(resolve('/(app)/c/[id]', { id: res.id }));
 
 			currentChatPage.set(1);
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
@@ -110,7 +107,7 @@
 		if (res) {
 			tags.set(await getAllTags(localStorage.token));
 			if ($chatId === id) {
-				await goto('/');
+				await goto(resolve('/'));
 
 				await chatId.set('');
 				await tick();
@@ -125,7 +122,10 @@
 		dispatch('change');
 	};
 
-	const focusEdit = async (node: HTMLInputElement) => {
+	// Svelte actions (`use:`) must be synchronous -- they return
+	// `{destroy?, update?}` or nothing, never a Promise. `node.focus()` here
+	// never awaited anything anyway, so `async` was just wrong, not needed.
+	const focusEdit = (node: HTMLInputElement) => {
 		node.focus();
 	};
 
@@ -245,7 +245,7 @@
 				: selected
 					? 'bg-gray-100 dark:bg-gray-950'
 					: ' group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis"
-			href="/c/{id}"
+			href={resolve('/(app)/c/[id]', { id })}
 			on:click={() => {
 				dispatch('select');
 
@@ -257,13 +257,13 @@
 				chatTitle = title;
 				confirmEdit = true;
 			}}
-			on:mouseenter={(e) => {
+			on:mouseenter={(_e) => {
 				mouseOver = true;
 			}}
-			on:mouseleave={(e) => {
+			on:mouseleave={(_e) => {
 				mouseOver = false;
 			}}
-			on:focus={(e) => {}}
+			on:focus={(_e) => {}}
 			draggable="false"
 		>
 			<div class=" flex self-center flex-1 w-full">
@@ -287,10 +287,10 @@
 			: 'right-0'}  top-[4px] py-1 pr-0.5 mr-1.5 pl-5 bg-gradient-to-l from-80%
 
               to-transparent"
-		on:mouseenter={(e) => {
+		on:mouseenter={(_e) => {
 			mouseOver = true;
 		}}
-		on:mouseleave={(e) => {
+		on:mouseleave={(_e) => {
 			mouseOver = false;
 		}}
 	>

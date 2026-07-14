@@ -1,7 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { getContext, onMount } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { getGroups } from '$lib/apis/groups';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -9,7 +12,7 @@
 	import UserCircleSolid from '$lib/components/icons/UserCircleSolid.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 
-	export let onChange: Function = () => {};
+	export let onChange: AnyFn = () => {};
 
 	export let accessControl = null;
 
@@ -85,7 +88,7 @@
 					class="outline-none bg-transparent text-sm font-medium rounded-lg block w-fit pr-10 max-w-full placeholder-gray-400"
 					value={accessControl !== null ? 'private' : 'public'}
 					on:change={(e) => {
-						if (e.target.value === 'public') {
+						if ((e.target as HTMLSelectElement).value === 'public') {
 							accessControl = null;
 						} else {
 							accessControl = {
@@ -125,7 +128,7 @@
 
 				<div class="flex flex-col gap-2">
 					{#if accessGroups.length > 0}
-						{#each accessGroups as group}
+						{#each accessGroups as group (group.id)}
 							<div class="flex items-center gap-3 justify-between text-xs w-full transition">
 								<div class="flex items-center gap-1.5 w-full font-medium">
 									<div>
@@ -175,7 +178,7 @@
 								<option class=" text-gray-700" value="" disabled selected
 									>{$i18n.t('Select a group')}</option
 								>
-								{#each groups.filter((group) => !accessControl.read.group_ids.includes(group.id)) as group}
+								{#each groups.filter((group) => !accessControl.read.group_ids.includes(group.id)) as group (group.id)}
 									<option class=" text-gray-700" value={group.id}>{group.name}</option>
 								{/each}
 							</select>

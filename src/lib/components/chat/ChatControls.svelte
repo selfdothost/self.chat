@@ -1,19 +1,17 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import { SvelteFlowProvider } from '@xyflow/svelte';
-	import { slide } from 'svelte/transition';
 	import { Pane, PaneResizer } from 'paneforge';
 
 	import { onDestroy, onMount, tick } from 'svelte';
-	import { mobile, showControls, showCallOverlay, showOverview, showArtifacts } from '$lib/stores';
+	import { showControls, showCallOverlay, showOverview, showArtifacts } from '$lib/stores';
 
-	import Modal from '../common/Modal.svelte';
 	import Controls from './Controls/Controls.svelte';
 	import CallOverlay from './MessageInput/CallOverlay.svelte';
 	import Drawer from '../common/Drawer.svelte';
 	import Overview from './Overview.svelte';
 	import EllipsisVertical from '../icons/EllipsisVertical.svelte';
 	import Artifacts from './Artifacts.svelte';
-	import { min } from '@floating-ui/utils';
 
 	export let history;
 	export let models = [];
@@ -24,13 +22,13 @@
 	export let params = {};
 
 	export let eventTarget: EventTarget;
-	export let submitPrompt: Function;
-	export let stopResponse: Function;
-	export let showMessage: Function;
+	export let submitPrompt: AnyFn;
+	export let stopResponse: AnyFn;
+	export let showMessage: AnyFn;
 	export let files;
 	export let modelId;
 
-	export let pane;
+	export let pane = null;
 
 	let mediaQuery;
 	let largeScreen = false;
@@ -67,11 +65,11 @@
 		}
 	};
 
-	const onMouseDown = (event) => {
+	const onMouseDown = (_event) => {
 		dragged = true;
 	};
 
-	const onMouseUp = (event) => {
+	const onMouseUp = (_event) => {
 		dragged = false;
 	};
 
@@ -182,7 +180,6 @@
 							on:close={() => {
 								showControls.set(false);
 							}}
-							{models}
 							bind:chatFiles
 							bind:params
 						/>
@@ -202,7 +199,7 @@
 		{/if}
 
 		<Pane
-			bind:pane
+			bind:ref={pane}
 			defaultSize={0}
 			onResize={(size) => {
 				console.log('size', size, minSize);
@@ -269,7 +266,6 @@
 								on:close={() => {
 									showControls.set(false);
 								}}
-								{models}
 								bind:chatFiles
 								bind:params
 							/>

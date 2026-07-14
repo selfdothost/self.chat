@@ -1,6 +1,11 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { DropdownMenu } from 'bits-ui';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
+	import DropdownMenuSubContent from '$lib/components/common/DropdownMenuSubContent.svelte';
 	import { getContext } from 'svelte';
 
 	import fileSaver from 'file-saver';
@@ -16,7 +21,6 @@
 		mobile,
 		temporaryChatEnabled
 	} from '$lib/stores';
-	import { flyAndScale } from '$lib/utils/transitions';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tags from '$lib/components/chat/Tags.svelte';
@@ -26,21 +30,20 @@
 	import Cube from '$lib/components/icons/Cube.svelte';
 	import { getChatById } from '$lib/apis/chats';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let shareEnabled: boolean = false;
-	export let shareHandler: Function;
-	export let downloadHandler: Function;
+	export let shareHandler: AnyFn;
 
 	// export let tagHandler: Function;
 
 	export let chat;
-	export let onClose: Function = () => {};
+	export let onClose: AnyFn = () => {};
 
 	const getChatAsText = async () => {
 		const history = chat.chat.history;
 		const messages = createMessagesList(history, history.currentId);
-		const chatText = messages.reduce((a, message, i, arr) => {
+		const chatText = messages.reduce((a, message, _i, _arr) => {
 			return `${a}### ${message.role.toUpperCase()}\n${message.content}\n\n`;
 		}, '');
 
@@ -83,7 +86,7 @@
 
 	const downloadJSONExport = async () => {
 		if (chat.id) {
-			let chatObj = null;
+			let chatObj;
 
 			if (chat.id === 'local' || $temporaryChatEnabled) {
 				chatObj = chat;
@@ -109,12 +112,11 @@
 	<slot />
 
 	<div slot="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full max-w-[200px] rounded-xl px-1 py-1.5  z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
 			sideOffset={8}
 			side="bottom"
 			align="end"
-			transition={flyAndScale}
 		>
 			<!-- <DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer dark:hover:bg-gray-800 rounded-md"
@@ -148,7 +150,7 @@
 				<DropdownMenu.Item
 					class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					id="chat-controls-button"
-					on:click={async () => {
+					onSelect={async () => {
 						await showControls.set(true);
 						await showOverview.set(false);
 						await showArtifacts.set(false);
@@ -163,7 +165,7 @@
 				<DropdownMenu.Item
 					class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					id="chat-share-button"
-					on:click={() => {
+					onSelect={() => {
 						shareHandler();
 					}}
 				>
@@ -186,7 +188,7 @@
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 				id="chat-overview-button"
-				on:click={async () => {
+				onSelect={async () => {
 					await showControls.set(true);
 					await showOverview.set(true);
 					await showArtifacts.set(false);
@@ -199,7 +201,7 @@
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 				id="chat-overview-button"
-				on:click={async () => {
+				onSelect={async () => {
 					await showControls.set(true);
 					await showArtifacts.set(true);
 					await showOverview.set(false);
@@ -230,14 +232,13 @@
 
 					<div class="flex items-center">{$i18n.t('Download')}</div>
 				</DropdownMenu.SubTrigger>
-				<DropdownMenu.SubContent
+				<DropdownMenuSubContent
 					class="w-full rounded-xl px-1 py-1.5 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
-					transition={flyAndScale}
 					sideOffset={8}
 				>
 					<DropdownMenu.Item
 						class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-						on:click={() => {
+						onSelect={() => {
 							downloadJSONExport();
 						}}
 					>
@@ -245,7 +246,7 @@
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-						on:click={() => {
+						onSelect={() => {
 							downloadTxt();
 						}}
 					>
@@ -254,19 +255,19 @@
 
 					<DropdownMenu.Item
 						class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-						on:click={() => {
+						onSelect={() => {
 							downloadPdf();
 						}}
 					>
 						<div class="flex items-center line-clamp-1">{$i18n.t('PDF document (.pdf)')}</div>
 					</DropdownMenu.Item>
-				</DropdownMenu.SubContent>
+				</DropdownMenuSubContent>
 			</DropdownMenu.Sub>
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 				id="chat-copy-button"
-				on:click={async () => {
+				onSelect={async () => {
 					const res = await copyToClipboard(await getChatAsText()).catch((e) => {
 						console.error(e);
 					});
@@ -287,6 +288,6 @@
 					<Tags chatId={chat.id} />
 				</div>
 			{/if}
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</div>
 </Dropdown>

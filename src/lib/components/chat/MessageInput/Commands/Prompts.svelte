@@ -1,18 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { prompts, user } from '$lib/stores';
-	import {
-		findWordIndices,
-		getUserPosition,
-		getFormattedDate,
-		getFormattedTime,
-		getCurrentDateTime,
-		getUserTimezone,
-		getWeekday
-	} from '$lib/utils';
+	import { getUserPosition, getFormattedDate, getFormattedTime, getCurrentDateTime, getUserTimezone, getWeekday } from '$lib/utils';
 	import { tick, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let files;
 
@@ -42,7 +36,7 @@
 		let text = command.content;
 
 		if (command.content.includes('{{CLIPBOARD}}')) {
-			const clipboardText = await navigator.clipboard.readText().catch((err) => {
+			const clipboardText = await navigator.clipboard.readText().catch((_err) => {
 				toast.error($i18n.t('Failed to read clipboard contents'));
 				return '{{CLIPBOARD}}';
 			});
@@ -144,7 +138,7 @@
 				class="max-h-60 flex flex-col w-full rounded-xl bg-white dark:bg-gray-900 dark:text-gray-100"
 			>
 				<div class="m-1 overflow-y-auto p-1 space-y-0.5 scrollbar-hidden">
-					{#each filteredPrompts as prompt, promptIdx}
+					{#each filteredPrompts as prompt, promptIdx (prompt.command)}
 						<button
 							class=" px-3 py-1.5 rounded-xl w-full text-left {promptIdx === selectedPromptIdx
 								? '  bg-gray-50 dark:bg-gray-850 selected-command-option-button'

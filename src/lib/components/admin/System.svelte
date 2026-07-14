@@ -7,6 +7,7 @@
 	import Overview from './System/Overview.svelte';
 	import Processes from './System/Processes.svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let selectedTab = 'overview';
@@ -53,7 +54,7 @@
 				}
 			}
 			modelLoadStatus.set(fullStatusMap);
-		} catch (err) {
+		} catch {
 			// Silently ignore — llamolotl may not be configured
 		}
 	}
@@ -103,6 +104,9 @@
 
 	// When tab changes after mount, fetch immediately and restart polling
 	$: if (mounted && selectedTab !== prevTab) {
+		// Read by this same comparison on the next invocation, once selectedTab
+		// changes again -- ESLint can't see reads across $: re-invocations.
+		// eslint-disable-next-line no-useless-assignment
 		prevTab = selectedTab;
 		poll();
 		startPolling();

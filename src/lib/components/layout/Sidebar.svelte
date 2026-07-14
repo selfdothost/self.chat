@@ -1,43 +1,17 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
 
 	import { goto } from '$app/navigation';
-	import {
-		user,
-		chats,
-		settings,
-		showSettings,
-		chatId,
-		tags,
-		showSidebar,
-		mobile,
-		showArchivedChats,
-		pinnedChats,
-		scrollPaginationEnabled,
-		currentChatPage,
-		temporaryChatEnabled,
-		channels,
-		socket,
-		config
-	} from '$lib/stores';
-	import { onMount, getContext, tick, onDestroy } from 'svelte';
+	import { resolve } from '$app/paths';
+	import { user, chats, chatId, tags, showSidebar, mobile, showArchivedChats, pinnedChats, scrollPaginationEnabled, currentChatPage, temporaryChatEnabled, channels, socket, config } from '$lib/stores';
+	import { onMount, getContext, onDestroy } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import {
-		deleteChatById,
-		getChatList,
-		getAllTags,
-		getChatListBySearchText,
-		createNewChat,
-		getPinnedChatList,
-		toggleChatPinnedStatusById,
-		getChatPinnedStatusById,
-		getChatById,
-		updateChatFolderIdById,
-		importChat
-	} from '$lib/apis/chats';
+	import { getChatList, getAllTags, getChatListBySearchText, getPinnedChatList, toggleChatPinnedStatusById, getChatById, updateChatFolderIdById, importChat } from '$lib/apis/chats';
 	import { createNewFolder, getFolders, updateFolderParentIdById } from '$lib/apis/folders';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
@@ -46,18 +20,13 @@
 	import ChatItem from './Sidebar/ChatItem.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
-	import AddFilesPlaceholder from '../AddFilesPlaceholder.svelte';
 	import SearchInput from './Sidebar/SearchInput.svelte';
 	import Folder from '../common/Folder.svelte';
-	import Plus from '../icons/Plus.svelte';
-	import Tooltip from '../common/Tooltip.svelte';
 	import Folders from './Sidebar/Folders.svelte';
 	import { getChannels, createNewChannel } from '$lib/apis/channels';
 	import ChannelModal from './Sidebar/ChannelModal.svelte';
 	import ChannelItem from './Sidebar/ChannelItem.svelte';
 	import PencilSquare from '../icons/PencilSquare.svelte';
-
-	const BREAKPOINT = 768;
 
 	let navElement;
 	let search = '';
@@ -74,7 +43,10 @@
 	let chatListLoading = false;
 	let allChatsLoaded = false;
 
-	let folders = {};
+	// Folder tree keyed by id -- built up dynamically in initFolders() below
+	// (parent_id/childrenIds/items all attached after the fact), not a fixed shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let folders: Record<string, any> = {};
 
 	const initFolders = async () => {
 		const folderList = await getFolders(localStorage.token).catch((error) => {
@@ -158,18 +130,24 @@
 
 	const initChatList = async () => {
 		// Reset pagination variables
-		tags.set(await getAllTags(localStorage.token));
-		pinnedChats.set(await getPinnedChatList(localStorage.token));
-		initFolders();
-
 		currentChatPage.set(1);
 		allChatsLoaded = false;
 
-		if (search) {
-			await chats.set(await getChatListBySearchText(localStorage.token, search, $currentChatPage));
-		} else {
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
-		}
+		const [tagList, pinnedChatList, , newChatList] = await Promise.all([
+			getAllTags(localStorage.token),
+			getPinnedChatList(localStorage.token),
+			initFolders(),
+			search
+				? getChatListBySearchText(localStorage.token, search, $currentChatPage)
+				: getChatList(localStorage.token, $currentChatPage)
+		]);
+
+		tags.set(tagList);
+		pinnedChats.set(pinnedChatList);
+		await chats.set(newChatList);
+
+		// once the first page has been loaded (no results) there is no need to continue querying
+		allChatsLoaded = newChatList.length === 0;
 
 		// Enable pagination
 		scrollPaginationEnabled.set(true);
@@ -180,7 +158,7 @@
 
 		currentChatPage.set($currentChatPage + 1);
 
-		let newChatList = [];
+		let newChatList;
 
 		if (search) {
 			newChatList = await getChatListBySearchText(localStorage.token, search, $currentChatPage);
@@ -239,7 +217,7 @@
 		for (const file of files) {
 			const reader = new FileReader();
 			reader.onload = async (e) => {
-				const content = e.target.result;
+				const content = e.target.result as string;
 
 				try {
 					const chatItems = JSON.parse(content);
@@ -262,22 +240,14 @@
 		}
 	};
 
-	let draggedOver = false;
-
+	// NOTE: `draggedOver` used to track drag-over state here but nothing
+	// ever read it (no drop-zone highlight is bound to it) — removed as
+	// dead state rather than guessing at the intended visual feedback.
 	const onDragOver = (e) => {
 		e.preventDefault();
-
-		// Check if a file is being draggedOver.
-		if (e.dataTransfer?.types?.includes('Files')) {
-			draggedOver = true;
-		} else {
-			draggedOver = false;
-		}
 	};
 
-	const onDragLeave = () => {
-		draggedOver = false;
-	};
+	const onDragLeave = () => {};
 
 	const onDrop = async (e) => {
 		e.preventDefault();
@@ -292,8 +262,6 @@
 				inputFilesHandler(inputFiles); // Handle the dropped files
 			}
 		}
-
-		draggedOver = false; // Reset draggedOver status after drop
 	};
 
 	let touchstart;
@@ -475,11 +443,11 @@
 			<a
 				id="sidebar-new-chat-button"
 				class="flex justify-between items-center flex-1 rounded-lg px-2 py-1 h-full text-right hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-				href="/"
+				href={resolve('/(app)')}
 				draggable="false"
 				on:click={async () => {
 					selectedChatId = null;
-					await goto('/');
+					await goto(resolve('/(app)'));
 					const newChatButton = document.getElementById('new-chat-button');
 					setTimeout(() => {
 						newChatButton?.click();
@@ -513,7 +481,7 @@
 			<div class="px-1.5 flex justify-center text-gray-800 dark:text-gray-200">
 				<a
 					class="flex-grow flex space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-					href="/workspace"
+					href={resolve('/(app)/workspace')}
 					on:click={() => {
 						selectedChatId = null;
 						chatId.set('');
@@ -577,7 +545,7 @@
 						: null}
 					onAddLabel={$i18n.t('Create Channel')}
 				>
-					{#each $channels as channel}
+					{#each $channels as channel (channel.id)}
 						<ChannelItem
 							{channel}
 							onUpdate={async () => {
@@ -603,7 +571,7 @@
 					const { type, id, item } = e.detail;
 
 					if (type === 'chat') {
-						let chat = await getChatById(localStorage.token, id).catch((error) => {
+						let chat = await getChatById(localStorage.token, id).catch((_error) => {
 							return null;
 						});
 						if (!chat && item) {
@@ -613,16 +581,14 @@
 						if (chat) {
 							console.log(chat);
 							if (chat.folder_id) {
-								const res = await updateChatFolderIdById(localStorage.token, chat.id, null).catch(
-									(error) => {
-										toast.error(error);
-										return null;
-									}
-								);
+								await updateChatFolderIdById(localStorage.token, chat.id, null).catch((error) => {
+									toast.error(error);
+									return null;
+								});
 							}
 
 							if (chat.pinned) {
-								const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
+								await toggleChatPinnedStatusById(localStorage.token, chat.id);
 							}
 
 							initChatList();
@@ -665,7 +631,7 @@
 								const { type, id, item } = e.detail;
 
 								if (type === 'chat') {
-									let chat = await getChatById(localStorage.token, id).catch((error) => {
+									let chat = await getChatById(localStorage.token, id).catch((_error) => {
 										return null;
 									});
 									if (!chat && item) {
@@ -675,18 +641,16 @@
 									if (chat) {
 										console.log(chat);
 										if (chat.folder_id) {
-											const res = await updateChatFolderIdById(
-												localStorage.token,
-												chat.id,
-												null
-											).catch((error) => {
-												toast.error(error);
-												return null;
-											});
+											await updateChatFolderIdById(localStorage.token, chat.id, null).catch(
+												(error) => {
+													toast.error(error);
+													return null;
+												}
+											);
 										}
 
 										if (!chat.pinned) {
-											const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
+											await toggleChatPinnedStatusById(localStorage.token, chat.id);
 										}
 
 										initChatList();
@@ -698,7 +662,7 @@
 							<div
 								class="ml-3 pl-1 mt-[1px] flex flex-col overflow-y-auto scrollbar-hidden border-s border-gray-100 dark:border-gray-900"
 							>
-								{#each $pinnedChats as chat, idx}
+								{#each $pinnedChats as chat, _idx (chat.id)}
 									<ChatItem
 										className=""
 										id={chat.id}
@@ -732,7 +696,7 @@
 							const { folderId, items } = e.detail;
 							importChatHandler(items, false, folderId);
 						}}
-						on:update={async (e) => {
+						on:update={async (_e) => {
 							initChatList();
 						}}
 						on:change={async () => {
@@ -744,7 +708,7 @@
 				<div class=" flex-1 flex flex-col overflow-y-auto scrollbar-hidden">
 					<div class="pt-1.5">
 						{#if $chats}
-							{#each $chats as chat, idx}
+							{#each $chats as chat, idx (chat.id)}
 								{#if idx === 0 || (idx > 0 && chat.time_range !== $chats[idx - 1].time_range)}
 									<div
 										class="w-full pl-2.5 text-xs text-gray-500 dark:text-gray-500 font-medium {idx ===
@@ -798,7 +762,7 @@
 
 							{#if $scrollPaginationEnabled && !allChatsLoaded}
 								<Loader
-									on:visible={(e) => {
+									on:visible={(_e) => {
 										if (!chatListLoading) {
 											loadMoreChats();
 										}

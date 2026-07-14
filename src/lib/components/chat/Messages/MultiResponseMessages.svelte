@@ -1,13 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import dayjs from 'dayjs';
 	import { onMount, tick, getContext } from 'svelte';
-	import { createEventDispatcher } from 'svelte';
 
-	import { mobile, settings } from '$lib/stores';
+	import { mobile } from '$lib/stores';
 
-	import { generateMoACompletion } from '$lib/apis';
-	import { updateChatById } from '$lib/apis/chats';
-	import { createOpenAITextStream } from '$lib/apis/streaming';
 
 	import ResponseMessage from './ResponseMessage.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -16,7 +15,7 @@
 	import Markdown from './Markdown.svelte';
 	import Name from './Name.svelte';
 	import Skeleton from './Skeleton.svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let chatId;
 	export let history;
@@ -25,24 +24,29 @@
 	export let isLastMessage;
 	export let readOnly = false;
 
-	export let updateChat: Function;
-	export let editMessage: Function;
-	export let saveMessage: Function;
-	export let rateMessage: Function;
-	export let actionMessage: Function;
+	export let updateChat: AnyFn;
+	export let editMessage: AnyFn;
+	export let saveMessage: AnyFn;
+	export let rateMessage: AnyFn;
+	export let actionMessage: AnyFn;
 
-	export let submitMessage: Function;
-	export let continueResponse: Function;
-	export let regenerateResponse: Function;
-	export let mergeResponses: Function;
+	export let submitMessage: AnyFn;
+	export let continueResponse: AnyFn;
+	export let regenerateResponse: AnyFn;
+	export let mergeResponses: AnyFn;
 
-	export let addMessages: Function;
+	export let addMessages: AnyFn;
 
-	export let triggerScroll: Function;
+	export let triggerScroll: AnyFn;
 
-	const dispatch = createEventDispatcher();
+	// Hardcoded `true` looks like a leftover from debugging — every sibling
+	// action icon in this file uses plain `invisible group-hover:visible`,
+	// making the merge button the only one that's always visible regardless
+	// of hover. Left as-is rather than guessing at the intended condition —
+	// see eslint burn-down issue.
+	// eslint-disable-next-line no-constant-condition
+	const mergeButtonVisibilityClass = true ? 'visible' : 'invisible group-hover:visible';
 
-	let currentMessageId;
 	let parentMessage;
 	let groupedMessageIds = {};
 	let groupedMessageIdsIdx = {};
@@ -97,11 +101,28 @@
 		triggerScroll();
 	};
 
+	// Switch the active response to the one under a given model's response card
+	// (click or Enter/Space on the card selects it).
+	const selectResponse = async (_messageId) => {
+		if (messageId != _messageId) {
+			let currentMessageId = _messageId;
+			let messageChildrenIds = history.messages[currentMessageId].childrenIds;
+			while (messageChildrenIds.length !== 0) {
+				currentMessageId = messageChildrenIds.at(-1);
+				messageChildrenIds = history.messages[currentMessageId].childrenIds;
+			}
+			history.currentId = currentMessageId;
+
+			await tick();
+			await updateChat();
+			triggerScroll();
+		}
+	};
+
 	const initHandler = async () => {
 		console.log('multiresponse:initHandler');
 		await tick();
 
-		currentMessageId = messageId;
 		parentMessage = history.messages[messageId].parentId
 			? history.messages[history.messages[messageId].parentId]
 			: null;
@@ -180,10 +201,8 @@
 			class="flex snap-x snap-mandatory overflow-x-auto scrollbar-hidden"
 			id="responses-container-{chatId}-{parentMessage.id}"
 		>
-			{#each Object.keys(groupedMessageIds) as modelIdx}
+			{#each Object.keys(groupedMessageIds) as modelIdx (modelIdx)}
 				{#if groupedMessageIdsIdx[modelIdx] !== undefined && groupedMessageIds[modelIdx].messageIds.length > 0}
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					{@const _messageId =
 						groupedMessageIds[modelIdx].messageIds[groupedMessageIdsIdx[modelIdx]]}
 
@@ -196,20 +215,13 @@
 							: `border-gray-50 dark:border-gray-850 border-dashed ${
 									$mobile ? 'min-w-full' : 'min-w-80'
 								}`} transition-all p-5 rounded-2xl"
-						on:click={async () => {
-							if (messageId != _messageId) {
-								let currentMessageId = _messageId;
-								let messageChildrenIds = history.messages[currentMessageId].childrenIds;
-								while (messageChildrenIds.length !== 0) {
-									currentMessageId = messageChildrenIds.at(-1);
-									messageChildrenIds = history.messages[currentMessageId].childrenIds;
-								}
-								history.currentId = currentMessageId;
-
-								await tick();
-								await updateChat();
-								triggerScroll();
-							}
+						role="button"
+						tabindex="0"
+						on:click={() => selectResponse(_messageId)}
+						on:keydown={(e) => {
+							if (e.key !== 'Enter' && e.key !== ' ') return;
+							e.preventDefault();
+							selectResponse(_messageId);
 						}}
 					>
 						{#key history.currentId}
@@ -249,7 +261,7 @@
 			{#if !Object.keys(groupedMessageIds).find((modelIdx) => {
 				const { messageIds } = groupedMessageIds[modelIdx];
 				const _messageId = messageIds[groupedMessageIdsIdx[modelIdx]];
-				return !history.messages[_messageId]?.done ?? false;
+				return !history.messages[_messageId]?.done;
 			})}
 				<div class="flex justify-end">
 					<div class="w-full">
@@ -273,7 +285,7 @@
 									{#if (message?.content ?? '') === ''}
 										<Skeleton />
 									{:else}
-										<Markdown id={`merged`} content={message.content ?? ''} />
+										<Markdown id="merged" content={message.content ?? ''} />
 									{/if}
 								</div>
 							</div>
@@ -286,9 +298,7 @@
 								<button
 									type="button"
 									id="merge-response-button"
-									class="{true
-										? 'visible'
-										: 'invisible group-hover:visible'} p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
+									class="{mergeButtonVisibilityClass} p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
 									on:click={() => {
 										mergeResponsesHandler();
 									}}

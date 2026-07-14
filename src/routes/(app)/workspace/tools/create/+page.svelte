@@ -1,5 +1,6 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { createNewTool, getTools } from '$lib/apis/tools';
 	import ToolkitEditor from '$lib/components/workspace/Tools/ToolkitEditor.svelte';
 	import { WEBUI_VERSION } from '$lib/constants';
@@ -8,6 +9,7 @@
 	import { onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let mounted = false;
@@ -47,7 +49,7 @@
 			toast.success($i18n.t('Tool created successfully'));
 			tools.set(await getTools(localStorage.token));
 
-			await goto('/workspace/tools');
+			await goto(resolve('/(app)/workspace/tools'));
 		}
 	};
 
@@ -87,7 +89,7 @@
 			name={tool?.name ?? ''}
 			meta={tool?.meta ?? { description: '' }}
 			content={tool?.content ?? ''}
-			access_control={null}
+			accessControl={null}
 			{clone}
 			on:save={(e) => {
 				saveHandler(e.detail);

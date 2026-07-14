@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { getContext, createEventDispatcher, onMount, onDestroy } from 'svelte';
+	import type { AnyFn } from '$lib/types';
+	import { createEventDispatcher, onMount, onDestroy } from 'svelte';
 
-	const i18n = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	import ChevronDown from '../icons/ChevronDown.svelte';
@@ -12,12 +12,11 @@
 
 	export let open = true;
 
-	export let id = '';
 	export let name = '';
 	export let collapsible = true;
 
 	export let onAddLabel: string = '';
-	export let onAdd: null | Function = null;
+	export let onAdd: null | AnyFn = null;
 
 	export let dragAndDrop = true;
 
@@ -27,13 +26,13 @@
 
 	let draggedOver = false;
 
-	const onDragOver = (e) => {
+	const onDragOver = (e: DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
 		draggedOver = true;
 	};
 
-	const onDrop = (e) => {
+	const onDrop = (e: DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
 
@@ -53,7 +52,7 @@
 							const reader = new FileReader();
 							reader.onload = async function (event) {
 								try {
-									const fileContent = JSON.parse(event.target.result);
+									const fileContent = JSON.parse(event.target.result as string);
 									console.log('Parsed JSON Content: ', fileContent);
 									open = true;
 									dispatch('import', fileContent);
@@ -125,7 +124,6 @@
 				dispatch('change', e.detail);
 			}}
 		>
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<div
 				class="w-full group rounded-md relative flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-900 text-gray-500 dark:text-gray-500 transition"
 			>
@@ -152,12 +150,9 @@
 						}}
 					>
 						<Tooltip content={onAddLabel}>
-							<button
-								class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto"
-								on:click={(e) => {}}
-							>
+							<span class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto">
 								<Plus className=" size-3" strokeWidth="2.5" />
-							</button>
+							</span>
 						</Tooltip>
 					</button>
 				{/if}

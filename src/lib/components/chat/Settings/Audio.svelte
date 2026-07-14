@@ -1,19 +1,21 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 
-	import { user, settings, config } from '$lib/stores';
+	import { settings, config } from '$lib/stores';
 	import { getVoices as _getVoices } from '$lib/apis/audio';
 
 	import Switch from '$lib/components/common/Switch.svelte';
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveSettings: Function;
+	export let saveSettings: AnyFn;
 
 	// Audio
-	let conversationMode = false;
 	let speechAutoSend = false;
 	let responseAutoPlayback = false;
 	let nonLocalVoices = false;
@@ -61,7 +63,6 @@
 
 	onMount(async () => {
 		playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
-		conversationMode = $settings.conversationMode ?? false;
 		speechAutoSend = $settings.speechAutoSend ?? false;
 		responseAutoPlayback = $settings.responseAutoPlayback ?? false;
 
@@ -168,7 +169,7 @@
 						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
 						bind:value={playbackRate}
 					>
-						{#each speedOptions as option}
+						{#each speedOptions as option (option)}
 							<option value={option} selected={playbackRate === option}>{option}x</option>
 						{/each}
 					</select>
@@ -188,7 +189,7 @@
 							bind:value={voice}
 						>
 							<option value="" selected={voice !== ''}>{$i18n.t('Default')}</option>
-							{#each voices.filter((v) => nonLocalVoices || v.localService === true) as _voice}
+							{#each voices.filter((v) => nonLocalVoices || v.localService === true) as _voice (_voice.name)}
 								<option
 									value={_voice.name}
 									class="bg-gray-100 dark:bg-gray-700"
@@ -221,7 +222,7 @@
 						/>
 
 						<datalist id="voice-list">
-							{#each voices as voice}
+							{#each voices as voice (voice.id)}
 								<option value={voice.id}>{voice.name}</option>
 							{/each}
 						</datalist>

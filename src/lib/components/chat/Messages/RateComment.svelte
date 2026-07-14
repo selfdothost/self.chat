@@ -1,11 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
-	import { config, models } from '$lib/stores';
+	import { models } from '$lib/stores';
 	import Tags from '$lib/components/common/Tags.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const dispatch = createEventDispatcher();
 
@@ -51,6 +53,10 @@
 		init();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const init = () => {
 		if (!selectedReason) {
 			selectedReason = message?.annotation?.reason ?? '';
@@ -140,7 +146,7 @@
 		<div class=" relative w-fit">
 			<div class="mt-1.5 w-fit flex gap-1 pb-5">
 				<!-- 1-10 scale -->
-				{#each Array.from({ length: 10 }).map((_, i) => i + 1) as rating}
+				{#each Array.from({ length: 10 }).map((_, i) => i + 1) as rating (rating)}
 					<button
 						class="size-7 text-sm border border-gray-50 dark:border-gray-850 hover:bg-gray-50 dark:hover:bg-gray-850 {detailedRating ===
 						rating
@@ -173,7 +179,7 @@
 			<div class="text-sm mt-1.5 font-medium">{$i18n.t('Why?')}</div>
 
 			<div class="flex flex-wrap gap-1.5 text-sm mt-1.5">
-				{#each reasons as reason}
+				{#each reasons as reason (reason)}
 					<button
 						class="px-3 py-0.5 border border-gray-50 dark:border-gray-850 hover:bg-gray-50 dark:hover:bg-gray-850 {selectedReason ===
 						reason

@@ -1,9 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import Plus from '$lib/components/icons/Plus.svelte';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
 	import Badge from '$lib/components/common/Badge.svelte';
@@ -11,7 +12,7 @@
 	export let users = [];
 	export let userIds = [];
 
-	let filteredUsers = [];
+	let filteredUsers;
 
 	$: filteredUsers = users
 		.filter((user) => {
@@ -74,7 +75,7 @@
 	<div class="mt-3 max-h-[22rem] overflow-y-auto scrollbar-hidden">
 		<div class="flex flex-col gap-2.5">
 			{#if filteredUsers.length > 0}
-				{#each filteredUsers as user, userIdx (user.id)}
+				{#each filteredUsers as user, _userIdx (user.id)}
 					<div class="flex flex-row items-center gap-3 w-full text-sm">
 						<div class="flex items-center">
 							<Checkbox

@@ -1,15 +1,17 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { WEBUI_NAME, config } from '$lib/stores';
 	import { onMount, getContext } from 'svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let loaded = false;
 
 	onMount(async () => {
 		if ($config) {
-			await goto('/');
+			await goto(resolve('/(app)'));
 		}
 
 		loaded = true;

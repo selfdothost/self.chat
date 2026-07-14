@@ -1,8 +1,6 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 export const getGravatarUrl = async (email: string) => {
-	let error = null;
-
 	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/gravatar?email=${email}`, {
 		method: 'GET',
 		headers: {
@@ -15,7 +13,6 @@ export const getGravatarUrl = async (email: string) => {
 		})
 		.catch((err) => {
 			console.log(err);
-			error = err;
 			return null;
 		});
 
@@ -56,8 +53,6 @@ export const formatPythonCode = async (code: string) => {
 };
 
 export const downloadChatAsPDF = async (title: string, messages: object[]) => {
-	let error = null;
-
 	const blob = await fetch(`${WEBUI_API_BASE_URL}/utils/pdf`, {
 		method: 'POST',
 		headers: {
@@ -74,7 +69,6 @@ export const downloadChatAsPDF = async (title: string, messages: object[]) => {
 		})
 		.catch((err) => {
 			console.log(err);
-			error = err;
 			return null;
 		});
 
@@ -82,8 +76,6 @@ export const downloadChatAsPDF = async (title: string, messages: object[]) => {
 };
 
 export const getHTMLFromMarkdown = async (md: string) => {
-	let error = null;
-
 	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/markdown`, {
 		method: 'POST',
 		headers: {
@@ -99,7 +91,6 @@ export const getHTMLFromMarkdown = async (md: string) => {
 		})
 		.catch((err) => {
 			console.log(err);
-			error = err;
 			return null;
 		});
 
@@ -109,7 +100,7 @@ export const getHTMLFromMarkdown = async (md: string) => {
 export const downloadDatabase = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/db/download`, {
+	await fetch(`${WEBUI_API_BASE_URL}/utils/db/download`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -145,7 +136,7 @@ export const downloadDatabase = async (token: string) => {
 export const downloadLiteLLMConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/litellm/config`, {
+	await fetch(`${WEBUI_API_BASE_URL}/utils/litellm/config`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',

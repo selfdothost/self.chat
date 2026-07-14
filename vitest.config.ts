@@ -3,6 +3,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	// Svelte 5 ships separate client/server builds gated by package.json export
+	// conditions. Vitest runs in Node, so without this it resolves `svelte` to
+	// the server build even under the jsdom environment, and `mount()` (used by
+	// @testing-library/svelte) throws lifecycle_function_unavailable.
+	resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
 	define: {
 		APP_VERSION: JSON.stringify('test'),
 		APP_BUILD_HASH: JSON.stringify('test-build')

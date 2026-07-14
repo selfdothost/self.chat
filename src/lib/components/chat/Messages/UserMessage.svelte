@@ -1,4 +1,7 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import dayjs from 'dayjs';
 	import { toast } from 'svelte-sonner';
 	import { tick, getContext, onMount } from 'svelte';
@@ -14,7 +17,7 @@
 	import Markdown from './Markdown.svelte';
 	import Image from '$lib/components/common/Image.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let user;
 
@@ -23,11 +26,11 @@
 
 	export let siblings;
 
-	export let showPreviousMessage: Function;
-	export let showNextMessage: Function;
+	export let showPreviousMessage: AnyFn;
+	export let showNextMessage: AnyFn;
 
-	export let editMessage: Function;
-	export let deleteMessage: Function;
+	export let editMessage: AnyFn;
+	export let deleteMessage: AnyFn;
 
 	export let isFirstMessage: boolean;
 	export let readOnly: boolean;
@@ -83,7 +86,11 @@
 	});
 </script>
 
-<div class=" flex w-full user-message" dir={$settings.chatDirection} id="message-{message.id}">
+<div
+	class=" flex w-full user-message"
+	dir={($settings?.chatDirection ?? 'LTR').toLowerCase() as 'ltr' | 'rtl'}
+	id="message-{message.id}"
+>
 	{#if !($settings?.chatBubble ?? true)}
 		<div class={`flex-shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'}`}>
 			<ProfileImage
@@ -91,7 +98,7 @@
 					? ($models.find((m) => m.id === message.user)?.info?.meta?.profile_image_url ??
 						'/user.png')
 					: (user?.profile_image_url ?? '/user.png')}
-				className={'size-8'}
+				className="size-8"
 			/>
 		</div>
 	{/if}
@@ -122,7 +129,7 @@
 		<div class="chat-{message.role} w-full min-w-full markdown-prose">
 			{#if message.files}
 				<div class="mt-2.5 mb-1 w-full flex flex-col justify-end overflow-x-auto gap-1 flex-wrap">
-					{#each message.files as file}
+					{#each message.files as file (file.url)}
 						<div class={($settings?.chatBubble ?? true) ? 'self-end' : ''}>
 							{#if file.type === 'image'}
 								<Image src={file.url} imageClassName=" max-h-96 rounded-lg" />
@@ -150,8 +157,8 @@
 							class=" bg-transparent outline-none w-full resize-none"
 							bind:value={editedContent}
 							on:input={(e) => {
-								e.target.style.height = '';
-								e.target.style.height = `${e.target.scrollHeight}px`;
+								(e.target as HTMLTextAreaElement).style.height = '';
+								(e.target as HTMLTextAreaElement).style.height = `${(e.target as HTMLTextAreaElement).scrollHeight}px`;
 							}}
 							on:keydown={(e) => {
 								if (e.key === 'Escape') {

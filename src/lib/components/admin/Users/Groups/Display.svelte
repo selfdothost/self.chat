@@ -1,12 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let name = '';
-	export let color = '';
 	export let description = '';
 </script>
 
@@ -53,7 +53,6 @@
 	<div class="flex-1">
 		<Textarea
 			className="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none resize-none"
-			rows={4}
 			bind:value={description}
 			placeholder={$i18n.t('Group Description')}
 		/>

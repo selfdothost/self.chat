@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { quadInOut, quintIn } from 'svelte/easing';
+	import { quadInOut } from 'svelte/easing';
 	import { fade, slide } from 'svelte/transition';
 
 	export let show = false;

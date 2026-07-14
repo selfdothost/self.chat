@@ -1,6 +1,5 @@
 <script>
-	import { createEventDispatcher, onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
+	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 
@@ -32,13 +31,17 @@
 	let command = '';
 	$: command = prompt?.split('\n').pop()?.split(' ')?.pop() ?? '';
 
-	let show = false;
+	let show;
 	$: show = ['/', '#', '@'].includes(command?.charAt(0)) || '\\#' === command.slice(0, 2);
 
 	$: if (show) {
 		init();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const init = async () => {
 		loading = true;
 		await Promise.all([

@@ -2,12 +2,13 @@
 	import DOMPurify from 'dompurify';
 
 	import { onDestroy } from 'svelte';
-	import { marked } from 'marked';
 
 	import tippy from 'tippy.js';
-	import { roundArrow } from 'tippy.js';
+	import type { Placement } from 'tippy.js';
 
-	export let placement = 'top';
+	// Narrowed to tippy's Placement union -- a plain `let` initializer would
+	// otherwise widen to `string`, which tippy() doesn't accept.
+	export let placement: Placement = 'top';
 	export let content = `I'm a tooltip!`;
 	export let touch = true;
 	export let className = 'flex';

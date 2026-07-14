@@ -1,6 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { onMount, getContext, tick } from 'svelte';
-	import { models, tools, functions, knowledge as knowledgeCollections, user } from '$lib/stores';
+	import { models, tools, functions, knowledge as knowledgeCollections } from '$lib/stores';
+	import type { ModelConfig, ModelParams } from '$lib/apis';
 
 	import AdvancedParams from '$lib/components/chat/Settings/Advanced/AdvancedParams.svelte';
 	import Tags from '$lib/components/common/Tags.svelte';
@@ -16,13 +20,12 @@
 	import { getAvailableLlamolotlLoras } from '$lib/apis/llamolotl';
 	import type { AvailableLora } from '$lib/apis/llamolotl';
 	import AccessControl from '../common/AccessControl.svelte';
-	import { stringify } from 'postcss';
 	import { toast } from 'svelte-sonner';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let onSubmit: Function;
-	export let onBack: null | Function = null;
+	export let onSubmit: AnyFn;
+	export let onBack: null | AnyFn = null;
 
 	export let model = null;
 	export let edit = false;
@@ -30,7 +33,6 @@
 	export let preset = true;
 
 	let loading = false;
-	let success = false;
 
 	let filesInputElement;
 	let inputFiles;
@@ -56,7 +58,7 @@
 		}
 	}
 
-	let info = {
+	let info: ModelConfig = {
 		id: '',
 		base_model_id: null,
 		name: '',
@@ -71,7 +73,7 @@
 		}
 	};
 
-	let params = {
+	let params: ModelParams = {
 		system: ''
 	};
 	let capabilities = {
@@ -135,7 +137,9 @@
 
 		if (baseModel) {
 			if (baseModel.owned_by === 'openai') {
-				capabilities.usage = baseModel?.meta?.capabilities?.usage ?? false;
+				// Model.meta lives under .info.meta (see Placeholder.svelte, ChatPlaceholder.svelte
+				// for the same access pattern) -- baseModel.meta doesn't exist directly.
+				capabilities.usage = baseModel?.info?.meta?.capabilities?.usage ?? false;
 			} else {
 				delete capabilities.usage;
 			}
@@ -210,7 +214,6 @@
 		await onSubmit(info);
 
 		loading = false;
-		success = false;
 	};
 
 	onMount(async () => {
@@ -333,7 +336,7 @@
 					/>
 				</svg>
 			</div>
-			<div class=" self-center text-sm font-medium">{'Back'}</div>
+			<div class=" self-center text-sm font-medium">Back</div>
 		</button>
 	{/if}
 
@@ -515,15 +518,15 @@
 									placeholder="Select a base model (e.g. llama3, gpt-4o)"
 									bind:value={info.base_model_id}
 									on:change={(e) => {
-										addUsage(e.target.value);
-										fetchLorasForModel(e.target.value);
+										addUsage((e.target as HTMLSelectElement).value);
+										fetchLorasForModel((e.target as HTMLSelectElement).value);
 									}}
 									required
 								>
 									<option value={null} class=" text-gray-900"
 										>{$i18n.t('Select a base model')}</option
 									>
-									{#each $models.filter((m) => (model ? m.id !== model.id : true) && !m?.preset && m?.owned_by !== 'arena') as model}
+									{#each $models.filter((m) => (model ? m.id !== model.id : true) && !m?.preset && m?.owned_by !== 'arena') as model (model.id)}
 										<option value={model.id} class=" text-gray-900">{model.name}</option>
 									{/each}
 								</select>
@@ -539,7 +542,7 @@
 							</div>
 
 							<div class="flex flex-col gap-1.5">
-								{#each availableLoras as lora}
+								{#each availableLoras as lora (lora.file)}
 									{@const isSelected = selectedLoras.some((l) => l.file === lora.file)}
 									{@const selectedEntry = selectedLoras.find((l) => l.file === lora.file)}
 									<div
@@ -586,10 +589,11 @@
 
 										{#if isSelected}
 											<div class="flex items-center gap-1.5 flex-shrink-0">
-												<label class="text-xs text-gray-500 dark:text-gray-400"
+												<label for="lora-scale-{lora.file}" class="text-xs text-gray-500 dark:text-gray-400"
 													>{$i18n.t('Scale')}:</label
 												>
 												<input
+													id="lora-scale-{lora.file}"
 													type="number"
 													min="0"
 													max="2"
@@ -597,7 +601,10 @@
 													class="w-16 text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none"
 													value={selectedEntry?.scale ?? 1.0}
 													on:change={(e) =>
-														updateLoraScale(lora.file, parseFloat(e.target.value) || 1.0)}
+														updateLoraScale(
+															lora.file,
+															parseFloat((e.target as HTMLInputElement).value) || 1.0
+														)}
 												/>
 											</div>
 										{/if}
@@ -636,7 +643,6 @@
 							<Textarea
 								className=" text-sm w-full bg-transparent outline-none resize-none overflow-y-hidden "
 								placeholder={$i18n.t('Add a short description about what this model does')}
-								rows={3}
 								bind:value={info.meta.description}
 							/>
 						{/if}
@@ -681,8 +687,8 @@
 								<div>
 									<Textarea
 										className=" text-sm w-full bg-transparent outline-none resize-none overflow-y-hidden "
-										placeholder={`Write your model system prompt content here\ne.g.) You are Mario from Super Mario Bros, acting as an assistant.`}
-										rows={4}
+										placeholder="Write your model system prompt content here
+e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 										bind:value={info.params.system}
 									/>
 								</div>
@@ -713,7 +719,7 @@
 									<AdvancedParams
 										admin={true}
 										bind:params
-										on:change={(e) => {
+										on:change={(_e) => {
 											info.params = { ...info.params, ...params };
 										}}
 									/>
@@ -783,7 +789,8 @@
 						{#if info?.meta?.suggestion_prompts}
 							<div class="flex flex-col space-y-1 mt-1 mb-3">
 								{#if info.meta.suggestion_prompts.length > 0}
-									{#each info.meta.suggestion_prompts as prompt, promptIdx}
+									<!-- no stable id on these entries (anonymous {content} objects, duplicates possible); index is fine, order matches splice-by-index removal -->
+									{#each info.meta.suggestion_prompts as prompt, promptIdx (promptIdx)}
 										<div class=" flex rounded-lg">
 											<input
 												class=" text-sm w-full bg-transparent outline-none border-r border-gray-50 dark:border-gray-850"

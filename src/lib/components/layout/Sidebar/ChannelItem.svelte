@@ -1,16 +1,15 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
-	import { onMount, getContext, tick, onDestroy } from 'svelte';
-	const i18n = getContext('i18n');
-
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import { mobile, showSidebar, user } from '$lib/stores';
 	import { updateChannelById } from '$lib/apis/channels';
 
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ChannelModal from './ChannelModal.svelte';
 
-	export let onUpdate: Function = () => {};
+	export let onUpdate: AnyFn = () => {};
 
 	export let className = '';
 	export let channel;
@@ -50,7 +49,7 @@
 >
 	<a
 		class=" w-full flex justify-between"
-		href="/channels/{channel.id}"
+		href={resolve('/(app)/channels/[id]', { id: channel.id })}
 		on:click={() => {
 			if ($mobile) {
 				showSidebar.set(false);
@@ -86,9 +85,9 @@
 				showEditChannelModal = true;
 			}}
 		>
-			<button class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto" on:click={(e) => {}}>
+			<span class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto">
 				<Cog6 className="size-3.5" />
-			</button>
+			</span>
 		</button>
 	{/if}
 </div>

@@ -1,20 +1,6 @@
 <script>
-	import {
-		addTagById,
-		deleteTagById,
-		getAllTags,
-		getChatList,
-		getChatListByTagName,
-		getTagsById,
-		updateChatById
-	} from '$lib/apis/chats';
-	import {
-		tags as _tags,
-		chats,
-		pinnedChats,
-		currentChatPage,
-		scrollPaginationEnabled
-	} from '$lib/stores';
+	import { addTagById, deleteTagById, getAllTags, getTagsById, updateChatById } from '$lib/apis/chats';
+	import { tags as _tags } from '$lib/stores';
 	import { createEventDispatcher, onMount } from 'svelte';
 
 	const dispatch = createEventDispatcher();
@@ -26,7 +12,7 @@
 	let tags = [];
 
 	const getTags = async () => {
-		return await getTagsById(localStorage.token, chatId).catch(async (error) => {
+		return await getTagsById(localStorage.token, chatId).catch(async (_error) => {
 			return [];
 		});
 	};
@@ -52,7 +38,7 @@
 	};
 
 	const deleteTag = async (tagName) => {
-		const res = await deleteTagById(localStorage.token, chatId, tagName);
+		await deleteTagById(localStorage.token, chatId, tagName);
 		tags = await getTags();
 		await updateChatById(localStorage.token, chatId, {
 			tags: tags

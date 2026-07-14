@@ -1,8 +1,8 @@
 <script>
-	import { getContext, tick, onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
+	import { getContext, onMount } from 'svelte';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { user } from '$lib/stores';
 
 	import { getUsers } from '$lib/apis/users';
@@ -10,28 +10,31 @@
 	import UserList from './Users/UserList.svelte';
 	import Groups from './Users/Groups.svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let users = [];
 
 	let selectedTab = 'overview';
-	let loaded = false;
 
 	$: if (selectedTab) {
 		getUsersHandler();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const getUsersHandler = async () => {
 		users = await getUsers(localStorage.token);
 	};
 
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
-			await goto('/');
+			await goto(resolve('/'));
 		} else {
 			users = await getUsers(localStorage.token);
 		}
-		loaded = true;
 
 		const containerElement = document.getElementById('users-tabs-container');
 

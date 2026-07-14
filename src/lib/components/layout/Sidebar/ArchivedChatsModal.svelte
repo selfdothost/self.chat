@@ -1,9 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
 	import { getContext, createEventDispatcher } from 'svelte';
+	import { resolve } from '$app/paths';
 
 	const dispatch = createEventDispatcher();
 
@@ -17,7 +20,7 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import UnarchiveAllConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 
@@ -27,7 +30,7 @@
 	let showUnarchiveAllConfirmDialog = false;
 
 	const unarchiveChatHandler = async (chatId) => {
-		const res = await archiveChatById(localStorage.token, chatId).catch((error) => {
+		await archiveChatById(localStorage.token, chatId).catch((error) => {
 			toast.error(error);
 		});
 
@@ -36,7 +39,7 @@
 	};
 
 	const deleteChatHandler = async (chatId) => {
-		const res = await deleteChatById(localStorage.token, chatId).catch((error) => {
+		await deleteChatById(localStorage.token, chatId).catch((error) => {
 			toast.error(error);
 		});
 
@@ -58,11 +61,16 @@
 		chats = await getArchivedChatList(localStorage.token);
 	};
 
+	// Assignment runs inside an async IIFE triggered by this block; `chats`
+	// isn't part of the block's own condition (`show`), so setting it can't
+	// retrigger this reactive statement -- not an infinite loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if (show) {
 		(async () => {
 			chats = await getArchivedChatList(localStorage.token);
 		})();
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 </script>
 
 <UnarchiveAllConfirmDialog
@@ -144,13 +152,13 @@
 									<tbody>
 										{#each chats.filter((c) => searchValue === '' || c.title
 													.toLowerCase()
-													.includes(searchValue.toLowerCase())) as chat, idx}
+													.includes(searchValue.toLowerCase())) as chat, idx (chat.id)}
 											<tr
 												class="bg-transparent {idx !== chats.length - 1 &&
 													'border-b'} dark:bg-gray-900 dark:border-gray-850 text-xs"
 											>
 												<td class="px-3 py-1 w-2/3">
-													<a href="/c/{chat.id}" target="_blank">
+													<a href={resolve('/(app)/c/[id]', { id: chat.id })} target="_blank">
 														<div class=" underline line-clamp-1">
 															{chat.title}
 														</div>

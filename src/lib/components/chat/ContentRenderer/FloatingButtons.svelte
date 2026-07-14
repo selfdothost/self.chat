@@ -1,11 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 
-	import DOMPurify from 'dompurify';
-	import { marked } from 'marked';
 
 	import { getContext, tick } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { chatCompletion } from '$lib/apis/openai';
 
@@ -17,7 +18,7 @@
 	export let id = '';
 	export let model = null;
 	export let messages = [];
-	export let onAdd = () => {};
+	export let onAdd: AnyFn = () => {};
 
 	let floatingInput = false;
 
@@ -48,7 +49,7 @@
 		floatingInputValue = '';
 
 		responseContent = '';
-		const [res, controller] = await chatCompletion(localStorage.token, {
+		const [res] = await chatCompletion(localStorage.token, {
 			model: model,
 			messages: [
 				...messages,
@@ -124,7 +125,7 @@
 		prompt = `Explain this section to me in more detail\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';
-		const [res, controller] = await chatCompletion(localStorage.token, {
+		const [res] = await chatCompletion(localStorage.token, {
 			model: model,
 			messages: [
 				...messages,

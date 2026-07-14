@@ -1,18 +1,20 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { marked } from 'marked';
 
 	import { config, user, models as _models, temporaryChatEnabled } from '$lib/stores';
 	import { onMount, getContext } from 'svelte';
 
-	import { blur, fade } from 'svelte/transition';
+	import { fade } from 'svelte/transition';
 
 	import Suggestions from './Suggestions.svelte';
 	import { sanitizeResponseContent } from '$lib/utils';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let modelIds = [];
 	export let models = [];
@@ -37,7 +39,8 @@
 	<div class="m-auto w-full max-w-6xl px-8 lg:px-20">
 		<div class="flex justify-start">
 			<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 200 }}>
-				{#each models as model, modelIdx}
+				<!-- compare mode lets the user pick the same model into more than one slot; index is the only stable disambiguator -->
+				{#each models as model, modelIdx (modelIdx)}
 					<button
 						on:click={() => {
 							selectedModelIdx = modelIdx;
@@ -46,7 +49,7 @@
 						<Tooltip
 							content={marked.parse(
 								sanitizeResponseContent(models[selectedModelIdx]?.info?.meta?.description ?? '')
-							)}
+							) as string}
 							placement="right"
 						>
 							<img
@@ -94,6 +97,7 @@
 						<div
 							class="mt-0.5 text-base font-normal text-gray-500 dark:text-gray-400 line-clamp-3 markdown"
 						>
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitizeResponseContent() (src/lib/utils/index.ts) HTML-entity-escapes < and > before this reaches marked.parse() -->
 							{@html marked.parse(
 								sanitizeResponseContent(models[selectedModelIdx]?.info?.meta?.description)
 							)}

@@ -47,12 +47,42 @@ async function apiFetch<T>(
 	return res.json();
 }
 
+// Raw per-source job shapes, before getAllScheduledJobs() maps them into the
+// unified ScheduledJob below — only the fields the mapping below actually
+// reads, not the full records these endpoints return.
+type RawTrainingOrEvalJob = {
+	id: string;
+	status: string;
+	scheduled_for?: number | null;
+	model_id: string | null;
+	created_at: number;
+	updated_at: number;
+	user?: { id: string; name: string; email: string } | null;
+	course?: { name?: string } | null;
+	course_id?: string;
+	eval_type?: string;
+	benchmark?: string;
+	error_message?: string | null;
+};
+
+type RawCurationJob = {
+	job_id: string;
+	status: string;
+	scheduled_for?: string | null;
+	created_at: string | null;
+	finished_at?: string | null;
+	name?: string;
+	error_message?: string | null;
+};
+
 /** Fetch all training, eval, and curation jobs, merge into a unified list. */
 export async function getAllScheduledJobs(token: string): Promise<ScheduledJob[]> {
 	const [trainingJobs, evalJobs, curationJobs] = await Promise.all([
-		apiFetch<any[]>(token, `${WEBUI_API_BASE_URL}/training/jobs`),
-		apiFetch<any[]>(token, `${WEBUI_API_BASE_URL}/evaluations/jobs`),
-		apiFetch<any[]>(token, `${CURATOR_API_BASE_URL}/api/jobs`).catch(() => [] as any[])
+		apiFetch<RawTrainingOrEvalJob[]>(token, `${WEBUI_API_BASE_URL}/training/jobs`),
+		apiFetch<RawTrainingOrEvalJob[]>(token, `${WEBUI_API_BASE_URL}/evaluations/jobs`),
+		apiFetch<RawCurationJob[]>(token, `${CURATOR_API_BASE_URL}/api/jobs`).catch(
+			() => [] as RawCurationJob[]
+		)
 	]);
 
 	const jobs: ScheduledJob[] = [];
@@ -121,7 +151,7 @@ export async function scheduleJob(
 	type: ScheduledJobType,
 	id: string,
 	scheduledFor: number
-): Promise<any> {
+): Promise<unknown> {
 	return apiFetch(token, `${jobBase(type, id)}/schedule`, {
 		method: 'POST',
 		body: JSON.stringify({ scheduled_for: scheduledFor })
@@ -133,7 +163,7 @@ export async function unscheduleJob(
 	token: string,
 	type: ScheduledJobType,
 	id: string
-): Promise<any> {
+): Promise<unknown> {
 	return apiFetch(token, `${jobBase(type, id)}/unschedule`, { method: 'POST' });
 }
 
@@ -142,7 +172,7 @@ export async function approveJobNow(
 	token: string,
 	type: ScheduledJobType,
 	id: string
-): Promise<any> {
+): Promise<unknown> {
 	return apiFetch(token, `${jobBase(type, id)}/approve`, { method: 'POST' });
 }
 
@@ -151,6 +181,6 @@ export async function cancelScheduledJob(
 	token: string,
 	type: ScheduledJobType,
 	id: string
-): Promise<any> {
+): Promise<unknown> {
 	return apiFetch(token, `${jobBase(type, id)}/cancel`, { method: 'POST' });
 }

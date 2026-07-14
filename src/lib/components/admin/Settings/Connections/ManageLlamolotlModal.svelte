@@ -1,9 +1,11 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { getContext, onMount } from 'svelte';
-	const i18n = getContext('i18n');
+	import { getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { WEBUI_NAME, models, MODEL_DOWNLOAD_POOL, user, config } from '$lib/stores';
+	import { models, MODEL_DOWNLOAD_POOL } from '$lib/stores';
 	import { splitStream } from '$lib/utils';
 
 	import {
@@ -69,6 +71,7 @@
 			try {
 				downloadInfo = await inspectLlamolotlModel(localStorage.token, sanitizedModelTag, urlIdx);
 				showDownloadConfirm = true;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 			} catch (err: any) {
 				toast.error(err?.detail ?? err?.message ?? String(err));
 			} finally {
@@ -198,12 +201,11 @@
 							}
 						}
 					}
-				} catch (error) {
-					console.log(error);
-					if (typeof error !== 'string') {
-						error = error.message;
-					}
-					toast.error(error);
+				} catch (err) {
+					console.log(err);
+					const errorMessage =
+						typeof err === 'string' ? err : ((err as Error)?.message ?? String(err));
+					toast.error(errorMessage);
 				}
 			}
 
@@ -461,7 +463,7 @@
 									{:else if downloadInfo.type === 'gguf'}
 										<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Select a file to download:')}</div>
 										<div class="max-h-48 overflow-y-auto space-y-0.5">
-											{#each downloadInfo.files as file}
+											{#each downloadInfo.files as file (file.name)}
 												<button
 													class="w-full flex justify-between items-center text-xs py-1.5 px-2 rounded transition text-left {selectedFilename === file.name ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'}"
 													on:click={() => { selectedFilename = file.name; }}
@@ -482,7 +484,7 @@
 												</span>
 											</summary>
 											<div class="mt-1.5 max-h-36 overflow-y-auto space-y-0.5">
-												{#each downloadInfo.files as file}
+												{#each downloadInfo.files as file (file.name)}
 													<div class="flex justify-between text-xs py-0.5">
 														<span class="truncate mr-2 text-gray-500 dark:text-gray-400">{file.name}</span>
 														<span class="flex-shrink-0 text-gray-600 dark:text-gray-300">
@@ -517,7 +519,7 @@
 											{$i18n.t('Select a GGUF file to download')}
 										</div>
 										<div class="flex flex-col gap-1 max-h-48 overflow-y-auto">
-											{#each availableFiles as file}
+											{#each availableFiles as file (file)}
 												<button
 													class="w-full text-left rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 hover:bg-gray-200 dark:hover:bg-gray-800 transition"
 													on:click={() => {
@@ -532,7 +534,7 @@
 								{/if}
 
 								{#if Object.keys($MODEL_DOWNLOAD_POOL).length > 0}
-									{#each Object.keys($MODEL_DOWNLOAD_POOL) as model}
+									{#each Object.keys($MODEL_DOWNLOAD_POOL) as model (model)}
 										{#if 'pullProgress' in $MODEL_DOWNLOAD_POOL[model]}
 											<div class="flex flex-col">
 												<div class="font-medium mb-1">{model}</div>
@@ -616,7 +618,7 @@
 										{$i18n.t('These models are in subdirectories and not visible to llama-server. Register them to make them available for inference.')}
 									</div>
 									<div class="flex flex-col gap-1 max-h-36 overflow-y-auto">
-										{#each availableModels.filter((m) => !m.registered) as model}
+										{#each availableModels.filter((m) => !m.registered) as model (model.name)}
 											<div
 												class="flex items-center justify-between rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850"
 											>
@@ -678,7 +680,7 @@
 													>{$i18n.t('Select a model')}</option
 												>
 											{/if}
-											{#each availableModels as model}
+											{#each availableModels as model (model.name)}
 												<option value={model.name} class="bg-gray-50 dark:bg-gray-700"
 													>{model.name +
 														(model.quant ? ` [${model.quant}]` : '') +

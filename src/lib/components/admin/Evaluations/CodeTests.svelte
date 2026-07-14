@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -11,7 +13,7 @@
 	} from '$lib/apis/evaluations/codetests';
 	import { getEvalJobs, type EvalJob } from '$lib/apis/evaluations/jobs';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const getToken = () => localStorage.getItem('token') ?? '';
 
@@ -39,7 +41,7 @@
 		model: string;
 		tasks: string;
 		scores: Record<string, Record<string, number>>;
-		config: Record<string, any>;
+		config: Record<string, unknown>;
 		created_at: string | null;
 	};
 
@@ -78,7 +80,7 @@
 
 	// ── Derived ────────────────────────────────────────────────────────
 	$: sortedSummary = [...summaryModels].sort((a, b) => {
-		let va: any, vb: any;
+		let va: string | number, vb: string | number;
 		if (summarySortKey === 'model') {
 			va = a.model.toLowerCase();
 			vb = b.model.toLowerCase();
@@ -95,8 +97,9 @@
 	});
 
 	$: sortedBenchmarkRows = [...benchmarkRows].sort((a, b) => {
-		const va = (a as any)[benchmarkSortKey] ?? '';
-		const vb = (b as any)[benchmarkSortKey] ?? '';
+		// Every BenchmarkRow field is either string or number.
+		const va = (a as Record<string, string | number>)[benchmarkSortKey] ?? '';
+		const vb = (b as Record<string, string | number>)[benchmarkSortKey] ?? '';
 		const aVal = typeof va === 'string' ? va.toLowerCase() : va;
 		const bVal = typeof vb === 'string' ? vb.toLowerCase() : vb;
 		if (aVal < bVal) return benchmarkSortAsc ? -1 : 1;
@@ -244,7 +247,7 @@
 			runningJobs = jobs.filter(
 				(j) => j.eval_type === 'code-eval' && ['pending', 'queued', 'running'].includes(j.status)
 			);
-		} catch (err) {
+		} catch {
 			// silently ignore — live runs are a bonus
 		}
 	}
@@ -294,7 +297,7 @@
 		>
 			General
 		</button>
-		{#each benchmarkNames as bm}
+		{#each benchmarkNames as bm (bm)}
 			<button
 				class="px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors capitalize
 					{activeTab === bm
@@ -332,7 +335,7 @@
 									{/if}
 								</div>
 							</th>
-							{#each benchmarkNames as bm}
+							{#each benchmarkNames as bm (bm)}
 								<th
 									scope="col"
 									class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white capitalize"
@@ -369,7 +372,7 @@
 								<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
 									{row.model}
 								</td>
-								{#each benchmarkNames as bm}
+								{#each benchmarkNames as bm (bm)}
 									<td class="px-3 py-2 text-right font-semibold">
 										{#if row.benchmarks[bm] !== undefined}
 											<span class={scoreColor(row.benchmarks[bm])}>
@@ -416,7 +419,7 @@
 									{/if}
 								</div>
 							</th>
-							{#each ['q1', 'q2', 'q3', 'q4'] as q}
+							{#each ['q1', 'q2', 'q3', 'q4'] as q (q)}
 								<th
 									scope="col"
 									class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white uppercase"
@@ -453,7 +456,7 @@
 								<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
 									{row.model}
 								</td>
-								{#each ['q1', 'q2', 'q3', 'q4'] as q}
+								{#each ['q1', 'q2', 'q3', 'q4'] as q (q)}
 									<td class="px-3 py-2 text-right font-semibold">
 										<span class={scoreColor(row[q])}>
 											{row[q].toFixed(1)}%
@@ -486,7 +489,15 @@
 					{#each runningJobs.filter(j => j.model_id === selectedModelName) as job (job.id)}
 						<div
 							class="flex items-center justify-between px-3 py-2 rounded border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/40"
+							role="button"
+							tabindex="0"
 							on:click={() => openLiveJob(job)}
+							on:keydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									openLiveJob(job);
+								}
+							}}
 						>
 							<div class="flex items-center gap-2 text-xs">
 								<span class="px-2 py-0.5 rounded text-[10px] font-medium {job.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'}">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	import isToday from 'dayjs/plugin/isToday';
@@ -8,7 +9,9 @@
 	dayjs.extend(isToday);
 	dayjs.extend(isYesterday);
 
-	import { getContext, onMount } from 'svelte';
+	import { getContext } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
 	import { settings, user, shortCodesToEmojis } from '$lib/stores';
@@ -35,10 +38,10 @@
 	export let showUserProfile = true;
 	export let thread = false;
 
-	export let onDelete: Function = () => {};
-	export let onEdit: Function = () => {};
-	export let onThread: Function = () => {};
-	export let onReaction: Function = () => {};
+	export let onDelete: AnyFn = () => {};
+	export let onEdit: AnyFn = () => {};
+	export let onThread: AnyFn = () => {};
+	export let onReaction: AnyFn = () => {};
 
 	let showButtons = false;
 
@@ -48,7 +51,6 @@
 
 	const formatDate = (inputDate) => {
 		const date = dayjs(inputDate);
-		const now = dayjs();
 
 		if (date.isToday()) {
 			return `Today at ${date.format('HH:mm')}`;
@@ -145,7 +147,7 @@
 		<div
 			class=" flex w-full message-{message.id}"
 			id="message-{message.id}"
-			dir={$settings.chatDirection}
+			dir={$settings.chatDirection === 'RTL' ? 'rtl' : 'ltr'}
 		>
 			<div
 				class={`flex-shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'} w-9`}
@@ -155,7 +157,7 @@
 						<ProfileImage
 							src={message.user?.profile_image_url ??
 								($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/favicon.png`)}
-							className={'size-8 translate-y-1 ml-0.5'}
+							className="size-8 translate-y-1 ml-0.5"
 						/>
 					</ProfilePreview>
 				{:else}
@@ -198,7 +200,7 @@
 
 				{#if (message?.data?.files ?? []).length > 0}
 					<div class="my-2.5 w-full flex overflow-x-auto gap-2 flex-wrap">
-						{#each message?.data?.files as file}
+						{#each message?.data?.files as file (file.id ?? file.url)}
 							<div>
 								{#if file.type === 'image'}
 									<Image src={file.url} alt={file.name} imageClassName=" max-h-96 rounded-lg" />
@@ -275,7 +277,7 @@
 					{#if (message?.reactions ?? []).length > 0}
 						<div>
 							<div class="flex items-center flex-wrap gap-y-1.5 gap-1 mt-1 mb-2">
-								{#each message.reactions as reaction}
+								{#each message.reactions as reaction (reaction.name)}
 									<Tooltip content={`:${reaction.name}:`}>
 										<button
 											class="flex items-center gap-1.5 transition rounded-xl px-2 py-1 cursor-pointer {reaction.user_ids.includes(
@@ -339,7 +341,7 @@
 								<span class="font-medium mr-1">
 									{$i18n.t('{{COUNT}} Replies', { COUNT: message.reply_count })}</span
 								><span>
-									{' - '}{$i18n.t('Last reply')}
+									- {$i18n.t('Last reply')}
 									{dayjs.unix(message.latest_reply_at / 1000000000).fromNow()}</span
 								>
 

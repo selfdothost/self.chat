@@ -1,17 +1,20 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	import { getLanguages } from '$lib/i18n';
 	const dispatch = createEventDispatcher();
 
-	import { models, settings, theme, user } from '$lib/stores';
+	import { settings, theme, user } from '$lib/stores';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import AdvancedParams from './Advanced/AdvancedParams.svelte';
 
-	export let saveSettings: Function;
-	export let getModels: Function;
+	export let saveSettings: AnyFn;
+	export let getModels: AnyFn;
 
 	// General
 	let themes = ['dark', 'light', 'rose-pine dark', 'rose-pine-dawn light', 'oled-dark'];
@@ -62,7 +65,11 @@
 		num_batch: null,
 		num_keep: null,
 		max_tokens: null,
-		num_gpu: null
+		use_mmap: null,
+		use_mlock: null,
+		num_thread: null,
+		num_gpu: null,
+		template: null
 	};
 
 	const toggleRequestFormat = async () => {
@@ -188,11 +195,11 @@
 						class=" dark:bg-gray-900 w-fit pr-8 rounded py-2 px-2 text-xs bg-transparent outline-none text-right"
 						bind:value={lang}
 						placeholder="Select a language"
-						on:change={(e) => {
+						on:change={(_e) => {
 							$i18n.changeLanguage(lang);
 						}}
 					>
-						{#each languages as language}
+						{#each languages as language (language['code'])}
 							<option value={language['code']}>{language['title']}</option>
 						{/each}
 					</select>
@@ -200,14 +207,8 @@
 			</div>
 			{#if $i18n.language === 'en-US'}
 				<div class="mb-2 text-xs text-gray-400 dark:text-gray-500">
-					Couldn't find your language?
-					<a
-						class=" text-gray-300 font-medium underline"
-						href="https://github.com/open-webui/open-webui/blob/main/docs/CONTRIBUTING.md#-translations-and-internationalization"
-						target="_blank"
-					>
-						Help us translate Self.AI UI!
-					</a>
+					Couldn't find your language? Open an issue on this repo's GitLab tracker to help us
+					translate self.chat!
 				</div>
 			{/if}
 
@@ -352,7 +353,11 @@
 						num_thread: params.num_thread !== null ? params.num_thread : undefined,
 						num_gpu: params.num_gpu !== null ? params.num_gpu : undefined
 					},
-					keepAlive: keepAlive ? (isNaN(keepAlive) ? keepAlive : parseInt(keepAlive)) : undefined
+					keepAlive: keepAlive
+						? isNaN(Number(keepAlive))
+							? keepAlive
+							: parseInt(keepAlive)
+						: undefined
 				});
 				dispatch('save');
 			}}

@@ -1,15 +1,20 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { getContext, createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let admin = false;
 
-	export let params = {
+	// Spread/bound two-way against several callers' own params bags -- typed
+	// loosely on purpose (see ModelParams in $lib/apis), not a fixed shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	export let params: Record<string, any> = {
 		// Advanced
 		stream_response: null, // Set stream responses for this model individually
 		seed: null,
@@ -34,9 +39,6 @@
 		num_gpu: null,
 		template: null
 	};
-
-	let customFieldName = '';
-	let customFieldValue = '';
 
 	$: if (params) {
 		dispatch('change', params);

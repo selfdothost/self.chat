@@ -1,9 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import dayjs from 'dayjs';
 
-	import { onMount, getContext, createEventDispatcher } from 'svelte';
-	const i18n = getContext('i18n');
+	import { getContext, createEventDispatcher } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -89,7 +90,7 @@
 									voiceInput = false;
 								}}
 								on:confirm={(e) => {
-									const { text, filename } = e.detail;
+									const { text } = e.detail;
 									content = `${content}${text} `;
 
 									voiceInput = false;
@@ -152,18 +153,5 @@
 		/* display: none; <- Crashes Chrome on hover */
 		-webkit-appearance: none;
 		margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
-	}
-
-	.tabs::-webkit-scrollbar {
-		display: none; /* for Chrome, Safari and Opera */
-	}
-
-	.tabs {
-		-ms-overflow-style: none; /* IE and Edge */
-		scrollbar-width: none; /* Firefox */
-	}
-
-	input[type='number'] {
-		-moz-appearance: textfield; /* Firefox */
 	}
 </style>

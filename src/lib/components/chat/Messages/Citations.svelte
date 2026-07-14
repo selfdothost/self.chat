@@ -1,23 +1,36 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
 	import CitationsModal from './CitationsModal.svelte';
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let sources = [];
+	// RAG source/citation records vary by retrieval backend — document
+	// entries and metadata are read positionally/dynamically, never
+	// through one fixed interface.
+	type Citation = {
+		id?: string;
+		document: unknown[];
+		metadata?: Record<string, unknown>[];
+		distances?: number[];
+		source?: Record<string, unknown>;
+	};
 
-	let citations = [];
-	let showPercentage = false;
-	let showRelevance = true;
+	export let sources: Citation[] = [];
+
+	let citations: Citation[];
+	let showPercentage: boolean;
+	let showRelevance: boolean;
 
 	let showCitationModal = false;
-	let selectedCitation: any = null;
+	let selectedCitation: Citation | null = null;
 	let isCollapsibleOpen = false;
 
-	function calculateShowRelevance(sources: any[]) {
+	function calculateShowRelevance(sources: Citation[]) {
 		const distances = sources.flatMap((citation) => citation.distances ?? []);
 		const inRange = distances.filter((d) => d !== undefined && d >= -1 && d <= 1).length;
 		const outOfRange = distances.filter((d) => d !== undefined && (d < -1 || d > 1)).length;
@@ -36,7 +49,7 @@
 		return true;
 	}
 
-	function shouldShowPercentage(sources: any[]) {
+	function shouldShowPercentage(sources: Citation[]) {
 		const distances = sources.flatMap((citation) => citation.distances ?? []);
 		return distances.every((d) => d !== undefined && d >= -1 && d <= 1);
 	}
@@ -51,8 +64,10 @@
 				const metadata = source.metadata?.[index];
 				const distance = source.distances?.[index];
 
-				// Within the same citation there could be multiple documents
-				const id = metadata?.source ?? 'N/A';
+				// Within the same citation there could be multiple documents.
+				// `metadata` is dynamic per the RAG backend (see Citation type above),
+				// but `source` is always a string (a URL or backend-assigned id) when present.
+				const id = (metadata?.source ?? 'N/A') as string;
 				let _source = source?.source;
 
 				if (metadata?.name) {
@@ -98,7 +113,7 @@
 	<div class=" py-0.5 -mx-0.5 w-full flex gap-1 items-center flex-wrap">
 		{#if citations.length <= 3}
 			<div class="flex text-xs font-medium">
-				{#each citations as citation, idx}
+				{#each citations as citation, idx (citation.id)}
 					<button
 						id={`source-${citation.source.name}`}
 						class="no-toggle outline-none flex dark:text-gray-300 p-1 bg-white dark:bg-gray-900 rounded-xl max-w-96"
@@ -129,7 +144,7 @@
 						<span class="whitespace-nowrap hidden sm:inline">{$i18n.t('References from')}</span>
 						<div class="flex items-center">
 							<div class="flex text-xs font-medium items-center">
-								{#each citations.slice(0, 2) as citation, idx}
+								{#each citations.slice(0, 2) as citation, idx (citation.id)}
 									<button
 										class="no-toggle outline-none flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
 										on:click={() => {
@@ -168,7 +183,7 @@
 				</div>
 				<div slot="content">
 					<div class="flex text-xs font-medium">
-						{#each citations as citation, idx}
+						{#each citations as citation, idx (citation.id)}
 							<button
 								class="no-toggle outline-none flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
 								on:click={() => {

@@ -8,7 +8,7 @@
 	export let className = ' w-full outline-none focus:outline-none';
 	export let imageClassName = 'rounded-lg';
 
-	let _src = '';
+	let _src;
 	$: _src = src.startsWith('/') ? `${WEBUI_BASE_URL}${src}` : src;
 
 	let showImagePreview = false;

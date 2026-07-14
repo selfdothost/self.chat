@@ -1,12 +1,14 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, tick, getContext, onMount, onDestroy } from 'svelte';
 	import { config, settings } from '$lib/stores';
-	import { blobToFile, calculateSHA256, findWordIndices } from '$lib/utils';
+	import { blobToFile } from '$lib/utils';
 
 	import { transcribeAudio } from '$lib/apis/audio';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const dispatch = createEventDispatcher();
 
@@ -32,11 +34,18 @@
 		durationSeconds = 0;
 	};
 
+	// startRecording eventually sets `recording = false` itself (see the
+	// mediaRecorder.onstop handler below), but only asynchronously in response
+	// to an external browser event -- not synchronously in this block. That
+	// flip runs the else branch (stopRecording), which never calls
+	// startRecording again, so this is a one-shot toggle, not a loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if (recording) {
 		startRecording();
 	} else {
 		stopRecording();
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 
 	const formatSeconds = (seconds) => {
 		const minutes = Math.floor(seconds / 60);
@@ -87,8 +96,6 @@
 
 		const domainData = new Uint8Array(bufferLength);
 		const timeDomainData = new Uint8Array(analyser.fftSize);
-
-		let lastSoundTime = Date.now();
 
 		const detectSound = () => {
 			const processFrame = () => {
@@ -147,17 +154,10 @@
 		}
 	};
 
-	const saveRecording = (blob) => {
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		document.body.appendChild(a);
-		a.style = 'display: none';
-		a.href = url;
-		a.download = 'recording.wav';
-		a.click();
-		window.URL.revokeObjectURL(url);
-	};
-
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const startRecording = async () => {
 		startDurationCounter();
 
@@ -189,6 +189,11 @@
 					loading = false;
 				}
 				audioChunks = [];
+				// Fired asynchronously by the browser's MediaRecorder once it has
+				// actually stopped -- not a synchronous re-entrant call from the
+				// `$: if (recording)` block above. Flips the toggle to its "off"
+				// state, which runs stopRecording (no further recursion).
+				// eslint-disable-next-line svelte/infinite-reactive-loop
 				recording = false;
 			}
 		};
@@ -292,9 +297,6 @@
 	let resizeObserver;
 	let containerWidth;
 
-	let maxVisibleItems = 300;
-	$: maxVisibleItems = Math.floor(containerWidth / 5); // 2px width + 0.5px gap
-
 	onMount(() => {
 		// listen to width changes
 		resizeObserver = new ResizeObserver(() => {
@@ -359,7 +361,8 @@
 		<div
 			class="flex items-center gap-0.5 h-6 w-full max-w-full overflow-hidden overflow-x-hidden flex-wrap"
 		>
-			{#each visualizerData.slice().reverse() as rms}
+			<!-- rms samples are duplicate-prone floats (e.g. buffer padded with 0s) with no identity; index is fine, bars carry no local state -->
+			{#each visualizerData.slice().reverse() as rms, rmsIdx (rmsIdx)}
 				<div class="flex items-center h-full">
 					<div
 						class="w-[2px] flex-shrink-0

@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import AddConnectionModal from './AddConnectionModal.svelte';
@@ -9,12 +12,15 @@
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import Wrench from '$lib/components/icons/Wrench.svelte';
 
-	export let onDelete = () => {};
-	export let onSubmit = () => {};
+	export let onDelete: AnyFn = () => {};
+	export let onSubmit: AnyFn = () => {};
 
 	export let url = '';
 	export let idx = 0;
-	export let config = {};
+	// Open-ended connection config bag (key, enable, and whatever else the
+	// backend's connection record carries) -- genuinely dynamic, not a fixed shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	export let config: Record<string, any> = {};
 
 	let showManageModal = false;
 	let showConfigModal = false;

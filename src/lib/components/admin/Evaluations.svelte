@@ -1,6 +1,5 @@
 <script>
-	import { getContext, tick, onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
+	import { getContext, onMount } from 'svelte';
 	import Leaderboard from './Evaluations/Leaderboard.svelte';
 	import Feedbacks from './Evaluations/Feedbacks.svelte';
 	import CodeTests from './Evaluations/CodeTests.svelte';
@@ -9,6 +8,7 @@
 
 	import { getAllFeedbacks } from '$lib/apis/evaluations';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let selectedTab = 'leaderboard';

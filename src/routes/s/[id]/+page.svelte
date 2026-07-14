@@ -1,32 +1,31 @@
 <script lang="ts">
-	import { onMount, tick, getContext } from 'svelte';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import { tick, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 
 	import dayjs from 'dayjs';
 
-	import { settings, chatId, WEBUI_NAME, models } from '$lib/stores';
+	import { chatId, WEBUI_NAME, models } from '$lib/stores';
 	import { convertMessagesToHistory, createMessagesList } from '$lib/utils';
 
 	import { getChatByShareId, cloneSharedChatById } from '$lib/apis/chats';
 
 	import Messages from '$lib/components/chat/Messages.svelte';
-	import Navbar from '$lib/components/layout/Navbar.svelte';
 
 	import { getUserById } from '$lib/apis/users';
 	import { getModels } from '$lib/apis';
 	import { toast } from 'svelte-sonner';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let loaded = false;
 
 	let autoScroll = true;
-	let processing = '';
-	let messagesContainerElement: HTMLDivElement;
 
 	// let chatId = $page.params.id;
-	let showModelSelector = false;
 	let selectedModels = [''];
 
 	let chat = null;
@@ -40,19 +39,28 @@
 		messages: {},
 		currentId: null
 	};
+	// This is a read-only shared-chat view (no composer) -- bind:prompt just
+	// needs a target, and mergeResponses/chatActionHandler are never invoked
+	// since there's no message-editing/action UI here.
+	let prompt = '';
 
 	$: messages = createMessagesList(history, history.currentId);
 
+	// Assignment runs inside an async IIFE triggered by this block; `loaded`
+	// isn't part of the block's own condition ($page.params.id), so setting
+	// it can't retrigger this reactive statement -- not an infinite loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if ($page.params.id) {
 		(async () => {
 			if (await loadSharedChat()) {
 				await tick();
 				loaded = true;
 			} else {
-				await goto('/');
+				await goto(resolve('/'));
 			}
 		})();
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 
 	//////////////////////////
 	// Web functions
@@ -61,8 +69,8 @@
 	const loadSharedChat = async () => {
 		await models.set(await getModels(localStorage.token));
 		await chatId.set($page.params.id);
-		chat = await getChatByShareId(localStorage.token, $chatId).catch(async (error) => {
-			await goto('/');
+		chat = await getChatByShareId(localStorage.token, $chatId).catch(async (_error) => {
+			await goto(resolve('/'));
 			return null;
 		});
 
@@ -111,7 +119,7 @@
 		});
 
 		if (res) {
-			goto(`/c/${res.id}`);
+			goto(resolve('/(app)/c/[id]', { id: res.id }));
 		}
 	};
 </script>
@@ -152,14 +160,15 @@
 							chatId={$chatId}
 							readOnly={true}
 							{selectedModels}
-							{processing}
+							bind:prompt
 							bind:history
-							bind:messages
 							bind:autoScroll
 							bottomPadding={files.length > 0}
 							sendPrompt={() => {}}
 							continueResponse={() => {}}
 							regenerateResponse={() => {}}
+							mergeResponses={() => {}}
+							chatActionHandler={() => {}}
 						/>
 					</div>
 				</div>

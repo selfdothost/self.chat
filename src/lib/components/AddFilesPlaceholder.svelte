@@ -3,6 +3,7 @@
 
 	export let title = '';
 	export let content = '';
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 </script>
 

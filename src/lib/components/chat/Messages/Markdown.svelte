@@ -13,6 +13,7 @@
 
 	export let id;
 	export let content;
+	/** @type {any} */
 	export let model = null;
 	export let save = false;
 

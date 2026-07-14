@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { afterUpdate } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { getContext, createEventDispatcher } from 'svelte';
@@ -6,7 +8,7 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 	import { isValidHttpUrl } from '$lib/utils';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let show = false;
@@ -122,7 +124,8 @@
 						bind:this={logEl}
 						class="text-xs font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-2 h-48 overflow-y-auto flex flex-col gap-0.5"
 					>
-						{#each crawlLogs as entry}
+						<!-- log lines can repeat verbatim (e.g. duplicate page titles); list only ever appends, never reorders/filters -->
+						{#each crawlLogs as entry, entryIdx (entryIdx)}
 							<div class="text-gray-500 dark:text-gray-400 leading-tight">{entry}</div>
 						{/each}
 					</div>
@@ -289,7 +292,8 @@
 							bind:this={logEl}
 							class="text-xs font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-2 h-36 overflow-y-auto flex flex-col gap-0.5"
 						>
-							{#each crawlLogs as entry}
+							<!-- log lines can repeat verbatim (e.g. duplicate page titles); list only ever appends, never reorders/filters -->
+							{#each crawlLogs as entry, entryIdx (entryIdx)}
 								<div class="text-gray-500 dark:text-gray-400 leading-tight">{entry}</div>
 							{/each}
 						</div>

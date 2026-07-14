@@ -243,7 +243,7 @@ export const AIAutocompletion = Extension.create({
 
 						// 	return false;
 						// }
-						mouseup: (view, event) => {
+						mouseup: (view, _event) => {
 							const { state, dispatch } = view;
 
 							// Reset debounce timer on mouse click

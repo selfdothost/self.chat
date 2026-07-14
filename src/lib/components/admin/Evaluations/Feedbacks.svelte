@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
@@ -7,10 +9,10 @@
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	dayjs.extend(relativeTime);
 
-	import { onMount, getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	import { getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { deleteFeedbackById, exportAllFeedbacks, getAllFeedbacks } from '$lib/apis/evaluations';
+	import { deleteFeedbackById, exportAllFeedbacks } from '$lib/apis/evaluations';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ArrowDownTray from '$lib/components/icons/ArrowDownTray.svelte';
@@ -23,29 +25,6 @@
 
 	let page = 1;
 	$: paginatedFeedbacks = feedbacks.slice((page - 1) * 10, page * 10);
-
-	type Feedback = {
-		id: string;
-		data: {
-			rating: number;
-			model_id: string;
-			sibling_model_ids: string[] | null;
-			reason: string;
-			comment: string;
-			tags: string[];
-		};
-		user: {
-			name: string;
-			profile_image_url: string;
-		};
-		updated_at: number;
-	};
-
-	type ModelStats = {
-		rating: number;
-		won: number;
-		lost: number;
-	};
 
 	//////////////////////
 	//
@@ -201,7 +180,7 @@
 
 						<td class=" px-3 py-1 text-right font-semibold">
 							<FeedbackMenu
-								on:delete={(e) => {
+								on:delete={(_e) => {
 									deleteFeedbackHandler(feedback.id);
 								}}
 							>

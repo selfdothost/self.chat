@@ -1,12 +1,14 @@
 <script lang="ts">
-	import { models, showSettings, settings, user, mobile, config } from '$lib/stores';
-	import { onMount, tick, getContext } from 'svelte';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import { models, settings, user } from '$lib/stores';
+	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Selector from './ModelSelector/Selector.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 
 	import { updateUserSettings } from '$lib/apis/users';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let selectedModels = [''];
 	export let disabled = false;
@@ -33,7 +35,8 @@
 </script>
 
 <div class="flex flex-col w-full items-start">
-	{#each selectedModels as selectedModel, selectedModelIdx}
+	<!-- no stable id on these entries; slots can repeat '' placeholders, so index is fine -->
+	{#each selectedModels as selectedModel, selectedModelIdx (selectedModelIdx)}
 		<div class="flex w-full max-w-fit">
 			<div class="overflow-hidden w-full">
 				<div class="mr-1 max-w-full">

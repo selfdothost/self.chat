@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { getBackendConfig, getWebhookUrl, updateWebhookUrl } from '$lib/apis';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
+	import { getWebhookUrl, updateWebhookUrl } from '$lib/apis';
 	import {
 		getAdminConfig,
 		getLdapConfig,
@@ -11,13 +14,12 @@
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import { config } from '$lib/stores';
 	import { onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: Function;
+	export let saveHandler: AnyFn;
 
 	let adminConfig = null;
 	let webhookUrl = '';
@@ -57,7 +59,7 @@
 		if (res) {
 			saveHandler();
 		} else {
-			toast.error(i18n.t('Failed to update settings'));
+			toast.error($i18n.t('Failed to update settings'));
 		}
 	};
 
@@ -136,7 +138,7 @@
 							<input
 								class="w-full mt-1 rounded-lg text-sm dark:text-gray-300 bg-transparent outline-none"
 								type="text"
-								placeholder={`e.g.) /api/v1/messages, /api/v1/channels`}
+								placeholder="e.g.) /api/v1/messages, /api/v1/channels"
 								bind:value={adminConfig.API_KEY_ALLOWED_ENDPOINTS}
 							/>
 
@@ -187,7 +189,7 @@
 						<input
 							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
 							type="text"
-							placeholder={`e.g.) "http://localhost:3000"`}
+							placeholder="e.g.) &quot;http://localhost:3000&quot;"
 							bind:value={adminConfig.WEBUI_URL}
 						/>
 					</div>
@@ -210,7 +212,7 @@
 						<input
 							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
 							type="text"
-							placeholder={`e.g.) "30m","1h", "10d". `}
+							placeholder='e.g.) "30m","1h", "10d". '
 							bind:value={adminConfig.JWT_EXPIRES_IN}
 						/>
 					</div>
@@ -234,7 +236,7 @@
 						<input
 							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
 							type="text"
-							placeholder={`https://example.com/webhook`}
+							placeholder="https://example.com/webhook"
 							bind:value={webhookUrl}
 						/>
 					</div>

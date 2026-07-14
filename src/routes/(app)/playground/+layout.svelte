@@ -1,10 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext } from 'svelte';
-	import { WEBUI_NAME, showSidebar, functions } from '$lib/stores';
+	import { WEBUI_NAME, showSidebar } from '$lib/stores';
 	import MenuLines from '$lib/components/icons/MenuLines.svelte';
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	onMount(async () => {});
 </script>
@@ -47,7 +50,7 @@
 						)
 							? ''
 							: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-						href="/playground">{$i18n.t('Chat')}</a
+						href={resolve('/(app)/playground')}>{$i18n.t('Chat')}</a
 					>
 
 					<!-- <a
@@ -63,7 +66,7 @@
 						)
 							? ''
 							: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-						href="/playground/completions">{$i18n.t('Completions')}</a
+						href={resolve('/(app)/playground/completions')}>{$i18n.t('Completions')}</a
 					>
 				</div>
 			</div>

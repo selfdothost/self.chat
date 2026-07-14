@@ -1,12 +1,6 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
-
-	import { tick, getContext, onMount, createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
 
 	import { settings } from '$lib/stores';
-	import { copyToClipboard } from '$lib/utils';
 
 	import MultiResponseMessages from './MultiResponseMessages.svelte';
 	import ResponseMessage from './ResponseMessage.svelte';
@@ -15,7 +9,11 @@
 	export let chatId;
 	export let idx = 0;
 
-	export let history;
+	// Chat history tree: message nodes keyed by id, each shaped differently
+	// depending on role (user/assistant) -- read positionally throughout this
+	// component, not through one fixed interface.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	export let history: { messages: Record<string, any>; currentId?: string };
 	export let messageId;
 
 	export let user;

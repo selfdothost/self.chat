@@ -1,8 +1,10 @@
 <script>
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import { onMount, getContext } from 'svelte';
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	import { page } from '$app/stores';
@@ -18,15 +20,15 @@
 	onMount(async () => {
 		const _id = $page.url.searchParams.get('id');
 		if (_id) {
-			model = await getModelById(localStorage.token, _id).catch((e) => {
+			model = await getModelById(localStorage.token, _id).catch((_e) => {
 				return null;
 			});
 
 			if (!model) {
-				goto('/workspace/models');
+				goto(resolve('/(app)/workspace/models'));
 			}
 		} else {
-			goto('/workspace/models');
+			goto(resolve('/(app)/workspace/models'));
 		}
 	});
 
@@ -36,7 +38,7 @@
 		if (res) {
 			await models.set(await getModels(localStorage.token));
 			toast.success($i18n.t('Model updated successfully'));
-			await goto('/workspace/models');
+			await goto(resolve('/(app)/workspace/models'));
 		}
 	};
 </script>

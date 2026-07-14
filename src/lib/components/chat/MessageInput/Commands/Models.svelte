@@ -2,12 +2,10 @@
 	import Fuse from 'fuse.js';
 
 	import { createEventDispatcher, onMount } from 'svelte';
-	import { tick, getContext } from 'svelte';
+	import { tick } from 'svelte';
 
 	import { models, modelLoadStatus } from '$lib/stores';
 	import ModelStatusDot from '$lib/components/common/ModelStatusDot.svelte';
-
-	const i18n = getContext('i18n');
 
 	const dispatch = createEventDispatcher();
 
@@ -76,7 +74,7 @@
 				class="max-h-60 flex flex-col w-full rounded-xl bg-white dark:bg-gray-900 dark:text-gray-100"
 			>
 				<div class="m-1 overflow-y-auto p-1 rounded-r-lg space-y-0.5 scrollbar-hidden">
-					{#each filteredItems as model, modelIdx}
+					{#each filteredItems as model, modelIdx (model.id)}
 						<button
 							class="px-3 py-1.5 rounded-xl w-full text-left {modelIdx === selectedIdx
 								? 'bg-gray-50 dark:bg-gray-850 selected-command-option-button'

@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { getContext, onMount } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Display from './Display.svelte';
@@ -10,8 +12,8 @@
 	import UserPlusSolid from '$lib/components/icons/UserPlusSolid.svelte';
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
 
-	export let onSubmit: Function = () => {};
-	export let onDelete: Function = () => {};
+	export let onSubmit: AnyFn = () => {};
+	export let onDelete: AnyFn = () => {};
 
 	export let show = false;
 	export let edit = false;
@@ -35,6 +37,7 @@
 			knowledge: false,
 			prompts: false,
 			training: false,
+			evaluations: false,
 			tools: false
 		},
 		chat: {
@@ -72,6 +75,7 @@
 					knowledge: false,
 					prompts: false,
 					training: false,
+					evaluations: false,
 					tools: false
 				},
 				chat: {

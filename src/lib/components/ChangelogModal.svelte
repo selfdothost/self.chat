@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext } from 'svelte';
 	import { Confetti } from 'svelte-confetti';
 
@@ -10,7 +12,7 @@
 	import Modal from './common/Modal.svelte';
 	import { updateUserSettings } from '$lib/apis/users';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 
@@ -62,7 +64,7 @@
 		<div class=" overflow-y-scroll max-h-96 scrollbar-hidden">
 			<div class="mb-3">
 				{#if changelog}
-					{#each Object.keys(changelog) as version}
+					{#each Object.keys(changelog) as version (version)}
 						<div class=" mb-3 pr-2">
 							<div class="font-semibold text-xl mb-1 dark:text-white">
 								v{version} - {changelog[version].date}
@@ -70,7 +72,7 @@
 
 							<hr class=" dark:border-gray-800 my-2" />
 
-							{#each Object.keys(changelog[version]).filter((section) => section !== 'date') as section}
+							{#each Object.keys(changelog[version]).filter((section) => section !== 'date') as section (section)}
 								<div class="">
 									<div
 										class="font-semibold uppercase text-xs {section === 'added'
@@ -87,7 +89,7 @@
 									</div>
 
 									<div class="my-2.5 px-1.5">
-										{#each Object.keys(changelog[version][section]) as item}
+										{#each Object.keys(changelog[version][section]) as item (item)}
 											<div class="text-sm mb-2">
 												<div class="font-semibold uppercase">
 													{changelog[version][section][item].title}

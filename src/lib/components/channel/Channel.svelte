@@ -4,6 +4,7 @@
 
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import { chatId, showSidebar, socket, user } from '$lib/stores';
 	import { getChannelById, getChannelMessages, sendMessage } from '$lib/apis/channels';
@@ -40,6 +41,10 @@
 		}
 	};
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const initHandler = async () => {
 		top = false;
 		messages = null;
@@ -49,7 +54,7 @@
 		typingUsers = [];
 		typingUsersTimeout = {};
 
-		channel = await getChannelById(localStorage.token, id).catch((error) => {
+		channel = await getChannelById(localStorage.token, id).catch((_error) => {
 			return null;
 		});
 
@@ -64,7 +69,7 @@
 				}
 			}
 		} else {
-			goto('/');
+			goto(resolve('/'));
 		}
 	};
 
@@ -214,7 +219,7 @@
 						class=" pb-2.5 max-w-full z-10 scrollbar-hidden w-full h-full pt-6 flex-1 flex flex-col-reverse overflow-auto"
 						id="messages-container"
 						bind:this={messagesContainerElement}
-						on:scroll={(e) => {
+						on:scroll={(_e) => {
 							scrollEnd = Math.abs(messagesContainerElement.scrollTop) <= 50;
 						}}
 					>

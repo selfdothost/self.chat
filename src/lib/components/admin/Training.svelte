@@ -1,8 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import dayjs from 'dayjs';
 	import { toast } from 'svelte-sonner';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -126,6 +128,7 @@
 
 			await loadOutputs();
 			pageError = '';
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			if (!quiet) pageError = e?.detail ?? e?.message ?? 'Failed to load training jobs';
 		} finally {
@@ -147,6 +150,7 @@
 		try {
 			await fn();
 			await refresh(true);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			toast.error(typeof e === 'string' ? e : e?.detail ?? 'Action failed');
 		} finally {
@@ -319,7 +323,6 @@
 										<td class="px-3 py-2 font-mono">{job.model_id}</td>
 										<td class="px-3 py-2">{job.user?.name ?? job.user_id}</td>
 										<td class="px-3 py-2 text-gray-500">{formatDateTime(job.created_at)}</td>
-										<!-- svelte-ignore a11y-click-events-have-key-events -->
 										<td class="px-3 py-2 text-right" on:click|stopPropagation>
 											<div class="flex items-center justify-end gap-1">
 												{#if actionInProgress[job.id]}
@@ -435,10 +438,10 @@
 											{d.base_config.split('/').pop()}
 										</span>
 									{/if}
-									{#each (d.knowledge_ids ?? []) as kid}
+									{#each (d.knowledge_ids ?? []) as kid (kid)}
 										<span class="px-2 py-0.5 rounded text-[11px] font-medium bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">KB: {kid}</span>
 									{/each}
-									{#each (d.dataset_ids ?? []) as did}
+									{#each (d.dataset_ids ?? []) as did (did)}
 										<span class="px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">DS: {did}</span>
 									{/each}
 									{#if d.advanced_config}
@@ -493,7 +496,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each outputs as output}
+								{#each outputs as output (output.path)}
 									<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50">
 										<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{output.name}</td>
 										<td class="px-3 py-2 font-mono text-gray-500 dark:text-gray-400">{output.path}</td>

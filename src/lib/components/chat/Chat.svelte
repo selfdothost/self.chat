@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
-	import mermaid from 'mermaid';
-	import { PaneGroup, Pane, PaneResizer } from 'paneforge';
+	import { PaneGroup, Pane } from 'paneforge';
 
 	import { getContext, onDestroy, onMount, tick } from 'svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 
-	import { get, type Unsubscriber, type Writable } from 'svelte/store';
+	import { type Unsubscriber, type Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEBUI_BASE_URL, WEBUI_API_BASE_URL } from '$lib/constants';
 
 	import {
 		chatId,
@@ -37,41 +37,17 @@
 		showArtifacts,
 		tools
 	} from '$lib/stores';
-	import {
-		convertMessagesToHistory,
-		copyToClipboard,
-		getMessageContentParts,
-		extractSentencesForAudio,
-		promptTemplate,
-		splitStream,
-		sleep
-	} from '$lib/utils';
+	import { convertMessagesToHistory, copyToClipboard, getMessageContentParts, promptTemplate } from '$lib/utils';
 
-	import { generateChatCompletion } from '$lib/apis/ollama';
-	import {
-		addTagById,
-		createNewChat,
-		deleteTagById,
-		deleteTagsById,
-		getAllTags,
-		getChatById,
-		getChatList,
-		getTagsById,
-		updateChatById
-	} from '$lib/apis/chats';
+	import { createNewChat, getAllTags, getChatById, getChatList, updateChatById } from '$lib/apis/chats';
 	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
-	import { processWeb, processWebSearch, processYoutubeVideo } from '$lib/apis/retrieval';
+	import { processWeb, processYoutubeVideo } from '$lib/apis/retrieval';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { queryMemory } from '$lib/apis/memories';
 	import { getAndUpdateUserLocation, getUserSettings } from '$lib/apis/users';
-	import {
-		chatCompleted,
-		generateQueries,
-		chatAction,
-		generateMoACompletion,
-		stopTask
-	} from '$lib/apis';
+	import { chatCompleted, chatAction, generateMoACompletion, stopTask } from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
+	import { uploadFile } from '$lib/apis/files';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -80,17 +56,15 @@
 	import ChatControls from './ChatControls.svelte';
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
-	import NotificationToast from '../NotificationToast.svelte';
 
 	export let chatIdProp = '';
 
 	let loaded = false;
 	const eventTarget = new EventTarget();
-	let controlPane;
+	let controlPane = null;
 	let controlPaneComponent;
 
 	let autoScroll = true;
-	let processing = '';
 	let messagesContainerElement: HTMLDivElement;
 
 	let navbarElement;
@@ -105,16 +79,15 @@
 
 	let chatIdUnsubscriber: Unsubscriber | undefined;
 
-	let selectedModels = [''];
+	let selectedModels: string[] = [''];
 	let atSelectedModel: Model | undefined;
-	let selectedModelIds = [];
+	let selectedModelIds;
 	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
 
 	let selectedToolIds = [];
 	let webSearchEnabled = false;
 
 	let chat = null;
-	let tags = [];
 
 	let history = {
 		messages: {},
@@ -127,8 +100,17 @@
 	let prompt = '';
 	let chatFiles = [];
 	let files = [];
-	let params = {};
+	// Advanced model params bag (stream_response, system, stop, seed, etc.) --
+	// genuinely dynamic, keyed by whatever the selected model's advanced
+	// params UI (AdvancedParams.svelte) exposes.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let params: Record<string, any> = {};
 
+	// Assignments run inside an async IIFE triggered by this block; none of
+	// them (loaded/prompt/files/selectedToolIds/webSearchEnabled) are part of
+	// the block's own condition (`chatIdProp`), so they can't retrigger this
+	// reactive statement -- not an infinite loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if (chatIdProp) {
 		(async () => {
 			console.log(chatIdProp);
@@ -152,17 +134,21 @@
 						files = input.files;
 						selectedToolIds = input.selectedToolIds;
 						webSearchEnabled = input.webSearchEnabled;
-					} catch (e) {}
+					} catch {
+						// Corrupt/unparsable saved draft — leave the already-reset
+						// prompt/files/etc. defaults in place rather than restoring.
+					}
 				}
 
 				window.setTimeout(() => scrollToBottom(), 0);
 				const chatInput = document.getElementById('chat-input');
 				chatInput?.focus();
 			} else {
-				await goto('/');
+				await goto(resolve('/'));
 			}
 		})();
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 
 	$: if (selectedModels && chatIdProp !== '') {
 		saveSessionSelectedModels();
@@ -180,6 +166,10 @@
 		setToolIds();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const setToolIds = async () => {
 		if (!$tools) {
 			tools.set(await getTools(localStorage.token));
@@ -379,7 +369,7 @@
 			});
 		} else {
 			if ($temporaryChatEnabled) {
-				await goto('/');
+				await goto(resolve('/'));
 			}
 		}
 
@@ -390,7 +380,7 @@
 				files = input.files;
 				selectedToolIds = input.selectedToolIds;
 				webSearchEnabled = input.webSearchEnabled;
-			} catch (e) {
+			} catch {
 				prompt = '';
 				files = [];
 				selectedToolIds = [];
@@ -406,7 +396,7 @@
 					} else {
 						controlPane.collapse();
 					}
-				} catch (e) {
+				} catch {
 					// ignore
 				}
 			}
@@ -437,9 +427,7 @@
 			id: fileData.id,
 			name: fileData.name,
 			url: fileData.url,
-			headers: {
-				Authorization: `Bearer ${token}`
-			}
+			headers: fileData.headers
 		});
 
 		// Validate input
@@ -535,7 +523,8 @@
 
 			files = files;
 			toast.success($i18n.t('File uploaded successfully'));
-		} catch (e) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (Error | unknown); only .message is read below
+		} catch (e: any) {
 			console.error('Error uploading file:', e);
 			files = files.filter((f) => f.itemId !== tempItemId);
 			toast.error(
@@ -555,7 +544,8 @@
 			collection_name: '',
 			status: 'uploading',
 			url: url,
-			error: ''
+			error: '',
+			file: undefined
 		};
 
 		try {
@@ -589,7 +579,8 @@
 			status: 'uploading',
 			context: 'full',
 			url: url,
-			error: ''
+			error: '',
+			file: undefined
 		};
 
 		try {
@@ -605,7 +596,8 @@
 				};
 				files = files;
 			}
-		} catch (e) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous; passed straight through to the toast
+		} catch (e: any) {
 			// Remove the failed doc from the files array
 			files = files.filter((f) => f.name !== url);
 			toast.error(e);
@@ -630,7 +622,9 @@
 						modelSelectorButton.click();
 						await tick();
 
-						const modelSelectorInput = document.getElementById('model-search-input');
+						const modelSelectorInput = document.getElementById(
+							'model-search-input'
+						) as HTMLInputElement;
 						if (modelSelectorInput) {
 							modelSelectorInput.focus();
 							modelSelectorInput.value = urlModels[0];
@@ -672,7 +666,11 @@
 		await showArtifacts.set(false);
 
 		if ($page.url.pathname.includes('/c/')) {
-			window.history.replaceState(history.state, '', `/`);
+			// NB: unqualified `history` here would shadow window.history with this
+			// component's local chat-history variable (which has no `.state`) --
+			// use window.history.state explicitly to preserve the real browser
+			// navigation state across the replaceState call.
+			window.history.replaceState(window.history.state, '', `/`);
 		}
 
 		autoScroll = true;
@@ -743,16 +741,12 @@
 
 	const loadChat = async () => {
 		chatId.set(chatIdProp);
-		chat = await getChatById(localStorage.token, $chatId).catch(async (error) => {
-			await goto('/');
+		chat = await getChatById(localStorage.token, $chatId).catch(async (_error) => {
+			await goto(resolve('/'));
 			return null;
 		});
 
 		if (chat) {
-			tags = await getTagsById(localStorage.token, $chatId).catch(async (error) => {
-				return [];
-			});
-
 			const chatContent = chat.chat;
 
 			if (chatContent) {
@@ -815,7 +809,7 @@
 		}
 	};
 
-	const chatCompletedHandler = async (chatId, modelId, responseMessageId, messages) => {
+	const chatCompletedHandler = async (_chatId, modelId, responseMessageId, messages) => {
 		const res = await chatCompleted(localStorage.token, {
 			model: modelId,
 			messages: messages.map((m) => ({
@@ -826,7 +820,7 @@
 				timestamp: m.timestamp,
 				...(m.sources ? { sources: m.sources } : {})
 			})),
-			chat_id: chatId,
+			chat_id: _chatId,
 			session_id: $socket?.id,
 			id: responseMessageId
 		}).catch((error) => {
@@ -851,9 +845,12 @@
 
 		await tick();
 
-		if ($chatId == chatId) {
+		// Compare against the store, not the shadowed-looking local param name
+		// (renamed to _chatId) — this only persists the update if the event is
+		// for the chat currently being viewed.
+		if ($chatId == _chatId) {
 			if (!$temporaryChatEnabled) {
-				chat = await updateChatById(localStorage.token, chatId, {
+				chat = await updateChatById(localStorage.token, _chatId, {
 					models: selectedModels,
 					messages: messages,
 					history: history,
@@ -867,7 +864,7 @@
 		}
 	};
 
-	const chatActionHandler = async (chatId, actionId, modelId, responseMessageId, event = null) => {
+	const chatActionHandler = async (_chatId, actionId, modelId, responseMessageId, event = null) => {
 		const messages = createMessagesList(responseMessageId);
 
 		const res = await chatAction(localStorage.token, actionId, {
@@ -881,7 +878,7 @@
 				...(m.sources ? { sources: m.sources } : {})
 			})),
 			...(event ? { event: event } : {}),
-			chat_id: chatId,
+			chat_id: _chatId,
 			session_id: $socket?.id,
 			id: responseMessageId
 		}).catch((error) => {
@@ -903,9 +900,10 @@
 			}
 		}
 
-		if ($chatId == chatId) {
+		// Same shadowing fix as chatCompletedHandler above.
+		if ($chatId == _chatId) {
 			if (!$temporaryChatEnabled) {
-				chat = await updateChatById(localStorage.token, chatId, {
+				chat = await updateChatById(localStorage.token, _chatId, {
 					models: selectedModels,
 					messages: messages,
 					history: history,
@@ -1053,7 +1051,7 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
-		const { id, done, choices, content, sources, selected_model_id, error, usage } = data;
+		const { done, choices, content, sources, selected_model_id, error, usage } = data;
 
 		if (error) {
 			await handleOpenAIError(error, message);
@@ -1469,7 +1467,11 @@
 							params?.system ?? $settings?.system ?? '',
 							$user.name,
 							$settings?.userLocation
-								? await getAndUpdateUserLocation(localStorage.token)
+								? // getAndUpdateUserLocation ultimately calls getUserPosition(raw=false),
+									// which always returns the formatted string in that mode -- its inferred
+									// return type is widened to `string | {latitude,longitude}` because
+									// TS doesn't narrow return type based on a default parameter value.
+									((await getAndUpdateUserLocation(localStorage.token)) as string)
 								: undefined
 						)}${
 							(responseMessage?.userContext ?? null)
@@ -1481,9 +1483,9 @@
 			...createMessagesList(responseMessageId)
 		]
 			.filter((message) => message?.content?.trim())
-			.map((message, idx, arr) => ({
+			.map((message, _idx, _arr) => ({
 				role: message.role,
-				...((message.files?.filter((file) => file.type === 'image').length > 0 ?? false) &&
+				...(message.files?.filter((file) => file.type === 'image').length > 0 &&
 				message.role === 'user'
 					? {
 							content: [
@@ -1521,7 +1523,7 @@
 					stop:
 						(params?.stop ?? $settings?.params?.stop ?? undefined)
 							? (params?.stop.split(',').map((token) => token.trim()) ?? $settings.params.stop).map(
-									(str) => decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"') + '"'))
+									(str) => decodeURIComponent(JSON.parse('"' + str.replace(/"/g, '\\"') + '"'))
 								)
 							: undefined
 				},
@@ -1620,7 +1622,7 @@
 
 	const stopResponse = () => {
 		if (taskId) {
-			const res = stopTask(localStorage.token, taskId).catch((error) => {
+			const res = stopTask(localStorage.token, taskId).catch((_error) => {
 				return null;
 			});
 
@@ -1717,7 +1719,7 @@
 		history.messages[messageId] = message;
 
 		try {
-			const [res, controller] = await generateMoACompletion(
+			const [res] = await generateMoACompletion(
 				localStorage.token,
 				message.model,
 				history.messages[message.parentId].content,
@@ -1727,7 +1729,7 @@
 			if (res && res.ok && res.body) {
 				const textStream = await createOpenAITextStream(res.body, $settings.splitLargeChunks);
 				for await (const update of textStream) {
-					const { value, done, sources, error, usage } = update;
+					const { value, done, error } = update;
 					if (error || done) {
 						break;
 					}
@@ -1771,7 +1773,9 @@
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
 			await chatId.set(chat.id);
 
-			window.history.replaceState(history.state, '', `/c/${chat.id}`);
+			// See the shadowing note above -- window.history.state, not the local
+			// chat-history variable's (nonexistent) .state.
+			window.history.replaceState(window.history.state, '', `/c/${chat.id}`);
 		} else {
 			await chatId.set('local');
 		}
@@ -1858,7 +1862,6 @@
 					timestamp: Date.now()
 				}
 			}}
-			title={$chatTitle}
 			bind:selectedModels
 			shareEnabled={!!history.currentId}
 			{initNewChat}
@@ -1869,7 +1872,7 @@
 				{#if $banners.length > 0 && !history.currentId && !$chatId && selectedModels.length <= 1}
 					<div class="absolute top-12 left-0 right-0 w-full z-30">
 						<div class=" flex flex-col gap-1 w-full">
-							{#each $banners.filter( (b) => (b.dismissible ? !JSON.parse(localStorage.getItem('dismissedBannerIds') ?? '[]').includes(b.id) : true) ) as banner}
+							{#each $banners.filter( (b) => (b.dismissible ? !JSON.parse(localStorage.getItem('dismissedBannerIds') ?? '[]').includes(b.id) : true) ) as banner (banner.id)}
 								<Banner
 									{banner}
 									on:dismiss={(e) => {
@@ -1897,7 +1900,7 @@
 							class=" pb-2.5 flex flex-col justify-between w-full flex-auto overflow-auto h-0 max-w-full z-10 scrollbar-hidden"
 							id="messages-container"
 							bind:this={messagesContainerElement}
-							on:scroll={(e) => {
+							on:scroll={(_e) => {
 								autoScroll =
 									messagesContainerElement.scrollHeight - messagesContainerElement.scrollTop <=
 									messagesContainerElement.clientHeight + 5;
@@ -1933,7 +1936,7 @@
 								bind:selectedToolIds
 								bind:webSearchEnabled
 								bind:atSelectedModel
-								transparentBackground={$settings?.backgroundImageUrl ?? false}
+								transparentBackground={!!$settings?.backgroundImageUrl}
 								{stopResponse}
 								{createMessagePair}
 								onChange={(input) => {
@@ -1983,7 +1986,7 @@
 								bind:selectedToolIds
 								bind:webSearchEnabled
 								bind:atSelectedModel
-								transparentBackground={$settings?.backgroundImageUrl ?? false}
+								transparentBackground={!!$settings?.backgroundImageUrl}
 								{stopResponse}
 								{createMessagePair}
 								on:upload={async (e) => {
@@ -2020,7 +2023,7 @@
 				bind:pane={controlPane}
 				chatId={$chatId}
 				modelId={selectedModelIds?.at(0) ?? null}
-				models={selectedModelIds.reduce((a, e, i, arr) => {
+				models={selectedModelIds.reduce((a, e, _i, _arr) => {
 					const model = $models.find((m) => m.id === e);
 					if (model) {
 						return [...a, model];

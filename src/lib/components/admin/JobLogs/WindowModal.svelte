@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { getContext, createEventDispatcher } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import type { WindowForm, WindowSlot, JobWindow } from '$lib/apis/windows';
 	import { createWindow, updateWindow } from '$lib/apis/windows';
 
-	const i18n = getContext<any>('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let show = false;
@@ -51,6 +53,11 @@
 	$: if (show) {
 		const key = `${show}::${window?.id ?? `new`}`
 		if (key !== _lastInitKey) {
+			// Read by this same block on its NEXT invocation (guards against
+			// redundant re-init when `show`/`window.id` haven't actually changed).
+			// ESLint's single-pass analysis can't see reads across repeated
+			// $: re-invocations.
+			// eslint-disable-next-line no-useless-assignment
 			_lastInitKey = key
 			if (window) {
 				name = window.name;
@@ -80,6 +87,9 @@
 		}
 		error = '';
 	}
+	// Read by the reactive block above on its next invocation, once `show`
+	// becomes true again -- not within this statement itself.
+	// eslint-disable-next-line no-useless-assignment
 	$: if (!show) _lastInitKey = '';
 
 	async function save() {
@@ -106,6 +116,7 @@
 				: await createWindow(localStorage.token, form);
 			dispatch('saved', result);
 			show = false;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			error = typeof e === 'string' ? e : $i18n.t('Failed to save window');
 		} finally {
@@ -140,8 +151,9 @@
 			<div class="px-6 py-4 space-y-4 overflow-y-auto max-h-[70vh]">
 				<!-- Name -->
 				<div>
-					<label class="block text-xs font-medium mb-1">{$i18n.t('Name')}</label>
+					<label for="window-name" class="block text-xs font-medium mb-1">{$i18n.t('Name')}</label>
 					<input
+						id="window-name"
 						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none focus:ring-1 focus:ring-blue-500"
 						bind:value={name}
 						placeholder={$i18n.t('e.g. Evening GPU Window')}
@@ -151,30 +163,31 @@
 				<!-- Start / End -->
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="block text-xs font-medium mb-1">{$i18n.t('Start')}</label>
-						<input type="date" bind:value={startDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none" />
-						<input type="time" bind:value={startTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none mt-1" />
+						<label for="window-start-date" class="block text-xs font-medium mb-1">{$i18n.t('Start')}</label>
+						<input id="window-start-date" type="date" bind:value={startDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none" />
+						<input type="time" aria-label={$i18n.t('Start time')} bind:value={startTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none mt-1" />
 					</div>
 					<div>
-						<label class="block text-xs font-medium mb-1">
+						<label for="window-end-date" class="block text-xs font-medium mb-1">
 							{$i18n.t('End')}
 							{#if computedDuration()}
 								<span class="text-gray-400 font-normal ml-1">({computedDuration()})</span>
 							{/if}
 						</label>
-						<input type="date" bind:value={endDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none" />
-						<input type="time" bind:value={endTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none mt-1" />
+						<input id="window-end-date" type="date" bind:value={endDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none" />
+						<input type="time" aria-label={$i18n.t('End time')} bind:value={endTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none mt-1" />
 					</div>
 				</div>
 
 				<!-- Preferred job type -->
 				<div>
-					<label class="block text-xs font-medium mb-1">{$i18n.t('Preferred job type')}</label>
+					<label for="window-preferred-job-type" class="block text-xs font-medium mb-1">{$i18n.t('Preferred job type')}</label>
 					<select
+						id="window-preferred-job-type"
 						bind:value={preferredJobType}
 						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none"
 					>
-						{#each JOB_TYPES as t}
+						{#each JOB_TYPES as t (t)}
 							<option value={t}>{t}</option>
 						{/each}
 					</select>
@@ -183,7 +196,7 @@
 				<!-- Slots -->
 				<div>
 					<div class="flex justify-between items-center mb-1">
-						<label class="text-xs font-medium">{$i18n.t('Allowed job types')}</label>
+						<span class="text-xs font-medium">{$i18n.t('Allowed job types')}</span>
 						<button type="button" class="text-xs text-blue-500 hover:underline" on:click={addSlot}>
 							+ {$i18n.t('Add type')}
 						</button>
@@ -191,13 +204,14 @@
 					{#if slots.length === 0}
 						<p class="text-xs text-gray-400">{$i18n.t('No types configured — no jobs will run.')}</p>
 					{/if}
-					{#each slots as slot, i}
+					<!-- job_type isn't enforced unique (the dropdown allows picking a type already used by another row); rows are only appended/removed by index, never reordered, so index is the stable identity -->
+					{#each slots as slot, i (i)}
 						<div class="flex gap-2 items-start mb-1.5">
 							<select
 								bind:value={slot.job_type}
 								class="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-none flex-1"
 							>
-								{#each JOB_TYPES as t}
+								{#each JOB_TYPES as t (t)}
 									<option value={t}>{t}</option>
 								{/each}
 							</select>
@@ -231,8 +245,9 @@
 
 				<!-- Notes -->
 				<div>
-					<label class="block text-xs font-medium mb-1">{$i18n.t('Notes')} ({$i18n.t('optional')})</label>
+					<label for="window-notes" class="block text-xs font-medium mb-1">{$i18n.t('Notes')} ({$i18n.t('optional')})</label>
 					<textarea
+						id="window-notes"
 						bind:value={notes}
 						rows="2"
 						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none resize-none"

@@ -1,14 +1,15 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
 	import { getContext, createEventDispatcher, onDestroy } from 'svelte';
 	import { useSvelteFlow, useNodesInitialized, useStore } from '@xyflow/svelte';
 
 	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { onMount, tick } from 'svelte';
 
-	import { writable } from 'svelte/store';
-	import { models, showOverview, theme, user } from '$lib/stores';
+	import { writable, type Writable } from 'svelte/store';
+	import { models, showOverview, user } from '$lib/stores';
 
 	import '@xyflow/svelte/dist/style.css';
 
@@ -17,10 +18,18 @@
 	import XMark from '../icons/XMark.svelte';
 	import ArrowLeft from '../icons/ArrowLeft.svelte';
 
-	const { width, height } = useStore();
+	// NB: in this @xyflow/svelte version, useStore() exposes `width`/`height` as
+	// plain reactive getters (Svelte 5 runes under the hood), not Svelte stores
+	// -- destructuring them here would just copy a one-time snapshot number and
+	// lose reactivity entirely. Keep the live store object and read
+	// `flowStore.width`/`flowStore.height` inside a reactive ($:) block instead,
+	// same as `nodesInitializedState.current` below.
+	const flowStore = useStore();
 
-	const { fitView, getViewport } = useSvelteFlow();
-	const nodesInitialized = useNodesInitialized();
+	const { fitView } = useSvelteFlow();
+	// Also a reactive getter object (`{ readonly current: boolean }`), not a
+	// store -- see the note above.
+	const nodesInitializedState = useNodesInitialized();
 
 	export let history;
 
@@ -41,6 +50,10 @@
 		focusNode();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const focusNode = async () => {
 		if (selectedMessageId === null) {
 			await fitView({ nodes: [{ id: history.currentId }] });
@@ -57,14 +70,10 @@
 		const levelOffset = 150; // Vertical spacing between layers
 		const siblingOffset = 250; // Horizontal spacing between nodes at the same layer
 
-		// Map to keep track of node positions at each level
+		// Map to keep track of node positions at each level -- function-local
+		// to drawFlow(), never touches component state or Svelte's reactivity.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		let positionMap = new Map();
-
-		// Helper function to truncate labels
-		function createLabel(content) {
-			const maxLength = 100;
-			return content.length > maxLength ? content.substr(0, maxLength) + '...' : content;
-		}
 
 		// Create nodes and map children to ensure alignment in width
 		let layerWidths = {}; // Track widths of each layer
@@ -128,28 +137,28 @@
 
 	onMount(() => {
 		drawFlow();
-
-		nodesInitialized.subscribe(async (initialized) => {
-			if (initialized) {
-				await tick();
-				const res = await fitView({ nodes: [{ id: history.currentId }] });
-			}
-		});
-
-		width.subscribe((value) => {
-			if (value) {
-				// fitView();
-				fitView({ nodes: [{ id: history.currentId }] });
-			}
-		});
-
-		height.subscribe((value) => {
-			if (value) {
-				// fitView();
-				fitView({ nodes: [{ id: history.currentId }] });
-			}
-		});
 	});
+
+	// These replace the old nodesInitialized/width/height `.subscribe(...)`
+	// calls that used to live in onMount() -- none of the three are Svelte
+	// stores in this @xyflow/svelte version (see the notes above), so
+	// `.subscribe` doesn't exist on them and would have thrown at runtime.
+	// Reading their reactive getters inside `$:` blocks re-runs whenever the
+	// underlying signal changes, same as the `history` blocks above.
+	$: if (nodesInitializedState.current) {
+		(async () => {
+			await tick();
+			await fitView({ nodes: [{ id: history.currentId }] });
+		})();
+	}
+
+	$: if (flowStore.width) {
+		fitView({ nodes: [{ id: history.currentId }] });
+	}
+
+	$: if (flowStore.height) {
+		fitView({ nodes: [{ id: history.currentId }] });
+	}
 
 	onDestroy(() => {
 		console.log('Overview destroyed');

@@ -1,13 +1,15 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
 	import { onMount, getContext } from 'svelte';
-	import { WEBUI_NAME, config, prompts, tools as _tools, user } from '$lib/stores';
-	import { createNewPrompt, deletePromptByCommand, getPrompts } from '$lib/apis/prompts';
+	import { WEBUI_NAME, tools as _tools, user } from '$lib/stores';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import {
 		createNewTool,
 		deleteToolById,
@@ -16,7 +18,6 @@
 		getToolList,
 		getTools
 	} from '$lib/apis/tools';
-	import ArrowDownTray from '../icons/ArrowDownTray.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import ConfirmDialog from '../common/ConfirmDialog.svelte';
 	import ToolMenu from './Tools/ToolMenu.svelte';
@@ -31,7 +32,7 @@
 	import Spinner from '../common/Spinner.svelte';
 	import { capitalizeFirstLetter } from '$lib/utils';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let shiftKey = false;
 	let loaded = false;
@@ -49,7 +50,7 @@
 	let showDeleteConfirm = false;
 
 	let tools = [];
-	let filteredItems = [];
+	let filteredItems;
 
 	$: filteredItems = tools.filter(
 		(t) =>
@@ -70,7 +71,7 @@
 				id: `${_tool.id}_clone`,
 				name: `${_tool.name} (Clone)`
 			});
-			goto('/workspace/tools/create');
+			goto(resolve('/(app)/workspace/tools/create'));
 		}
 	};
 
@@ -106,9 +107,16 @@
 		_tools.set(await getTools(localStorage.token));
 	};
 
-	onMount(async () => {
-		await init();
-		loaded = true;
+	onMount(() => {
+		// onMount must return either nothing or a sync cleanup function --
+		// not a Promise. Marking this callback itself `async` (as it was
+		// before) makes it return `Promise<() => void>`, which doesn't match
+		// onMount's signature. The async init work runs in its own IIFE so
+		// the cleanup function below can still be returned synchronously.
+		(async () => {
+			await init();
+			loaded = true;
+		})();
 
 		const onKeyDown = (event) => {
 			if (event.key === 'Shift') {
@@ -171,7 +179,7 @@
 			<div>
 				<a
 					class=" px-2 py-2 rounded-xl hover:bg-gray-700/10 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-medium text-sm flex items-center space-x-1"
-					href="/workspace/tools/create"
+					href={resolve('/(app)/workspace/tools/create')}
 				>
 					<Plus className="size-3.5" />
 				</a>
@@ -180,13 +188,13 @@
 	</div>
 
 	<div class="mb-5 gap-2 grid lg:grid-cols-2 xl:grid-cols-3">
-		{#each filteredItems as tool}
+		{#each filteredItems as tool (tool.id)}
 			<div
 				class=" flex space-x-4 cursor-pointer w-full px-3 py-2 dark:hover:bg-white/5 hover:bg-black/5 rounded-xl transition"
 			>
 				<a
 					class=" flex flex-1 space-x-3.5 cursor-pointer w-full"
-					href={`/workspace/tools/edit?id=${encodeURIComponent(tool.id)}`}
+					href={resolve(`/(app)/workspace/tools/edit?id=${encodeURIComponent(tool.id)}`)}
 				>
 					<div class="flex items-center text-left">
 						<div class=" flex-1 self-center">
@@ -300,7 +308,7 @@
 
 						<ToolMenu
 							editHandler={() => {
-								goto(`/workspace/tools/edit?id=${encodeURIComponent(tool.id)}`);
+								goto(resolve(`/(app)/workspace/tools/edit?id=${encodeURIComponent(tool.id)}`));
 							}}
 							cloneHandler={() => {
 								cloneHandler(tool);
@@ -425,18 +433,23 @@
 		on:confirm={() => {
 			const reader = new FileReader();
 			reader.onload = async (event) => {
-				const _tools = JSON.parse(event.target.result);
-				console.log(_tools);
+				// Named to avoid shadowing the outer `_tools` store import --
+				// the previous `const _tools = JSON.parse(...)` shadowed it,
+				// so `tools.set(...)` below (a bug: `.set()` doesn't exist on
+				// the local `tools` array either) never reached the real
+				// store, and the visible `tools` list was never refreshed.
+				const importedTools = JSON.parse(event.target.result as string);
+				console.log(importedTools);
 
-				for (const tool of _tools) {
-					const res = await createNewTool(localStorage.token, tool).catch((error) => {
+				for (const tool of importedTools) {
+					await createNewTool(localStorage.token, tool).catch((error) => {
 						toast.error(error);
 						return null;
 					});
 				}
 
 				toast.success($i18n.t('Tool imported successfully'));
-				tools.set(await getTools(localStorage.token));
+				await init();
 			};
 
 			reader.readAsText(importFiles[0]);

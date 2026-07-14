@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { basicSetup, EditorView } from 'codemirror';
 	import { keymap, placeholder } from '@codemirror/view';
 	import { Compartment, EditorState } from '@codemirror/state';
@@ -17,7 +19,7 @@
 	import { toast } from 'svelte-sonner';
 
 	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let boilerplate = '';
 	export let value = '';
@@ -27,6 +29,10 @@
 		updateValue();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const updateValue = () => {
 		if (_value !== value) {
 			_value = value;
@@ -105,6 +111,10 @@
 		setLanguage();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const setLanguage = async () => {
 		const language = await getLang();
 		if (language && codeEditor) {
@@ -153,8 +163,11 @@
 								effects: editorTheme.reconfigure(oneDark)
 							});
 						} else {
+							// Revert to the same empty extension the compartment was
+							// initialized with (editorTheme.of([]) above) -- reconfigure()
+							// requires an Extension argument; calling it with none was a bug.
 							codeEditor.dispatch({
-								effects: editorTheme.reconfigure()
+								effects: editorTheme.reconfigure([])
 							});
 						}
 					}

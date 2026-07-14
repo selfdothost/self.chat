@@ -1,4 +1,7 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { config, models, settings, showCallOverlay } from '$lib/stores';
 	import { onMount, tick, getContext, onDestroy, createEventDispatcher } from 'svelte';
 
@@ -13,11 +16,11 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import VideoInputMenu from './CallOverlay/VideoInputMenu.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let eventTarget: EventTarget;
-	export let submitPrompt: Function;
-	export let stopResponse: Function;
+	export let submitPrompt: AnyFn;
+	export let stopResponse: AnyFn;
 	export let files;
 	export let chatId;
 	export let modelId;
@@ -28,7 +31,6 @@
 
 	let loading = false;
 	let confirmed = false;
-	let interrupted = false;
 	let assistantSpeaking = false;
 
 	let emoji = null;
@@ -49,7 +51,7 @@
 		const devices = await navigator.mediaDevices.enumerateDevices();
 		videoInputDevices = devices.filter((device) => device.kind === 'videoinput');
 
-		if (!!navigator.mediaDevices.getDisplayMedia) {
+		if (navigator.mediaDevices.getDisplayMedia) {
 			videoInputDevices = [
 				...videoInputDevices,
 				{
@@ -80,13 +82,16 @@
 	};
 
 	const startVideoStream = async () => {
-		const video = document.getElementById('camera-feed');
+		const video = document.getElementById('camera-feed') as HTMLVideoElement;
 		if (video) {
 			if (selectedVideoInputDeviceId === 'screen') {
 				cameraStream = await navigator.mediaDevices.getDisplayMedia({
+					// `cursor` is a real, browser-supported screen-capture constraint
+					// (Chrome/Edge) that lib.dom.d.ts's MediaTrackConstraints doesn't model.
 					video: {
 						cursor: 'always'
-					},
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					} as any,
 					audio: false
 				});
 			} else {
@@ -115,8 +120,8 @@
 	};
 
 	const takeScreenshot = () => {
-		const video = document.getElementById('camera-feed');
-		const canvas = document.getElementById('camera-canvas');
+		const video = document.getElementById('camera-feed') as HTMLVideoElement;
+		const canvas = document.getElementById('camera-canvas') as HTMLCanvasElement;
 
 		if (!canvas) {
 			return;
@@ -144,7 +149,6 @@
 	};
 
 	const MIN_DECIBELS = -55;
-	const VISUALIZER_BUFFER_LENGTH = 300;
 
 	const transcribeHandler = async (audioBlob) => {
 		// Create a blob from the audio chunks
@@ -423,7 +427,6 @@
 
 	const stopAllAudio = async () => {
 		assistantSpeaking = false;
-		interrupted = true;
 
 		if (chatStreaming) {
 			stopResponse();
@@ -434,7 +437,7 @@
 			currentUtterance = null;
 		}
 
-		const audioElement = document.getElementById('audioElement');
+		const audioElement = document.getElementById('audioElement') as HTMLAudioElement;
 		if (audioElement) {
 			audioElement.muted = true;
 			audioElement.pause();
@@ -445,7 +448,12 @@
 	let audioAbortController = new AbortController();
 
 	// Audio cache map where key is the content and value is the Audio object.
+	// Both are mutated in place via .has()/.get()/.set() but never read by
+	// the template or a $: block -- Svelte never needs to observe these
+	// mutations, so SvelteMap would add proxy overhead for no benefit.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const audioCache = new Map();
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const emojiCache = new Map();
 
 	const fetchAudio = async (content) => {
@@ -588,8 +596,7 @@
 	};
 
 	const chatFinishHandler = async (e) => {
-		const { id, content } = e.detail;
-		// "content" here is the entire message from the assistant
+		const { id } = e.detail;
 		finishedMessages[id] = true;
 
 		chatStreaming = false;
@@ -631,24 +638,13 @@
 		eventTarget.addEventListener('chat:start', chatStartHandler);
 		eventTarget.addEventListener('chat', chatEventHandler);
 		eventTarget.addEventListener('chat:finish', chatFinishHandler);
-
-		return async () => {
-			await stopAllAudio();
-
-			stopAudioStream();
-
-			eventTarget.removeEventListener('chat:start', chatStartHandler);
-			eventTarget.removeEventListener('chat', chatEventHandler);
-			eventTarget.removeEventListener('chat:finish', chatFinishHandler);
-
-			audioAbortController.abort();
-			await tick();
-
-			await stopAllAudio();
-
-			await stopRecordingCallback(false);
-			await stopCamera();
-		};
+		// NB: this onMount callback is async, so a returned cleanup function is
+		// never actually invoked on unmount -- Svelte only calls a cleanup
+		// function returned *synchronously* from onMount (see onMount's JSDoc).
+		// A `return async () => {...}` used to live here as dead code; the
+		// equivalent cleanup is handled below in onDestroy, which fires
+		// reliably since this component is mounted/destroyed each time
+		// $showCallOverlay toggles (see ChatControls.svelte).
 	});
 
 	onDestroy(async () => {
@@ -833,12 +829,16 @@
 				</button>
 			{:else}
 				<div class="relative flex video-container w-full max-h-full pt-2 pb-4 md:py-6 px-2 h-full">
+					<!-- Live local webcam self-view (populated via video.srcObject in JS, no
+					     src/captions file exists) — empty track satisfies a11y-media-has-caption. -->
 					<video
 						id="camera-feed"
 						autoplay
 						class="rounded-2xl h-full min-w-full object-cover object-center"
 						playsinline
-					/>
+					>
+						<track kind="captions" />
+					</video>
 
 					<canvas id="camera-canvas" style="display:none;" />
 

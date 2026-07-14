@@ -59,14 +59,21 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
 	class="absolute select-none pipeline-node"
 	style="left: {x}px; top: {y}px; {nodeCollapsed ? '' : 'min-width: 200px; max-width: 280px;'}"
+	role="button"
+	tabindex="0"
 	on:pointerdown={onPointerDown}
 	on:pointermove={onPointerMove}
 	on:pointerup={onPointerUp}
 	on:click={handleClick}
+	on:keydown={(e) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			dispatch('select', { id });
+		}
+	}}
 	on:contextmenu={handleContextMenu}
 	class:cursor-grabbing={dragging}
 	class:cursor-grab={!dragging}

@@ -6,25 +6,21 @@
 
 	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
-	import { WEBUI_NAME, config, user, showSidebar, knowledge } from '$lib/stores';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { user } from '$lib/stores';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
 	import UsersSolid from '$lib/components/icons/UsersSolid.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
-	import EllipsisHorizontal from '$lib/components/icons/EllipsisHorizontal.svelte';
-	import User from '$lib/components/icons/User.svelte';
-	import UserCircleSolid from '$lib/components/icons/UserCircleSolid.svelte';
 	import GroupModal from './Groups/EditGroupModal.svelte';
-	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import GroupItem from './Groups/GroupItem.svelte';
 	import AddGroupModal from './Groups/AddGroupModal.svelte';
 	import { createNewGroup, getGroups } from '$lib/apis/groups';
 	import { getUserDefaultPermissions, updateUserDefaultPermissions } from '$lib/apis/users';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let loaded = false;
@@ -51,6 +47,7 @@
 			knowledge: false,
 			prompts: false,
 			training: false,
+			evaluations: false,
 			tools: false
 		},
 		chat: {
@@ -98,7 +95,7 @@
 
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
-			await goto('/');
+			await goto(resolve('/(app)'));
 		} else {
 			await setGroups();
 			defaultPermissions = await getUserDefaultPermissions(localStorage.token);
@@ -192,7 +189,7 @@
 
 				<hr class="mt-1.5 border-gray-50 dark:border-gray-850" />
 
-				{#each filteredGroups as group}
+				{#each filteredGroups as group (group.id)}
 					<div class="my-2">
 						<GroupItem {group} {users} {setGroups} />
 					</div>

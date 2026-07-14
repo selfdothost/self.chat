@@ -18,11 +18,11 @@ const DELIMITER_LIST = [
 // const inlineRule = /^(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1(?=[\s?!\.,:？！。，：]|$)/;
 // const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
 
-let inlinePatterns = [];
-let blockPatterns = [];
+const inlinePatterns = [];
+const blockPatterns = [];
 
 function escapeRegex(string) {
-	return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+	return string.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
 function generateRegexRules(delimiters) {
@@ -44,10 +44,10 @@ function generateRegexRules(delimiters) {
 
 	// Math formulas can end in special characters
 	const inlineRule = new RegExp(
-		`^(${inlinePatterns.join('|')})(?=[\\s?。，!-\/:-@[-\`{-~]|$)`,
+		`^(${inlinePatterns.join('|')})(?=[\\s?。，!-/:-@[-\`{-~]|$)`,
 		'u'
 	);
-	const blockRule = new RegExp(`^(${blockPatterns.join('|')})(?=[\\s?。，!-\/:-@[-\`{-~]|$)`, 'u');
+	const blockRule = new RegExp(`^(${blockPatterns.join('|')})(?=[\\s?。，!-/:-@[-\`{-~]|$)`, 'u');
 
 	return { inlineRule, blockRule };
 }
@@ -61,16 +61,16 @@ export default function (options = {}) {
 }
 
 function katexStart(src, displayMode: boolean) {
-	let ruleReg = displayMode ? blockRule : inlineRule;
+	const ruleReg = displayMode ? blockRule : inlineRule;
 
 	let indexSrc = src;
 
 	while (indexSrc) {
 		let index = -1;
-		let startIndex = -1;
+		let startIndex;
 		let startDelimiter = '';
 		let endDelimiter = '';
-		for (let delimiter of DELIMITER_LIST) {
+		for (const delimiter of DELIMITER_LIST) {
 			if (delimiter.display !== displayMode) {
 				continue;
 			}
@@ -91,7 +91,7 @@ function katexStart(src, displayMode: boolean) {
 
 		// Check if the delimiter is preceded by a special character.
 		// If it does, then it's potentially a math formula.
-		const f = index === 0 || indexSrc.charAt(index - 1).match(/[\s?。，!-\/:-@[-`{-~]/);
+		const f = index === 0 || indexSrc.charAt(index - 1).match(/[\s?。，!-/:-@[-`{-~]/);
 		if (f) {
 			const possibleKatex = indexSrc.substring(index);
 
@@ -105,8 +105,8 @@ function katexStart(src, displayMode: boolean) {
 }
 
 function katexTokenizer(src, tokens, displayMode: boolean) {
-	let ruleReg = displayMode ? blockRule : inlineRule;
-	let type = displayMode ? 'blockKatex' : 'inlineKatex';
+	const ruleReg = displayMode ? blockRule : inlineRule;
+	const type = displayMode ? 'blockKatex' : 'inlineKatex';
 
 	const match = src.match(ruleReg);
 
@@ -125,7 +125,23 @@ function katexTokenizer(src, tokens, displayMode: boolean) {
 	}
 }
 
-function inlineKatex(options) {
+// Only used by marked's built-in HTML-string renderer (marked.parse()) --
+// the app's own token-tree path (marked.lexer() + MarkdownTokens.svelte /
+// MarkdownInlineTokens.svelte) renders inlineKatex/blockKatex tokens itself
+// via <KatexRenderer>, and never calls this. Without it, marked.parse()
+// throws "Token with '<type>' type was not found" on any content that
+// happens to match the katex delimiters (e.g. "$5 and $10") -- it used to
+// silently fall through to unrendered text instead of throwing, but that
+// stopped being true partway through marked's major-version history.
+// Matches KatexRenderer.svelte's own katex.renderToString() call exactly.
+function katexRenderer(token) {
+	return katex.renderToString(token.text, {
+		displayMode: token.displayMode,
+		throwOnError: false
+	});
+}
+
+function inlineKatex(_options) {
 	return {
 		name: 'inlineKatex',
 		level: 'inline',
@@ -134,11 +150,12 @@ function inlineKatex(options) {
 		},
 		tokenizer(src, tokens) {
 			return katexTokenizer(src, tokens, false);
-		}
+		},
+		renderer: katexRenderer
 	};
 }
 
-function blockKatex(options) {
+function blockKatex(_options) {
 	return {
 		name: 'blockKatex',
 		level: 'block',
@@ -147,6 +164,7 @@ function blockKatex(options) {
 		},
 		tokenizer(src, tokens) {
 			return katexTokenizer(src, tokens, true);
-		}
+		},
+		renderer: katexRenderer
 	};
 }

@@ -8,6 +8,9 @@ type TextStreamUpdate = {
 	sources?: any;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	selectedModelId?: any;
+	// SSE error payload shape varies by backend (string or an error object) —
+	// same reasoning as sources/selectedModelId above.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	error?: any;
 	usage?: ResponseUsage;
 };
@@ -30,7 +33,13 @@ export async function createOpenAITextStream(
 	splitLargeDeltas: boolean
 ): Promise<AsyncGenerator<TextStreamUpdate>> {
 	const eventStream = responseBody
-		.pipeThrough(new TextDecoderStream())
+		.pipeThrough(
+			// TextDecoderStream's `writable` is typed WritableStream<BufferSource>
+			// in lib.dom.d.ts rather than WritableStream<Uint8Array> -- a real
+			// runtime match (Uint8Array is a BufferSource) that TS's streams
+			// generics don't model. Known lib.dom.d.ts gap, not a real bug.
+			new TextDecoderStream() as unknown as ReadableWritablePair<string, Uint8Array>
+		)
 		.pipeThrough(new EventSourceParserStream())
 		.getReader();
 	let iterator = openAIStreamToIterator(eventStream);

@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import dayjs from 'dayjs';
 	import type { JobWindow } from '$lib/apis/windows';
 	import { listWindows, deleteWindow } from '$lib/apis/windows';
 	import WindowModal from './WindowModal.svelte';
 
-	const i18n = getContext<any>('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let windows: JobWindow[] = [];
 	let loading = true;
@@ -53,6 +55,7 @@
 		try {
 			await deleteWindow(localStorage.token, w.id);
 			windows = windows.filter((x) => x.id !== w.id);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			alert(typeof e === 'string' ? e : $i18n.t('Failed to delete window'));
 		}

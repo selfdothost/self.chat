@@ -1,10 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { createEventDispatcher, getContext } from 'svelte';
 	import { tags } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let label = '';
 	let showTagInput = false;
@@ -37,7 +39,7 @@
 				}}
 			/>
 			<datalist id="tagOptions">
-				{#each $tags as tag}
+				{#each $tags as tag (tag.name)}
 					<option value={tag.name} />
 				{/each}
 			</datalist>

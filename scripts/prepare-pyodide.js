@@ -39,7 +39,7 @@ async function downloadPackages() {
 			console.log('Pyodide version mismatch, removing static/pyodide directory');
 			await rmdir('static/pyodide', { recursive: true });
 		}
-	} catch (e) {
+	} catch {
 		console.log('Pyodide package not found, proceeding with download.');
 	}
 

@@ -1,12 +1,18 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
+	import { createEventDispatcher, onMount, getContext } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 
 	import { getCuratorConfig, updateCuratorConfig } from '$lib/apis/curator';
-	import { getLanguageEvalConfig, updateLanguageEvalConfig } from '$lib/apis/language_eval';
-	import { getCodeEvalConfig, updateCodeEvalConfig } from '$lib/apis/code_eval';
+	import {
+		getLanguageEvalConfig,
+		updateLanguageEvalConfig,
+		type LanguageEvalConfig
+	} from '$lib/apis/language_eval';
+	import { getCodeEvalConfig, updateCodeEvalConfig, type CodeEvalConfig } from '$lib/apis/code_eval';
 	import { getLlamolotlConfig, updateLlamolotlConfig } from '$lib/apis/llamolotl';
 	import { getOllamaConfig, updateOllamaConfig } from '$lib/apis/ollama';
 	import { getOpenAIConfig, updateOpenAIConfig, getOpenAIModels } from '$lib/apis/openai';
@@ -27,7 +33,34 @@
 	import CodeEvalConnection from './Connections/CodeEvalConnection.svelte';
 	import LlamolotlConnection from './Connections/LlamolotlConnection.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
+
+	// Mirror the (unexported) config shapes returned by getOllamaConfig /
+	// getOpenAIConfig / getLlamolotlConfig / getCuratorConfig -- those API
+	// modules don't export their config types or annotate the fetch return
+	// type (unlike LanguageEvalConfig/CodeEvalConfig below), so the fetched
+	// config is typed here to match what's actually read off it in onMount.
+	type OllamaConfigShape = {
+		ENABLE_OLLAMA_API: boolean;
+		OLLAMA_BASE_URLS: string[];
+		OLLAMA_API_CONFIGS: object;
+	};
+	type OpenAIConfigShape = {
+		ENABLE_OPENAI_API: boolean;
+		OPENAI_API_BASE_URLS: string[];
+		OPENAI_API_KEYS: string[];
+		OPENAI_API_CONFIGS: object;
+	};
+	type LlamolotlConfigShape = {
+		ENABLE_LLAMOLOTL_API: boolean;
+		LLAMOLOTL_BASE_URLS: string[];
+		LLAMOLOTL_API_CONFIGS: object;
+	};
+	type CuratorConfigShape = {
+		ENABLE_CURATOR_API: boolean;
+		CURATOR_BASE_URLS: string[];
+		CURATOR_API_CONFIGS: object;
+	};
 
 	const getModels = async () => {
 		const models = await _getModels(localStorage.token);
@@ -239,12 +272,12 @@
 
 	onMount(async () => {
 		if ($user.role === 'admin') {
-			let ollamaConfig = {};
-			let openaiConfig = {};
-			let llamolotlConfig = {};
-			let curatorConfig = {};
-			let languageEvalConfig: any = {};
-			let codeEvalConfig: any = {};
+			let ollamaConfig: Partial<OllamaConfigShape> = {};
+			let openaiConfig: Partial<OpenAIConfigShape> = {};
+			let llamolotlConfig: Partial<LlamolotlConfigShape> = {};
+			let curatorConfig: Partial<CuratorConfigShape> = {};
+			let languageEvalConfig: Partial<LanguageEvalConfig> = {};
+			let codeEvalConfig: Partial<CodeEvalConfig> = {};
 
 			await Promise.all([
 				(async () => {
@@ -412,7 +445,8 @@
 							</div>
 
 							<div class="flex flex-col gap-1.5 mt-1.5">
-								{#each OPENAI_API_BASE_URLS as url, idx}
+								<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+								{#each OPENAI_API_BASE_URLS as url, idx (idx)}
 									<OpenAIConnection
 										pipeline={pipelineUrls[url] ? true : false}
 										bind:url
@@ -473,7 +507,8 @@
 
 						<div class="flex w-full gap-1.5">
 							<div class="flex-1 flex flex-col gap-1.5 mt-1.5">
-								{#each OLLAMA_BASE_URLS as url, idx}
+								<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+								{#each OLLAMA_BASE_URLS as url, idx (idx)}
 									<OllamaConnection
 										bind:url
 										bind:config={OLLAMA_API_CONFIGS[url]}
@@ -491,13 +526,6 @@
 
 						<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
 							{$i18n.t('Trouble accessing Ollama?')}
-							<a
-								class=" text-gray-300 font-medium underline"
-								href="https://github.com/open-webui/open-webui#troubleshooting"
-								target="_blank"
-							>
-								{$i18n.t('Click here for help.')}
-							</a>
 						</div>
 					</div>
 				{/if}
@@ -541,7 +569,8 @@
 
 						<div class="flex w-full gap-1.5">
 							<div class="flex-1 flex flex-col gap-1.5 mt-1.5">
-								{#each LLAMOLOTL_BASE_URLS as url, idx}
+								<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+								{#each LLAMOLOTL_BASE_URLS as url, idx (idx)}
 									<LlamolotlConnection
 										bind:url
 										bind:config={LLAMOLOTL_API_CONFIGS[url]}
@@ -598,7 +627,8 @@
 
 						<div class="flex w-full gap-1.5">
 							<div class="flex-1 flex flex-col gap-1.5 mt-1.5">
-								{#each CURATOR_BASE_URLS as url, idx}
+								<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+								{#each CURATOR_BASE_URLS as url, idx (idx)}
 									<CuratorConnection
 										bind:url
 										bind:config={CURATOR_API_CONFIGS[url]}
@@ -650,7 +680,8 @@
 								</Tooltip>
 							</div>
 							<div class="flex flex-col gap-1.5 mt-1.5">
-								{#each LANGUAGE_EVAL_BASE_URLS as url, idx}
+								<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+								{#each LANGUAGE_EVAL_BASE_URLS as url, idx (idx)}
 									<LanguageEvalConnection
 										bind:url
 										{idx}
@@ -701,7 +732,8 @@
 								</Tooltip>
 							</div>
 							<div class="flex flex-col gap-1.5 mt-1.5">
-								{#each CODE_EVAL_BASE_URLS as url, idx}
+								<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+								{#each CODE_EVAL_BASE_URLS as url, idx (idx)}
 									<CodeEvalConnection
 										bind:url
 										{idx}

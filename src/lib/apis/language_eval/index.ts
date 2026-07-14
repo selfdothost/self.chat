@@ -1,6 +1,6 @@
 import { LANGUAGE_EVAL_API_BASE_URL } from '$lib/constants';
 
-type LanguageEvalConfig = {
+export type LanguageEvalConfig = {
 	ENABLE_LANGUAGE_EVAL_API: boolean;
 	LANGUAGE_EVAL_BASE_URLS: string[];
 };
@@ -38,10 +38,11 @@ export const updateLanguageEvalConfig = async (
 	return res;
 };
 
+// Not called anywhere yet (no caller to infer a response shape from).
 export const verifyLanguageEvalConnection = async (
 	token: string = '',
 	url: string = ''
-): Promise<any> => {
+): Promise<unknown> => {
 	const res = await fetch(`${LANGUAGE_EVAL_API_BASE_URL}/verify`, {
 		method: 'POST',
 		headers: {

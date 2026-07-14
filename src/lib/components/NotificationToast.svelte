@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import { settings, playingNotificationSound, isLastActiveTab } from '$lib/stores';
 	import DOMPurify from 'dompurify';
 
@@ -7,7 +8,7 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let onClick: Function = () => {};
+	export let onClick: AnyFn = () => {};
 	export let title: string = 'HI';
 	export let content: string;
 
@@ -38,7 +39,7 @@
 	}}
 >
 	<div class="flex-shrink-0 self-top -translate-y-0.5">
-		<img src={'/static/favicon.png'} alt="favicon" class="size-7 rounded-full" />
+		<img src="/static/favicon.png" alt="favicon" class="size-7 rounded-full" />
 	</div>
 
 	<div>
@@ -47,7 +48,8 @@
 		{/if}
 
 		<div class=" line-clamp-2 text-xs self-center dark:text-gray-300 font-normal">
-			{@html DOMPurify.sanitize(marked(content))}
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized right here via DOMPurify.sanitize() on the marked() output -->
+			{@html DOMPurify.sanitize(marked(content, { async: false }))}
 		</div>
 	</div>
 </button>

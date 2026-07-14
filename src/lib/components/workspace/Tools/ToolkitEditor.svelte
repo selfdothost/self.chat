@@ -1,12 +1,13 @@
 <script>
-	import { getContext, createEventDispatcher, onMount, tick } from 'svelte';
+	import { getContext, createEventDispatcher, tick } from 'svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	import CodeEditor from '$lib/components/common/CodeEditor.svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
@@ -15,7 +16,6 @@
 	const dispatch = createEventDispatcher();
 
 	let formElement = null;
-	let loading = false;
 
 	let showConfirm = false;
 	let showAccessControlModal = false;
@@ -37,6 +37,10 @@
 		updateContent();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const updateContent = () => {
 		_content = content;
 	};
@@ -149,7 +153,6 @@ class Tools:
 `;
 
 	const saveHandler = async () => {
-		loading = true;
 		dispatch('save', {
 			id,
 			name,
@@ -202,7 +205,7 @@ class Tools:
 								<button
 									class="w-full text-left text-sm py-1.5 px-1 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
 									on:click={() => {
-										goto('/workspace/tools');
+										goto(resolve('/(app)/workspace/tools'));
 									}}
 									type="button"
 								>

@@ -1,15 +1,17 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import Fuse from 'fuse.js';
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
-	import { PaneGroup, Pane, PaneResizer } from 'paneforge';
 
-	import { onMount, getContext, onDestroy, tick } from 'svelte';
-	const i18n = getContext('i18n');
+	import { onMount, getContext, onDestroy } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
-	import { config, mobile, showSidebar, knowledge as _knowledge } from '$lib/stores';
+	import { config, showSidebar, knowledge as _knowledge } from '$lib/stores';
 
 	import { updateFileDataContentById, uploadFile, getFileById } from '$lib/apis/files';
 	import {
@@ -37,16 +39,14 @@
 	import AddWebUrlModal from './KnowledgeBase/AddWebUrlModal.svelte';
 
 	import SyncConfirmDialog from '../../common/ConfirmDialog.svelte';
-	import RichTextInput from '$lib/components/common/RichTextInput.svelte';
-	import Drawer from '$lib/components/common/Drawer.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
 	import PipelineCanvas from './KnowledgeBase/PipelineCanvas.svelte';
 	import DatasetView from './KnowledgeBase/DatasetView.svelte';
 	import PipelineJobsPanel from './KnowledgeBase/PipelineJobsPanel.svelte';
+	import FileViewModal from './KnowledgeBase/FileViewModal.svelte';
 	import { queueCuratorJob } from '$lib/apis/curator';
-    import PipelineNode from './KnowledgeBase/PipelineNode.svelte';
 
 	let activeTab: 'files' | 'pipeline' = 'files';
 
@@ -64,11 +64,6 @@
 	$: if (!curatorEnabled && activeTab === 'pipeline') {
 		activeTab = 'files';
 	}
-	let largeScreen = true;
-
-	let pane;
-	let showSidepanel = true;
-	let minSize = 0;
 
 	type Knowledge = {
 		id: string;
@@ -76,8 +71,20 @@
 		description: string;
 		data: {
 			file_ids: string[];
+			hf_path?: string;
 		};
-		files: any[];
+		// curated: set by curator-output datasets (no hf_path) -- see DatasetView.svelte's
+		// isCurated check, which reads this same field.
+		meta?: { dataset?: boolean; hf_path?: string; curated?: boolean };
+		// Same open-ended shape as AccessControl.svelte's prop -- read/write
+		// group_ids bags, not a fixed structure.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		access_control?: Record<string, any> | null;
+		// File item shape varies by upload path (direct upload, URL scrape,
+		// Google Drive, ...) — accessed dynamically (item.itemId, item.id, item.meta?.name, ...)
+		// rather than through one consistent interface.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		files: Record<string, any>[];
 	};
 
 	let id = null;
@@ -149,9 +156,8 @@
 		selectedFile = null;
 	}
 
-	let fuse = null;
+	let fuse;
 	let debounceTimeout = null;
-	let mediaQuery;
 	let dragged = false;
 
 	const createFileFromText = (name, content) => {
@@ -186,7 +192,7 @@
 				return null;
 			}
 		} catch (error) {
-			toast.error(error)
+			toast.error((error as Error)?.message ?? String(error));
 		}
 	}
 
@@ -233,7 +239,7 @@
 
 		}
 		catch (e) {
-			toast.error(e);
+			toast.error((e as Error)?.message ?? String(e));
 			showPipelineModal = false;
 		}
 
@@ -289,14 +295,16 @@
 		const outputPath = `/workspace/ui-data/uploads/${knowledge.id}/output/${pipelineName}`;
 
 		let inputPath: string;
-		let outputFormat: string = 'jsonl';
+		let outputFormat: string;
 		try {
 			const prepared = await prepareKnowledgeInput(localStorage.token, knowledge.id);
 			toast.info(`Prepared ${prepared.file_count} files for curation`);
 			inputPath = prepared.input_path;
 			outputFormat = prepared.output_format ?? 'jsonl';
 		} catch (e) {
-			toast.error(typeof e === 'string' ? e : (e?.detail ?? 'Failed to prepare input'));
+			toast.error(
+				typeof e === 'string' ? e : ((e as { detail?: string })?.detail ?? 'Failed to prepare input')
+			);
 			return;
 		}
 
@@ -315,7 +323,9 @@
 			});
 			toast.success(`Job queued: ${job.id}`);
 		} catch (e) {
-			toast.error(typeof e === 'string' ? e : (e?.detail ?? 'Failed to queue job'));
+			toast.error(
+				typeof e === 'string' ? e : ((e as { detail?: string })?.detail ?? 'Failed to queue job')
+			);
 		}
 	};
 
@@ -378,7 +388,7 @@
 				toast.error($i18n.t('Failed to upload file.'));
 			}
 		} catch (e) {
-			toast.error(e);
+			toast.error((e as Error)?.message ?? String(e));
 		}
 	};
 
@@ -550,7 +560,7 @@
 
 			console.log('[crawlURL] poll:', jobStatus);
 			if (!jobStatus) {
-				crawlPollTimer = setTimeout(pollCrawlStatus, 2000) as any;
+				crawlPollTimer = setTimeout(pollCrawlStatus, 2000);
 				return;
 			}
 
@@ -603,11 +613,11 @@
 					toast.warning(jobStatus.cancel_reason);
 				}
 			} else {
-				crawlPollTimer = setTimeout(pollCrawlStatus, 2000) as any;
+				crawlPollTimer = setTimeout(pollCrawlStatus, 2000);
 			}
 		};
 
-		crawlPollTimer = setTimeout(pollCrawlStatus, 2000) as any;
+		crawlPollTimer = setTimeout(pollCrawlStatus, 2000);
 	};
 
 	const submitCrawlURLHandler = async (url: string, limit: number = 10, maxDepth: number = 3, crawlDelay: number = 2, max403s: number = 5, includePaths: string[] = [], excludePaths: string[] = [], regexOnFullUrl: boolean = false, crawlEntireDomain: boolean = false, batchSize: number = 10) => {
@@ -692,12 +702,14 @@
 
 	// Firefox fallback implementation using traditional file input
 	const handleFirefoxUpload = async () => {
-		return new Promise((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			// Create hidden file input
 			const input = document.createElement('input');
 			input.type = 'file';
 			input.webkitdirectory = true;
-			input.directory = true;
+			// `directory` is a legacy Firefox-only alias for `webkitdirectory` with no
+			// modern DOM typing -- keep it for older Firefox folder-picker support.
+			(input as HTMLInputElement & { directory?: boolean }).directory = true;
 			input.multiple = true;
 			input.style.display = 'none';
 
@@ -865,14 +877,6 @@
 		}, 1000);
 	};
 
-	const handleMediaQuery = async (e) => {
-		if (e.matches) {
-			largeScreen = true;
-		} else {
-			largeScreen = false;
-		}
-	};
-
 	const onDragOver = (e) => {
 		e.preventDefault();
 
@@ -908,42 +912,6 @@
 	};
 
 	onMount(async () => {
-		// listen to resize 1024px
-		mediaQuery = window.matchMedia('(min-width: 1024px)');
-
-		mediaQuery.addEventListener('change', handleMediaQuery);
-		handleMediaQuery(mediaQuery);
-
-		// Select the container element you want to observe
-		const container = document.getElementById('collection-container');
-
-		// initialize the minSize based on the container width
-		minSize = !largeScreen ? 100 : Math.floor((300 / container.clientWidth) * 100);
-
-		// Create a new ResizeObserver instance
-		const resizeObserver = new ResizeObserver((entries) => {
-			for (let entry of entries) {
-				const width = entry.contentRect.width;
-				// calculate the percentage of 300
-				const percentage = (300 / width) * 100;
-				// set the minSize to the percentage, must be an integer
-				minSize = !largeScreen ? 100 : Math.floor(percentage);
-
-				if (showSidepanel) {
-					if (pane && pane.isExpanded() && pane.getSize() < minSize) {
-						pane.resize(minSize);
-					}
-				}
-			}
-		});
-
-		// Start observing the container's size changes
-		resizeObserver.observe(container);
-
-		if (pane) {
-			pane.expand();
-		}
-
 		id = $page.params.id;
 
 		const res = await getKnowledgeById(localStorage.token, id).catch((e) => {
@@ -985,9 +953,12 @@
 				} else {
 					localStorage.removeItem('activeCrawlJob');
 				}
-			} catch (_) {}
+			} catch {
+				// Best-effort crawl-job resume on mount — if checking for an
+				// active job fails, the page still loads normally without it.
+			}
 		} else {
-			goto('/workspace/knowledge');
+			goto(resolve('/(app)/workspace/knowledge'));
 		}
 
 		const dropZone = document.querySelector('body');
@@ -997,7 +968,6 @@
 	});
 
 	onDestroy(() => {
-		mediaQuery?.removeEventListener('change', handleMediaQuery);
 		const dropZone = document.querySelector('body');
 		dropZone?.removeEventListener('dragover', onDragOver);
 		dropZone?.removeEventListener('drop', onDrop);
@@ -1107,7 +1077,7 @@
 			}
 
 			inputFiles = null;
-			const fileInputElement = document.getElementById('files-input');
+			const fileInputElement = document.getElementById('files-input') as HTMLInputElement | null;
 
 			if (fileInputElement) {
 				fileInputElement.value = '';
@@ -1176,6 +1146,30 @@
 
 			{#if !isDataset}
 			<div class="flex items-center gap-1 px-1 mt-1 relative">
+				{#if activeTab === 'files' && selectedFile}
+				<button
+					class="px-3 py-1 text-sm font-medium rounded-lg flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+					on:click={() => {
+						selectedFileId = null;
+					}}
+				>
+					<ChevronLeft strokeWidth="2.5" className="size-3" />
+					{$i18n.t('Back to Files')}
+				</button>
+				<span class="absolute left-1/2 -translate-x-1/2 text-xs font-medium text-gray-500 dark:text-gray-400 pointer-events-none line-clamp-1 max-w-[50%]">
+					{selectedFile?.meta?.name}
+				</span>
+				<div class="ml-auto flex items-center gap-1">
+					<button
+						class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
+						on:click={() => {
+							updateFileContentHandler();
+						}}
+					>
+						{$i18n.t('Save')}
+					</button>
+				</div>
+				{:else}
 				<button
 					class="px-3 py-1 text-sm font-medium rounded-lg transition {activeTab === 'files'
 						? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
@@ -1197,6 +1191,7 @@
 				>
 					{$i18n.t('Pipeline')}
 				</button>
+				{/if}
 				{/if}
 				{#if activeTab === 'pipeline'}
 				<span class="absolute left-1/2 -translate-x-1/2 text-xs font-medium text-gray-500 dark:text-gray-400 pointer-events-none">
@@ -1248,228 +1243,94 @@
 			<DatasetView knowledge={knowledge} hfPath={datasetHfPath} />
 		</div>
 		{:else if activeTab === 'files'}
-		<div class="flex flex-row flex-1 h-full max-h-full pb-2.5 gap-3">
-			{#if largeScreen}
-				<div class="flex-1 flex justify-start w-full h-full max-h-full">
-					{#if selectedFile}
-						<div class=" flex flex-col w-full h-full max-h-full">
-							<div class="flex-shrink-0 mb-2 flex items-center">
-								{#if !showSidepanel}
-									<div class="-translate-x-2">
-										<button
-											class="w-full text-left text-sm p-1.5 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
-											on:click={() => {
-												pane.expand();
-											}}
-										>
-											<ChevronLeft strokeWidth="2.5" />
-										</button>
-									</div>
-								{/if}
-
-								<div class=" flex-1 text-xl font-medium">
-									<a
-										class="hover:text-gray-500 hover:dark:text-gray-100 hover:underline flex-grow line-clamp-1"
-										href={selectedFile.id ? `/api/v1/files/${selectedFile.id}/content` : '#'}
-										target="_blank"
-									>
-										{selectedFile?.meta?.name}
-									</a>
-								</div>
-
-								<div>
-									<button
-										class="self-center w-fit text-sm py-1 px-2.5 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-lg"
-										on:click={() => {
-											updateFileContentHandler();
-										}}
-									>
-										{$i18n.t('Save')}
-									</button>
-								</div>
-							</div>
-
-							<div
-								class=" flex-1 w-full h-full max-h-full text-sm bg-transparent outline-none overflow-y-auto scrollbar-hidden"
+		<div class="flex flex-col flex-1 h-full max-h-full pb-2.5 gap-2">
+			{#if selectedFile}
+				<FileViewModal file={selectedFile} />
+			{:else}
+				<div class="px-1">
+					<div class="flex mb-0.5">
+						<div class=" self-center ml-1 mr-3">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="w-4 h-4"
 							>
-								{#key selectedFile.id}
-									<RichTextInput
-										className="input-prose-sm"
-										bind:value={selectedFile.data.content}
-										placeholder={$i18n.t('Add content here')}
-										preserveBreaks={true}
-									/>
-								{/key}
-							</div>
+								<path
+									fill-rule="evenodd"
+									d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+									clip-rule="evenodd"
+								/>
+							</svg>
 						</div>
-					{:else}
-						<div class="h-full flex w-full">
-							<div class="m-auto text-xs text-center text-gray-200 dark:text-gray-700">
-								{$i18n.t('Drag and drop a file to upload or select a file to view')}
-							</div>
+						<input
+							class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
+							bind:value={query}
+							placeholder={$i18n.t('Search Collection')}
+						/>
+
+						<div>
+							<AddContentMenu
+								{webLoaderEngine}
+								on:upload={(e) => {
+									if (e.detail.type === 'directory') {
+										uploadDirectoryHandler();
+									} else if (e.detail.type === 'text') {
+										showAddTextContentModal = true;
+									} else if (e.detail.type === 'scrape'){
+										scrapeURLHandler();
+									} else if (e.detail.type === 'crawl') {
+										crawlLogs = [];
+										crawlProgress = null;
+										showAddWebCrawlModal = true;
+									} else {
+										document.getElementById('files-input').click();
+									}
+								}}
+								on:sync={(_e) => {
+									showSyncConfirmModal = true;
+								}}
+							/>
 						</div>
+					</div>
+				</div>
+
+				<div class="px-2 py-1 text-xs text-gray-500">
+					{(knowledge?.files ?? []).length} {(knowledge?.files ?? []).length === 1 ? $i18n.t('document') : $i18n.t('documents')}
+					{#if query && filteredItems.length !== (knowledge?.files ?? []).length}
+						<span>({filteredItems.length} {$i18n.t('matching')})</span>
 					{/if}
 				</div>
-			{:else if !largeScreen && selectedFileId !== null}
-				<Drawer
-					className="h-full"
-					show={selectedFileId !== null}
-					on:close={() => {
-						selectedFileId = null;
-					}}
-				>
-					<div class="flex flex-col justify-start h-full max-h-full p-2">
-						<div class=" flex flex-col w-full h-full max-h-full">
-							<div class="flex-shrink-0 mt-1 mb-2 flex items-center">
-								<div class="mr-2">
-									<button
-										class="w-full text-left text-sm p-1.5 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
-										on:click={() => {
-											selectedFileId = null;
-										}}
-									>
-										<ChevronLeft strokeWidth="2.5" />
-									</button>
-								</div>
-								<div class=" flex-1 text-xl line-clamp-1">
-									{selectedFile?.meta?.name}
-								</div>
 
-								<div>
-									<button
-										class="self-center w-fit text-sm py-1 px-2.5 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-lg"
-										on:click={() => {
-											updateFileContentHandler();
-										}}
-									>
-										{$i18n.t('Save')}
-									</button>
-								</div>
-							</div>
-
-							<div
-								class=" flex-1 w-full h-full max-h-full py-2.5 px-3.5 rounded-lg text-sm bg-transparent overflow-y-auto scrollbar-hidden"
-							>
-								{#key selectedFile.id}
-									<RichTextInput
-										className="input-prose-sm"
-										bind:value={selectedFile.data.content}
-										placeholder={$i18n.t('Add content here')}
-										preserveBreaks={true}
-									/>
-								{/key}
-							</div>
+				{#if filteredItems.length > 0}
+					<div class="flex-1 w-full h-full max-h-full overflow-y-auto scrollbar-hidden rounded-2xl border border-gray-50 dark:border-gray-850">
+						<Files
+							files={filteredItems}
+							on:open={(e) => {
+								if (e.detail === null && crawlLogs.length > 0) {
+									showAddWebCrawlModal = true;
+								} else {
+									selectedFileId = e.detail;
+								}
+							}}
+							on:delete={(e) => {
+								selectedFileId = null;
+								deleteFileHandler(e.detail);
+							}}
+						/>
+					</div>
+				{:else}
+					<div class="my-3 flex flex-col justify-center text-center text-gray-500 text-xs">
+						<div>
+							{$i18n.t('No content found')}
 						</div>
 					</div>
-				</Drawer>
+				{/if}
 			{/if}
-
-			<div
-				class="{largeScreen ? 'flex-shrink-0 w-72 max-w-72' : 'flex-1'}
-			flex
-			py-2
-			rounded-2xl
-			border
-			border-gray-50
-			h-full
-			dark:border-gray-850"
-			>
-				<div class=" flex flex-col w-full space-x-2 rounded-lg h-full">
-					<div class="w-full h-full flex flex-col">
-						<div class=" px-3">
-							<div class="flex mb-0.5">
-								<div class=" self-center ml-1 mr-3">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										viewBox="0 0 20 20"
-										fill="currentColor"
-										class="w-4 h-4"
-									>
-										<path
-											fill-rule="evenodd"
-											d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-								</div>
-								<input
-									class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
-									bind:value={query}
-									placeholder={$i18n.t('Search Collection')}
-									on:focus={() => {
-										selectedFileId = null;
-									}}
-								/>
-
-								<div>
-									<AddContentMenu
-										{webLoaderEngine}
-										on:upload={(e) => {
-											if (e.detail.type === 'directory') {
-												uploadDirectoryHandler();
-											} else if (e.detail.type === 'text') {
-												showAddTextContentModal = true;
-											} else if (e.detail.type === 'scrape'){
-												scrapeURLHandler();
-											} else if (e.detail.type === 'crawl') {
-												crawlLogs = [];
-												crawlProgress = null;
-												showAddWebCrawlModal = true;
-											} else {
-												document.getElementById('files-input').click();
-											}
-										}}
-										on:sync={(e) => {
-											showSyncConfirmModal = true;
-										}}
-									/>
-								</div>
-							</div>
-						</div>
-
-						<div class="px-4 py-1 text-xs text-gray-500">
-							{(knowledge?.files ?? []).length} {(knowledge?.files ?? []).length === 1 ? $i18n.t('document') : $i18n.t('documents')}
-							{#if query && filteredItems.length !== (knowledge?.files ?? []).length}
-								<span>({filteredItems.length} {$i18n.t('matching')})</span>
-							{/if}
-						</div>
-
-						{#if filteredItems.length > 0}
-							<div class=" flex overflow-y-auto h-full w-full scrollbar-hidden text-xs">
-								<Files
-									small
-									files={filteredItems}
-									{selectedFileId}
-									crawlItemId={null}
-									on:click={(e) => {
-										if (e.detail === null && crawlLogs.length > 0) {
-											showAddWebCrawlModal = true;
-										} else {
-											selectedFileId = selectedFileId === e.detail ? null : e.detail;
-										}
-									}}
-									on:delete={(e) => {
-										console.log(e.detail);
-
-										selectedFileId = null;
-										deleteFileHandler(e.detail);
-									}}
-								/>
-							</div>
-						{:else}
-							<div class="my-3 flex flex-col justify-center text-center text-gray-500 text-xs">
-								<div>
-									{$i18n.t('No content found')}
-								</div>
-							</div>
-						{/if}
-					</div>
-				</div>
-			</div>
 		</div>
 		{:else if activeTab === 'pipeline'}
 		<div style="height: calc(100vh - 270px);">
-			<PipelineCanvas nodes={pipelineNodes} connections={pipelineConnections} on:configchange={(e) => { pipelineNodes = e.detail.nodes; e.detail.nodes; pipelineConnections = e.detail.connections; }}/>
+			<PipelineCanvas nodes={pipelineNodes} connections={pipelineConnections} on:configchange={(e) => { pipelineNodes = e.detail.nodes; pipelineConnections = e.detail.connections; }}/>
 		</div>
 		<PipelineJobsPanel pipelineName={pipelineName} token={localStorage.token} />
 		{/if}

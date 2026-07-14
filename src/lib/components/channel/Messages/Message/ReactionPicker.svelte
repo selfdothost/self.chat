@@ -1,19 +1,23 @@
 <script lang="ts">
 	import { DropdownMenu } from 'bits-ui';
-	import { flyAndScale } from '$lib/utils/transitions';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import emojiGroups from '$lib/emoji-groups.json';
 	import emojiShortCodes from '$lib/emoji-shortcodes.json';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import VirtualList from '@sveltejs/svelte-virtual-list';
 
 	export let onClose = () => {};
-	export let onSubmit = (name) => {};
-	export let side = 'top';
-	export let align = 'start';
-	export let user = null;
+	export let onSubmit = (_name) => {};
+	// Narrowed to match bits-ui's Side/Align literal unions (a plain `let`
+	// initializer would otherwise widen to `string`).
+	export let side: 'top' | 'right' | 'bottom' | 'left' = 'top';
+	export let align: 'start' | 'center' | 'end' = 'start';
 
 	let show = false;
-	let emojis = emojiShortCodes;
+	// Widened from the JSON import's exact ~1900-key literal shape -- `emojis`
+	// gets reassigned below to a filtered subset (search results), which is
+	// still a string/string[]-keyed map but not the same literal type.
+	let emojis: Record<string, string | string[]> = emojiShortCodes;
 	let search = '';
 	let flattenedEmojis = [];
 	let emojiRows = [];
@@ -94,24 +98,24 @@
 
 <DropdownMenu.Root
 	bind:open={show}
-	closeFocus={false}
 	onOpenChange={(state) => {
 		if (!state) {
 			search = '';
 			onClose();
 		}
 	}}
-	typeahead={false}
 >
 	<DropdownMenu.Trigger>
 		<slot />
 	</DropdownMenu.Trigger>
-	<DropdownMenu.Content
+	<DropdownMenuContent
 		class="max-w-full w-80 bg-gray-50 dark:bg-gray-850 rounded-lg z-[9999] shadow-lg dark:text-white"
 		sideOffset={8}
 		{side}
 		{align}
-		transition={flyAndScale}
+		onCloseAutoFocus={(e) => {
+			e.preventDefault();
+		}}
 	>
 		<div class="mb-1 px-3 pt-2 pb-2">
 			<input
@@ -137,7 +141,7 @@
 							{:else}
 								<!-- Render emojis in a row -->
 								<div class="flex items-center gap-1.5 w-full">
-									{#each item as emojiItem}
+									{#each item as emojiItem (emojiItem.name)}
 										<Tooltip
 											content={emojiItem.shortCodes.map((code) => `:${code}:`).join(', ')}
 											placement="top"
@@ -162,5 +166,5 @@
 				</div>
 			{/if}
 		</div>
-	</DropdownMenu.Content>
+	</DropdownMenuContent>
 </DropdownMenu.Root>

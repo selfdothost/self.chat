@@ -1,5 +1,6 @@
 <script>
 	import { createEventDispatcher, getContext, onMount } from 'svelte';
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
@@ -14,6 +15,10 @@
 	export let show = false;
 	export let edit = false;
 
+	// Typed explicitly -- a bare `null` default otherwise narrows to `never`
+	// inside the `if (model) {...}` checks in initModel() below, since nothing
+	// else in this file ever reassigns `model` to widen its inferred type.
+	/** @type {{ id?: string; name?: string; meta?: { profile_image_url?: string; description?: string; model_ids?: string[]; filter_mode?: string; access_control?: object } } | null} */
 	export let model = null;
 
 	let name = '';
@@ -23,6 +28,10 @@
 		generateId();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const generateId = () => {
 		if (!edit) {
 			id = name
@@ -160,7 +169,7 @@
 								hidden
 								accept="image/*"
 								on:change={(e) => {
-									const files = e.target.files ?? [];
+									const files = /** @type {HTMLInputElement} */ (e.target).files ?? [];
 									let reader = new FileReader();
 									reader.onload = (event) => {
 										let originalImageUrl = `${event.target.result}`;
@@ -202,7 +211,7 @@
 											// Display the compressed image
 											profileImageUrl = compressedSrc;
 
-											e.target.files = null;
+											/** @type {HTMLInputElement} */ (e.target).files = null;
 										};
 									};
 
@@ -319,7 +328,7 @@
 
 							{#if modelIds.length > 0}
 								<div class="flex flex-col">
-									{#each modelIds as modelId, modelIdx}
+									{#each modelIds as modelId, modelIdx (modelId)}
 										<div class=" flex gap-2 w-full justify-between items-center">
 											<div class=" text-sm flex-1 py-1 rounded-lg">
 												{$models.find((model) => model.id === modelId)?.name}
@@ -354,7 +363,7 @@
 								bind:value={selectedModelId}
 							>
 								<option value="">{$i18n.t('Select a model')}</option>
-								{#each $models.filter((m) => m?.owned_by !== 'arena') as model}
+								{#each $models.filter((m) => m?.owned_by !== 'arena') as model (model.id)}
 									<option value={model.id} class="bg-gray-50 dark:bg-gray-700">{model.name}</option>
 								{/each}
 							</select>

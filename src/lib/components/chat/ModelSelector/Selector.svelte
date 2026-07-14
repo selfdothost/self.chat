@@ -1,10 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { DropdownMenu } from 'bits-ui';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import { marked } from 'marked';
 	import Fuse from 'fuse.js';
 
-	import { flyAndScale } from '$lib/utils/transitions';
-	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import Check from '$lib/components/icons/Check.svelte';
@@ -13,8 +15,9 @@
 	import { deleteModel, getOllamaVersion, pullModel } from '$lib/apis/ollama';
 
 	import { user, MODEL_DOWNLOAD_POOL, models, mobile, temporaryChatEnabled, modelLoadStatus } from '$lib/stores';
+	import type { Model } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
-	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
+	import { sanitizeResponseContent, splitStream } from '$lib/utils';
 	import { getModels } from '$lib/apis';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -22,9 +25,9 @@
 	import Switch from '$lib/components/common/Switch.svelte';
 	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
-	const i18n = getContext('i18n');
-	const dispatch = createEventDispatcher();
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let id = '';
 	export let value = '';
@@ -47,7 +50,7 @@
 
 	let show = false;
 
-	let selectedModel = '';
+	let selectedModel;
 	$: selectedModel = items.find((item) => item.value === value) ?? '';
 
 	let searchValue = '';
@@ -96,7 +99,7 @@
 			return;
 		}
 
-		const [res, controller] = await pullModel(localStorage.token, sanitizedModelTag, '0').catch(
+		const [res, controller] = await pullModel(localStorage.token, sanitizedModelTag, 0).catch(
 			(error) => {
 				toast.error(error);
 				return null;
@@ -168,14 +171,17 @@
 							}
 						}
 					}
-				} catch (error) {
-					console.log(error);
-					if (typeof error !== 'string') {
-						error = error.message;
+				} catch (err) {
+					console.log(err);
+					let errorMessage: string;
+					if (typeof err === 'string') {
+						errorMessage = err;
+					} else {
+						errorMessage = (err as Error)?.message ?? String(err);
 					}
 
-					toast.error(error);
-					// opts.callback({ success: false, error, modelName: opts.modelName });
+					toast.error(errorMessage);
+					// opts.callback({ success: false, error: errorMessage, modelName: opts.modelName });
 					break;
 				}
 			}
@@ -201,7 +207,7 @@
 	};
 
 	onMount(async () => {
-		ollamaVersion = await getOllamaVersion(localStorage.token).catch((error) => false);
+		ollamaVersion = await getOllamaVersion(localStorage.token).catch((_error) => false);
 	});
 
 	const cancelModelPullHandler = async (model: string) => {
@@ -228,7 +234,6 @@
 		selectedModelIdx = 0;
 		window.setTimeout(() => document.getElementById('model-search-input')?.focus(), 0);
 	}}
-	closeFocus={false}
 >
 	<DropdownMenu.Trigger
 		class="relative w-full font-primary"
@@ -247,13 +252,14 @@
 		</div>
 	</DropdownMenu.Trigger>
 
-	<DropdownMenu.Content
+	<DropdownMenuContent
 		class=" z-40 {$mobile
 			? `w-full`
 			: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-xl  bg-white dark:bg-gray-850 dark:text-white shadow-lg  outline-none"
-		transition={flyAndScale}
-		side={$mobile ? 'bottom' : 'bottom-start'}
+		side="bottom"
+		align={$mobile ? 'center' : 'start'}
 		sideOffset={3}
+		onCloseAutoFocus={(e) => e.preventDefault()}
 	>
 		<slot>
 			{#if searchEnabled}
@@ -290,7 +296,7 @@
 			{/if}
 
 			<div class="px-3 my-2 max-h-64 overflow-y-auto scrollbar-hidden group">
-				{#each filteredItems as item, index}
+				{#each filteredItems as item, index (item.value)}
 					<button
 						aria-label="model-item"
 						class="flex w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted {index ===
@@ -308,7 +314,7 @@
 						<div class="flex flex-col">
 							{#if $mobile && (item?.model?.info?.meta?.tags ?? []).length > 0}
 								<div class="flex gap-0.5 self-start h-full mb-1.5 -translate-x-1">
-									{#each item.model?.info?.meta.tags as tag}
+									{#each item.model?.info?.meta.tags as tag (tag.name)}
 										<div
 											class=" text-xs font-bold px-1 rounded uppercase line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
 										>
@@ -331,7 +337,16 @@
 													class="rounded-full size-5 flex items-center mr-2"
 												/>
 												{item.label}
-												<ModelStatusDot status={$modelLoadStatus[item.value] ?? $modelLoadStatus[item.model?.info?.base_model_id] ?? item.model?.status} />
+												<ModelStatusDot
+													status={$modelLoadStatus[item.value] ??
+														$modelLoadStatus[item.model?.info?.base_model_id] ??
+														// `status` isn't part of the static Model type
+														// (OpenAIModel | OllamaModel); this reads a possible
+														// backend-attached transient field defensively rather
+														// than dropping the fallback outright.
+														// eslint-disable-next-line @typescript-eslint/no-explicit-any
+														(item.model as any)?.status}
+												/>
 											</Tooltip>
 										</div>
 									</div>
@@ -414,7 +429,7 @@
 
 								{#if !$mobile && (item?.model?.info?.meta?.tags ?? []).length > 0}
 									<div class="flex gap-0.5 self-center items-center h-full translate-y-[0.5px]">
-										{#each item.model?.info?.meta.tags as tag}
+										{#each item.model?.info?.meta.tags as tag (tag.name)}
 											<Tooltip content={tag.name}>
 												<div
 													class=" text-xs font-bold px-1 rounded uppercase line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
@@ -462,7 +477,7 @@
 					</Tooltip>
 				{/if}
 
-				{#each Object.keys($MODEL_DOWNLOAD_POOL) as model}
+				{#each Object.keys($MODEL_DOWNLOAD_POOL) as model (model)}
 					<div
 						class="flex w-full justify-between font-medium select-none rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
 					>
@@ -554,7 +569,7 @@
 						class="flex justify-between w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 px-3 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
 						on:click={async () => {
 							temporaryChatEnabled.set(!$temporaryChatEnabled);
-							await goto('/');
+							await goto(resolve('/'));
 							const newChatButton = document.getElementById('new-chat-button');
 							setTimeout(() => {
 								newChatButton?.click();
@@ -586,5 +601,5 @@
 			<div class="hidden w-[42rem]" />
 			<div class="hidden w-[32rem]" />
 		</slot>
-	</DropdownMenu.Content>
+	</DropdownMenuContent>
 </DropdownMenu.Root>

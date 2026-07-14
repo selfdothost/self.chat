@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import sha256 from 'js-sha256';
+import { sha256 } from 'js-sha256';
 
 import { WEBUI_BASE_URL } from '$lib/constants';
 import { TTS_RESPONSE_SPLIT } from '$lib/types';
@@ -12,6 +12,41 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 
 function escapeRegExp(string: string): string {
 	return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// self.chat#7: the only legitimate producer of this iframe markup is the
+// htmlIdToken replacement below, which always emits this exact shape with a
+// fixed, static onload snippet. Rendering it via {@html} + DOMPurify's
+// ADD_ATTR: ['onload'] (as the Markdown renderers used to) trusts *any*
+// onload value on *any* iframe that merely contains this src prefix
+// somewhere in a larger HTML blob -- a crafted message could smuggle its own
+// onload handler in and get it executed. This anchors the WHOLE string to
+// the one shape we actually generate and extracts only `src`; callers
+// render a real Svelte <iframe> with a fixed on:load handler
+// (resizeIframeToContent below) instead of trusting any onload attribute
+// value from the content at all.
+const TRUSTED_FILE_IFRAME_RE = (() => {
+	const base = escapeRegExp(`${WEBUI_BASE_URL}/api/v1/files/`);
+	return new RegExp(
+		`^<iframe src="(${base}[A-Za-z0-9._-]+/content(?:/html)?)" width="100%" frameborder="0" onload="[^"]*"><\\/iframe>$`
+	);
+})();
+
+export function matchTrustedFileIframeSrc(text: string): string | null {
+	const match = TRUSTED_FILE_IFRAME_RE.exec(text.trim());
+	return match ? match[1] : null;
+}
+
+export function resizeIframeToContent(event: Event) {
+	const iframe = event.currentTarget as HTMLIFrameElement;
+	try {
+		const height = iframe.contentWindow?.document?.body?.scrollHeight;
+		if (height) {
+			iframe.style.height = `${height + 20}px`;
+		}
+	} catch {
+		// cross-origin or not-yet-ready content window; leave default height
+	}
 }
 
 export const replaceTokens = (content, sourceIds, char, user) => {
@@ -189,8 +224,8 @@ export const canvasPixelTest = () => {
 	return true;
 };
 
-export const compressImage = async (imageUrl, maxWidth, maxHeight) => {
-	return new Promise((resolve, reject) => {
+export const compressImage = async (imageUrl, maxWidth, maxHeight): Promise<string> => {
+	return new Promise<string>((resolve, reject) => {
 		const img = new Image();
 		img.onload = () => {
 			const canvas = document.createElement('canvas');
@@ -421,9 +456,13 @@ export const calculateSHA256 = async (file) => {
 	// Create a FileReader to read the file asynchronously
 	const reader = new FileReader();
 
-	// Define a promise to handle the file reading
-	const readFile = new Promise((resolve, reject) => {
-		reader.onload = () => resolve(reader.result);
+	// Define a promise to handle the file reading. The generic is explicit
+	// because `resolve` is invoked from inside the nested `onload` closure --
+	// TS can't infer the executor's type parameter through that indirection
+	// and would otherwise fall back to `Promise<unknown>`. The cast to
+	// ArrayBuffer is safe because readAsArrayBuffer() is called below.
+	const readFile = new Promise<ArrayBuffer>((resolve, reject) => {
+		reader.onload = () => resolve(reader.result as ArrayBuffer);
 		reader.onerror = reject;
 	});
 
@@ -460,8 +499,10 @@ export const getImportOrigin = (_chats) => {
 };
 
 export const getUserPosition = async (raw = false) => {
-	// Get the user's location using the Geolocation API
-	const position = await new Promise((resolve, reject) => {
+	// Get the user's location using the Geolocation API. Generic is explicit --
+	// TS doesn't backpropagate GeolocationPosition through this executor shape,
+	// so it would otherwise infer `unknown` and lose `.coords` below.
+	const position = await new Promise<GeolocationPosition>((resolve, reject) => {
 		navigator.geolocation.getCurrentPosition(resolve, reject);
 	}).catch((error) => {
 		console.error('Error getting user location:', error);
@@ -599,7 +640,7 @@ export const isValidHttpUrl = (string: string) => {
 
 	try {
 		url = new URL(string);
-	} catch (_) {
+	} catch {
 		return false;
 	}
 
@@ -668,6 +709,7 @@ export const extractSentences = (text: string) => {
 	// Restore code blocks and process sentences
 	sentences = sentences.map((sentence) => {
 		// Check if the sentence includes a placeholder for a code block
+		// eslint-disable-next-line no-control-regex -- intentional code-block placeholder marker (null byte), not an accidental escape
 		return sentence.replace(/\u0000(\d+)\u0000/g, (_, idx) => codeBlocks[idx]);
 	});
 
@@ -691,6 +733,7 @@ export const extractParagraphsForAudio = (text: string) => {
 	// Restore code blocks and process paragraphs
 	paragraphs = paragraphs.map((paragraph) => {
 		// Check if the paragraph includes a placeholder for a code block
+		// eslint-disable-next-line no-control-regex -- intentional code-block placeholder marker (null byte), not an accidental escape
 		return paragraph.replace(/\u0000(\d+)\u0000/g, (_, idx) => codeBlocks[idx]);
 	});
 
@@ -906,10 +949,13 @@ export const getTimeRange = (timestamp) => {
  * @param content {string} - The content string with potential frontmatter.
  * @returns {Object} - The extracted frontmatter as a dictionary.
  */
-export const extractFrontmatter = (content) => {
-	const frontmatter = {};
-	let frontmatterStarted = false;
-	let frontmatterEnded = false;
+export const extractFrontmatter = (content): Record<string, string> => {
+	// Keys/values are always assigned as trimmed strings below (see the
+	// frontmatterPattern match) -- typing this explicitly (instead of
+	// inferring `{}` from the empty literal) is what lets callers read
+	// named fields like `required_selfai_ui_version` off the result.
+	const frontmatter: Record<string, string> = {};
+	const frontmatterEnded = false;
 	const frontmatterPattern = /^\s*([a-z_]+):\s*(.*)\s*$/i;
 
 	// Split content into lines
@@ -920,14 +966,13 @@ export const extractFrontmatter = (content) => {
 		return {};
 	}
 
-	frontmatterStarted = true;
+	const frontmatterStarted = true;
 
 	for (let i = 1; i < lines.length; i++) {
 		const line = lines[i];
 
 		if (line.includes('"""')) {
 			if (frontmatterStarted) {
-				frontmatterEnded = true;
 				break;
 			}
 		}

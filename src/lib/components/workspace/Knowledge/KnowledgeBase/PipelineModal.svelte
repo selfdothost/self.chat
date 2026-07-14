@@ -1,15 +1,16 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import { getContext, createEventDispatcher } from 'svelte';
 
     import Modal from '$lib/components/common/Modal.svelte';
 
-    const i18n = getContext('i18n');
+    const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let show = false;
 	export let title = 'Save the Pipeline';
-	export let loading = false;
 	export let mode: 'save' | 'load' = 'save';
 	export let pipelineConfigs: { id: string; name: string }[] = [];
 
@@ -71,7 +72,7 @@
 	    			/>
 	    		</div>
 				<div class="max-h-48 overflow-y-auto flex flex-col gap-1">
-					{#each filteredConfigs as config}
+					{#each filteredConfigs as config (config.id)}
 					<button
 	    				type="button"
 	    				class="text-left px-3 py-2 rounded-lg text-sm w-full {selectedConfigId === config.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"

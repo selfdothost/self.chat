@@ -1,15 +1,29 @@
 <script lang="ts">
 	import { onMount, getContext } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import { getHfDatasetInfo, getHfDatasetRows, getDatasetRows } from '$lib/apis/knowledge';
 
-	const i18n: any = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let knowledge: any;
+	export let knowledge: {
+		id: string;
+		description?: string;
+		meta?: { curated?: boolean };
+	};
 	export let hfPath: string = '';
 
 	let loading = true;
-	let info: any = null;
-	let preview: { columns: string[]; rows: any[] } = { columns: [], rows: [] };
+	// Only the fields this view reads from the HF dataset-info response —
+	// the actual response carries much more of the HF datasets-server schema.
+	let info: {
+		description?: string;
+		format?: { type?: string };
+		task_categories?: string[];
+	} | null = null;
+	// Row shape is whatever columns the dataset happens to have — genuinely
+	// per-dataset, rendered generically via cell() below.
+	let preview: { columns: string[]; rows: Record<string, unknown>[] } = { columns: [], rows: [] };
 
 	const FORMAT_LABELS: Record<string, string> = {
 		alpaca: 'Alpaca (instruction / output)',
@@ -18,7 +32,7 @@
 		completion: 'Completion (text)'
 	};
 
-	const cell = (v: any) => {
+	const cell = (v: unknown) => {
 		if (v === null || v === undefined) return '';
 		const s = typeof v === 'string' ? v : JSON.stringify(v);
 		return s.length > 220 ? s.slice(0, 220) + '…' : s;
@@ -79,7 +93,7 @@
 					{FORMAT_LABELS[format] ?? format}
 				</span>
 			{/if}
-			{#each tags as t}
+			{#each tags as t (t)}
 				<span class="text-[11px] px-1.5 py-0.5 rounded-full bg-gray-50 dark:bg-gray-850 text-gray-500"
 					>{t}</span
 				>
@@ -116,15 +130,16 @@
 					<table class="w-full text-xs">
 						<thead>
 							<tr class="bg-gray-50 dark:bg-gray-850 text-gray-500">
-								{#each preview.columns as c}
+								{#each preview.columns as c (c)}
 									<th class="text-left px-3 py-2 font-medium whitespace-nowrap">{c}</th>
 								{/each}
 							</tr>
 						</thead>
 						<tbody>
-							{#each preview.rows as row}
+							{#each preview.rows as row, i (i)}
+								<!-- rows have no stable id (generic per-dataset preview data); index is fine, this is a static 5-row sample, never reordered/filtered -->
 								<tr class="border-t border-gray-100 dark:border-gray-800 align-top">
-									{#each preview.columns as c}
+									{#each preview.columns as c (c)}
 										<td class="px-3 py-2 max-w-xs">{cell(row[c])}</td>
 									{/each}
 								</tr>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import Fuse from 'fuse.js';
 
@@ -10,7 +12,7 @@
 	import { removeLastWordFromString, isValidHttpUrl } from '$lib/utils';
 	import { knowledge } from '$lib/stores';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let prompt = '';
 	export let command = '';
@@ -166,7 +168,7 @@
 				class="max-h-60 flex flex-col w-full rounded-xl bg-white dark:bg-gray-900 dark:text-gray-100"
 			>
 				<div class="m-1 overflow-y-auto p-1 rounded-r-xl space-y-0.5 scrollbar-hidden">
-					{#each filteredItems as item, idx}
+					{#each filteredItems as item, idx (item.id ?? item.name)}
 						<button
 							class=" px-3 py-1.5 rounded-xl w-full text-left flex justify-between items-center {idx ===
 							selectedIdx

@@ -2,12 +2,13 @@
 	import { createEventDispatcher, getContext } from 'svelte';
 
 	import Modal from '$lib/components/common/Modal.svelte';
-	import { addNewMemory, updateMemoryById } from '$lib/apis/memories';
+	import { addNewMemory } from '$lib/apis/memories';
 	import { toast } from 'svelte-sonner';
 
 	const dispatch = createEventDispatcher();
 
 	export let show;
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let loading = false;

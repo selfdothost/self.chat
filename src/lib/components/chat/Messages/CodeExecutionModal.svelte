@@ -1,10 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
 	import CodeBlock from './CodeBlock.svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Badge from '$lib/components/common/Badge.svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 	export let codeExecution = null;
@@ -69,6 +71,7 @@
 				<div class="flex flex-col w-full">
 					<CodeBlock
 						id="code-exec-{codeExecution?.id}-code"
+						token={{ raw: codeExecution?.code ?? '' }}
 						lang={codeExecution?.language ?? ''}
 						code={codeExecution?.code ?? ''}
 						className=""
@@ -104,9 +107,9 @@
 							{$i18n.t('Files')}
 						</div>
 						<ul class="mt-1 list-disc pl-4 text-xs">
-							{#each codeExecution?.result?.files as file}
+							{#each codeExecution?.result?.files as file (file.url)}
 								<li>
-									<a href={file.url} target="_blank">{file.name}</a>
+									<a href={file.url} target="_blank" rel="external">{file.name}</a>
 								</li>
 							{/each}
 						</ul>

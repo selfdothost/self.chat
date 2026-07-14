@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { onMount, getContext } from 'svelte';
-	const i18n = getContext('i18n');
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import { getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import panzoom, { type PanZoom } from 'panzoom';
 
 	import DOMPurify from 'dompurify';
-	import DocumentDuplicate from '../icons/DocumentDuplicate.svelte';
 	import { copyToClipboard } from '$lib/utils';
 	import { toast } from 'svelte-sonner';
 	import Tooltip from './Tooltip.svelte';
@@ -39,6 +40,7 @@
 
 <div bind:this={sceneParentElement} class="relative {className}">
 	<div bind:this={sceneElement} class="flex h-full max-h-full justify-center items-center">
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized right here via DOMPurify.sanitize() with the svg/svgFilters profile -->
 		{@html DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })}
 	</div>
 

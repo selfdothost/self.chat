@@ -4,7 +4,7 @@
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	dayjs.extend(relativeTime);
 
-	import { listCuratorJobs, getCuratorJobLogs } from '$lib/apis/curator';
+	import { listCuratorJobs, getCuratorJobLogs, type CuratorJob } from '$lib/apis/curator';
 
 	export let pipelineName: string;
 	export let token: string;
@@ -13,7 +13,7 @@
 	const MAX_JOBS = 10;
 
 	let expanded = false;
-	let jobs: any[] = [];
+	let jobs: CuratorJob[] = [];
 	let expandedJobId: string | null = null;
 	let logsByJobId: Record<string, string[]> = {};
 	let loadingLogs: Record<string, boolean> = {};
@@ -37,12 +37,12 @@
 	const refresh = async () => {
 		if (!pipelineName || pipelineName === 'Untitled') return;
 		try {
-			const all: any[] = await listCuratorJobs(token);
+			const all: CuratorJob[] = await listCuratorJobs(token);
 			jobs = all
 				.filter(j => j.name.startsWith(pipelineName))
 				.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 				.slice(0, MAX_JOBS);
-		} catch (_) {
+		} catch {
 			// curator not available — silently ignore
 		}
 	};
@@ -58,7 +58,7 @@
 			try {
 				const res = await getCuratorJobLogs(token, jobId, 50);
 				logsByJobId = { ...logsByJobId, [jobId]: res.lines };
-			} catch (_) {
+			} catch {
 				logsByJobId = { ...logsByJobId, [jobId]: ['(logs unavailable)'] };
 			} finally {
 				loadingLogs = { ...loadingLogs, [jobId]: false };

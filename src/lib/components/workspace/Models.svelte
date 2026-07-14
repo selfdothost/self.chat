@@ -1,17 +1,19 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { marked } from 'marked';
 
 	import { toast } from 'svelte-sonner';
-	import Sortable from 'sortablejs';
 
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	import { onMount, getContext, tick } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
-	const i18n = getContext('i18n');
+	import { resolve } from '$app/paths';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { WEBUI_NAME, config, mobile, models as _models, settings, user, modelLoadStatus } from '$lib/stores';
+	import { WEBUI_NAME, models as _models, user, modelLoadStatus } from '$lib/stores';
 	import {
 		createNewModel,
 		deleteModelById,
@@ -75,7 +77,7 @@
 			id: `${model.id}-clone`,
 			name: `${model.name} (Clone)`
 		});
-		goto('/workspace/models/create');
+		goto(resolve('/(app)/workspace/models/create'));
 	};
 
 	const hideModelHandler = async (model) => {
@@ -128,10 +130,17 @@
 		saveAs(blob, `${model.id}-${Date.now()}.json`);
 	};
 
-	onMount(async () => {
-		models = await getWorkspaceModels(localStorage.token);
-
-		loaded = true;
+	onMount(() => {
+		// onMount's cleanup return value is only honored when it's returned
+		// synchronously -- an `async () => {...}` callback makes onMount return a
+		// Promise instead of the cleanup function, so the removeEventListener
+		// calls below were never actually wired up on unmount. Doing the async
+		// load in a detached IIFE keeps the callback itself synchronous so the
+		// real cleanup function is returned (and registered) directly.
+		(async () => {
+			models = await getWorkspaceModels(localStorage.token);
+			loaded = true;
+		})();
 
 		const onKeyDown = (event) => {
 			if (event.key === 'Shift') {
@@ -201,7 +210,7 @@
 			<div>
 				<a
 					class=" px-2 py-2 rounded-xl hover:bg-gray-700/10 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-medium text-sm flex items-center space-x-1"
-					href="/workspace/models/create"
+					href={resolve('/(app)/workspace/models/create')}
 				>
 					<Plus className="size-3.5" />
 				</a>
@@ -210,7 +219,7 @@
 	</div>
 
 	<div class=" my-2 mb-5 gap-2 grid lg:grid-cols-2 xl:grid-cols-3" id="model-list">
-		{#each filteredModels as model}
+		{#each filteredModels as model (model.id)}
 			<div
 				class=" flex flex-col cursor-pointer w-full px-3 py-2 dark:hover:bg-white/5 hover:bg-black/5 rounded-xl transition"
 				id="model-item-{model.id}"
@@ -232,11 +241,11 @@
 
 					<a
 						class=" flex flex-1 cursor-pointer w-full"
-						href={`/?models=${encodeURIComponent(model.id)}`}
+						href={resolve(`/?models=${encodeURIComponent(model.id)}`)}
 					>
 						<div class=" flex-1 self-center {model.is_active ? '' : 'text-gray-500'}">
 							<Tooltip
-								content={marked.parse(model?.meta?.description ?? model.id)}
+								content={marked.parse(model?.meta?.description ?? model.id, { async: false })}
 								className=" w-fit"
 								placement="top-start"
 							>
@@ -294,7 +303,7 @@
 								<a
 									class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 									type="button"
-									href={`/workspace/models/edit?id=${encodeURIComponent(model.id)}`}
+									href={resolve(`/(app)/workspace/models/edit?id=${encodeURIComponent(model.id)}`)}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -343,7 +352,7 @@
 								<Tooltip content={model.is_active ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
 									<Switch
 										bind:state={model.is_active}
-										on:change={async (e) => {
+										on:change={async (_e) => {
 											toggleModelById(localStorage.token, model.id);
 											_models.set(await getModels(localStorage.token));
 										}}
@@ -372,19 +381,19 @@
 
 						let reader = new FileReader();
 						reader.onload = async (event) => {
-							let savedModels = JSON.parse(event.target.result);
+							let savedModels = JSON.parse(event.target.result as string);
 							console.log(savedModels);
 
 							for (const model of savedModels) {
 								if (model?.info ?? false) {
 									if ($_models.find((m) => m.id === model.id)) {
 										await updateModelById(localStorage.token, model.id, model.info).catch(
-											(error) => {
+											(_error) => {
 												return null;
 											}
 										);
 									} else {
-										await createNewModel(localStorage.token, model.info).catch((error) => {
+										await createNewModel(localStorage.token, model.info).catch((_error) => {
 											return null;
 										});
 									}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { v4 as uuidv4 } from 'uuid';
+	import type { AnyFn } from '$lib/types';
 
 	import { toast } from 'svelte-sonner';
 	import { models } from '$lib/stores';
@@ -23,7 +23,7 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: Function;
+	export let saveHandler: AnyFn;
 
 	let downloading = false;
 	let uploading = false;
@@ -157,7 +157,13 @@
 		}
 
 		pipelineFiles = null;
-		const pipelineUploadInputElement = document.getElementById('pipeline-upload-input');
+		// Real element id is "pipelines-upload-input" (plural, matches the
+		// <input> below) -- the singular id here was a typo that made this
+		// getElementById() call always return null, so the file input's
+		// value was never actually being reset after an upload.
+		const pipelineUploadInputElement = document.getElementById(
+			'pipelines-upload-input'
+		) as HTMLInputElement | null;
 
 		if (pipelineUploadInputElement) {
 			pipelineUploadInputElement.value = null;
@@ -226,7 +232,7 @@
 									>{$i18n.t('Select a pipeline url')}</option
 								>
 
-								{#each PIPELINES_LIST as pipelines, idx}
+								{#each PIPELINES_LIST as pipelines, _idx (pipelines.idx)}
 									<option value={pipelines.idx.toString()} class="bg-gray-100 dark:bg-gray-700"
 										>{pipelines.url}</option
 									>
@@ -420,7 +426,7 @@
 												await getValves(selectedPipelineIdx);
 											}}
 										>
-											{#each pipelines as pipeline, idx}
+											{#each pipelines as pipeline, idx (pipeline.id)}
 												<option value={idx} class="bg-gray-100 dark:bg-gray-700"
 													>{pipeline.name} ({pipeline.type ?? 'pipe'})</option
 												>
@@ -454,7 +460,7 @@
 							<div class="space-y-1">
 								{#if pipelines[selectedPipelineIdx].valves}
 									{#if valves}
-										{#each Object.keys(valves_spec.properties) as property, idx}
+										{#each Object.keys(valves_spec.properties) as property, _idx (property)}
 											<div class=" py-0.5 w-full justify-between">
 												<div class="flex w-full justify-between">
 													<div class=" self-center text-xs font-medium">
@@ -485,7 +491,7 @@
 																	class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
 																	bind:value={valves[property]}
 																>
-																	{#each valves_spec.properties[property].enum as option}
+																	{#each valves_spec.properties[property].enum as option (option)}
 																		<option value={option} selected={option === valves[property]}>
 																			{option}
 																		</option>

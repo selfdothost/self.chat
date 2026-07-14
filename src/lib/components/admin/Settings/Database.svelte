@@ -1,17 +1,20 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	import { downloadDatabase, downloadLiteLLMConfig } from '$lib/apis/utils';
+	import { downloadDatabase } from '$lib/apis/utils';
 	import { onMount, getContext } from 'svelte';
-	import { config, user } from '$lib/stores';
+	import { config } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { getAllUserChats } from '$lib/apis/chats';
 	import { exportConfig, importConfig } from '$lib/apis/configs';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: Function;
+	export let saveHandler: AnyFn;
 
 	const exportAllUserChats = async () => {
 		let blob = new Blob([JSON.stringify(await getAllUserChats(localStorage.token))], {
@@ -41,11 +44,12 @@
 				type="file"
 				accept=".json"
 				on:change={(e) => {
-					const file = e.target.files[0];
+					const target = e.target as HTMLInputElement;
+					const file = target.files[0];
 					const reader = new FileReader();
 
 					reader.onload = async (e) => {
-						const res = await importConfig(localStorage.token, JSON.parse(e.target.result)).catch(
+						const res = await importConfig(localStorage.token, JSON.parse(e.target.result as string)).catch(
 							(error) => {
 								toast.error(error);
 							}
@@ -54,10 +58,10 @@
 						if (res) {
 							toast.success('Config imported successfully');
 						}
-						e.target.value = null;
 					};
 
 					reader.readAsText(file);
+					target.value = '';
 				}}
 			/>
 

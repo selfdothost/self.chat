@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
 	import Selector from './Knowledge/Selector.svelte';
 	import FileItem from '$lib/components/common/FileItem.svelte';
@@ -6,7 +8,7 @@
 	export let selectedKnowledge = [];
 	export let collections = [];
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 </script>
 
 <div>
@@ -21,15 +23,16 @@
 	<div class="flex flex-col">
 		{#if selectedKnowledge?.length > 0}
 			<div class=" flex flex-wrap items-center gap-2 mt-2">
-				{#each selectedKnowledge as file, fileIdx}
+				{#each selectedKnowledge as file, fileIdx (file.id ?? file.name)}
 					<FileItem
-						{file}
+						item={file}
 						name={file.name}
 						type={file?.legacy
 							? `Legacy${file.type ? ` ${file.type}` : ''}`
 							: (file?.type ?? 'Collection')}
+						size={file?.size ?? 0}
 						dismissible
-						on:dismiss={(e) => {
+						on:dismiss={(_e) => {
 							selectedKnowledge = selectedKnowledge.filter((_, idx) => idx !== fileIdx);
 						}}
 					/>

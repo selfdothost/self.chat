@@ -1,6 +1,7 @@
 <script>
 	import { getContext, createEventDispatcher, onMount, onDestroy, tick } from 'svelte';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
@@ -82,7 +83,7 @@
 							const reader = new FileReader();
 							reader.onload = async function (event) {
 								try {
-									const fileContent = JSON.parse(event.target.result);
+									const fileContent = JSON.parse(/** @type {string} */ (event.target.result));
 									open = true;
 									dispatch('import', {
 										folderId: folderId,
@@ -127,7 +128,7 @@
 						} else if (type === 'chat') {
 							open = true;
 
-							let chat = await getChatById(localStorage.token, id).catch((error) => {
+							let chat = await getChatById(localStorage.token, id).catch((_error) => {
 								return null;
 							});
 							if (!chat && item) {
@@ -274,17 +275,15 @@
 	};
 
 	const isExpandedUpdateHandler = async () => {
-		const res = await updateFolderIsExpandedById(localStorage.token, folderId, open).catch(
-			(error) => {
-				toast.error(error);
-				return null;
-			}
-		);
+		await updateFolderIsExpandedById(localStorage.token, folderId, open).catch((error) => {
+			toast.error(error);
+			return null;
+		});
 	};
 
 	let isExpandedUpdateTimeout;
 
-	const isExpandedUpdateDebounceHandler = (open) => {
+	const isExpandedUpdateDebounceHandler = (_open) => {
 		clearTimeout(isExpandedUpdateTimeout);
 		isExpandedUpdateTimeout = setTimeout(() => {
 			isExpandedUpdateHandler();
@@ -333,6 +332,7 @@
 	}}
 >
 	<div class=" text-sm text-gray-700 dark:text-gray-300 flex-1 line-clamp-3">
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized right here via DOMPurify.sanitize() on the final interpolated string (strips any HTML a malicious folder name could inject, keeps the literal <strong> from the i18n template) -->
 		{@html DOMPurify.sanitize(
 			$i18n.t('This will delete <strong>{{NAME}}</strong> and <strong>all its contents</strong>.', {
 				NAME: folders[folderId].name
@@ -371,7 +371,6 @@
 			dispatch('open', e.detail);
 		}}
 	>
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div class="w-full group">
 			<button
 				id="folder-{folderId}-button"
@@ -419,7 +418,9 @@
 					{/if}
 				</div>
 
-				<button
+				<span
+					role="button"
+					tabindex="-1"
 					class="absolute z-10 right-2 invisible group-hover:visible self-center flex items-center dark:text-gray-300"
 					on:pointerup={(e) => {
 						e.stopPropagation();
@@ -436,11 +437,11 @@
 							exportHandler();
 						}}
 					>
-						<button class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto" on:click={(e) => {}}>
+						<span class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto">
 							<EllipsisHorizontal className="size-4" strokeWidth="2.5" />
-						</button>
+						</span>
 					</FolderMenu>
-				</button>
+				</span>
 			</button>
 		</div>
 

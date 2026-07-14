@@ -1,10 +1,12 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { DropdownMenu } from 'bits-ui';
-	import { flyAndScale } from '$lib/utils/transitions';
-	import { getContext, onMount, tick } from 'svelte';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
+	import { getContext, tick } from 'svelte';
 
-	import { config, user, tools as _tools, mobile } from '$lib/stores';
-	import { createPicker } from '$lib/utils/google-drive-picker';
+	import { config, tools as _tools, mobile } from '$lib/stores';
 	import { getTools } from '$lib/apis/tools';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
@@ -15,16 +17,16 @@
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
 	import CameraSolid from '$lib/components/icons/CameraSolid.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let screenCaptureHandler: Function;
-	export let uploadFilesHandler: Function;
-	export let uploadGoogleDriveHandler: Function;
+	export let screenCaptureHandler: AnyFn;
+	export let uploadFilesHandler: AnyFn;
+	export let uploadGoogleDriveHandler: AnyFn;
 
 	export let selectedToolIds: string[] = [];
 
 	export let webSearchEnabled: boolean;
-	export let onClose: Function;
+	export let onClose: AnyFn;
 
 	let tools = {};
 	let show = false;
@@ -33,12 +35,16 @@
 		init();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const init = async () => {
 		if ($_tools === null) {
 			await _tools.set(await getTools(localStorage.token));
 		}
 
-		tools = $_tools.reduce((a, tool, i, arr) => {
+		tools = $_tools.reduce((a, tool, _i, _arr) => {
 			a[tool.id] = {
 				name: tool.name,
 				description: tool.meta.description,
@@ -62,17 +68,16 @@
 	</Tooltip>
 
 	<div slot="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full max-w-[200px] rounded-xl px-1 py-1  border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
 			sideOffset={15}
 			alignOffset={-8}
 			side="top"
 			align="start"
-			transition={flyAndScale}
 		>
 			{#if Object.keys(tools).length > 0}
 				<div class="  max-h-28 overflow-y-auto scrollbar-hidden">
-					{#each Object.keys(tools) as toolId}
+					{#each Object.keys(tools) as toolId (toolId)}
 						<button
 							class="flex w-full justify-between gap-2 items-center px-3 py-2 text-sm font-medium cursor-pointer rounded-xl"
 							on:click={() => {
@@ -135,7 +140,7 @@
 			{#if !$mobile}
 				<DropdownMenu.Item
 					class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800  rounded-xl"
-					on:click={() => {
+					onSelect={() => {
 						screenCaptureHandler();
 					}}
 				>
@@ -146,7 +151,7 @@
 
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-2 text-sm font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl"
-				on:click={() => {
+				onSelect={() => {
 					uploadFilesHandler();
 				}}
 			>
@@ -157,7 +162,7 @@
 			{#if $config?.features?.enable_google_drive_integration}
 				<DropdownMenu.Item
 					class="flex gap-2 items-center px-3 py-2 text-sm font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl"
-					on:click={() => {
+					onSelect={() => {
 						uploadGoogleDriveHandler();
 					}}
 				>
@@ -190,6 +195,6 @@
 					<div class="line-clamp-1">{$i18n.t('Google Drive')}</div>
 				</DropdownMenu.Item>
 			{/if}
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</div>
 </Dropdown>

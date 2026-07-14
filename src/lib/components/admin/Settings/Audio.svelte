@@ -42,8 +42,12 @@
 
 	let STT_WHISPER_MODEL_LOADING = false;
 
-	// eslint-disable-next-line no-undef
-	let voices: SpeechSynthesisVoice[] = [];
+	// `voices` holds either the browser's real SpeechSynthesisVoice[] (webapi
+	// engine, keyed by .voiceURI) or the backend TTS engine's /voices response
+	// (openai/elevenlabs/azure, keyed by .id) depending on TTS_ENGINE — the
+	// shape genuinely varies at runtime based on which branch getVoices() takes.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let voices: any[] = [];
 	let models: Awaited<ReturnType<typeof _getModels>>['models'] = [];
 
 	const getModels = async () => {
@@ -312,7 +316,7 @@
 								await getVoices();
 								await getModels();
 
-								if (e.target?.value === 'openai') {
+								if ((e.target as HTMLSelectElement)?.value === 'openai') {
 									TTS_VOICE = 'alloy';
 									TTS_MODEL = 'tts-1';
 								} else {
@@ -385,7 +389,7 @@
 									bind:value={TTS_VOICE}
 								>
 									<option value="" selected={TTS_VOICE !== ''}>{$i18n.t('Default')}</option>
-									{#each voices as voice}
+									{#each voices as voice (voice.voiceURI)}
 										<option
 											value={voice.voiceURI}
 											class="bg-gray-100 dark:bg-gray-700"
@@ -452,7 +456,7 @@
 									/>
 
 									<datalist id="voice-list">
-										{#each voices as voice}
+										{#each voices as voice (voice.id)}
 											<option value={voice.id}>{voice.name}</option>
 										{/each}
 									</datalist>
@@ -471,7 +475,7 @@
 									/>
 
 									<datalist id="tts-model-list">
-										{#each models as model}
+										{#each models as model (model.id)}
 											<option value={model.id} class="bg-gray-50 dark:bg-gray-700" />
 										{/each}
 									</datalist>
@@ -493,7 +497,7 @@
 									/>
 
 									<datalist id="voice-list">
-										{#each voices as voice}
+										{#each voices as voice (voice.id)}
 											<option value={voice.id}>{voice.name}</option>
 										{/each}
 									</datalist>
@@ -512,7 +516,7 @@
 									/>
 
 									<datalist id="tts-model-list">
-										{#each models as model}
+										{#each models as model (model.id)}
 											<option value={model.id} class="bg-gray-50 dark:bg-gray-700" />
 										{/each}
 									</datalist>
@@ -534,7 +538,7 @@
 									/>
 
 									<datalist id="voice-list">
-										{#each voices as voice}
+										{#each voices as voice (voice.id)}
 											<option value={voice.id}>{voice.name}</option>
 										{/each}
 									</datalist>
@@ -575,7 +579,7 @@
 							aria-label="Select how to split message text for TTS requests"
 							bind:value={TTS_SPLIT_ON}
 						>
-							{#each Object.values(TTS_RESPONSE_SPLIT) as split}
+							{#each Object.values(TTS_RESPONSE_SPLIT) as split (split)}
 								<option value={split}
 									>{$i18n.t(split.charAt(0).toUpperCase() + split.slice(1))}</option
 								>

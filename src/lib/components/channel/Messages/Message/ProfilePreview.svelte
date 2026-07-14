@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { DropdownMenu } from 'bits-ui';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import { createEventDispatcher } from 'svelte';
 
-	import { flyAndScale } from '$lib/utils/transitions';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { activeUserIds } from '$lib/stores';
 
-	export let side = 'right';
-	export let align = 'top';
+	export let side: 'top' | 'right' | 'bottom' | 'left' = 'right';
+	// bits-ui's Align is 'start' | 'center' | 'end' (not a CSS side) -- for a
+	// right-side popover, 'start' is the top-aligned option, which is what this
+	// was actually going for.
+	export let align: 'start' | 'center' | 'end' = 'start';
 
 	export let user = null;
 	let show = false;
@@ -17,23 +20,26 @@
 
 <DropdownMenu.Root
 	bind:open={show}
-	closeFocus={false}
 	onOpenChange={(state) => {
 		dispatch('change', state);
 	}}
-	typeahead={false}
 >
 	<DropdownMenu.Trigger>
 		<slot />
 	</DropdownMenu.Trigger>
 
 	<slot name="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="max-w-full w-[240px] rounded-lg z-[9999] bg-white dark:bg-black dark:text-white shadow-lg"
 			sideOffset={8}
 			{side}
 			{align}
-			transition={flyAndScale}
+			onCloseAutoFocus={(e) => {
+				// bits-ui v2 moved focus-return control from Root's old `closeFocus`
+				// prop to Content's `onCloseAutoFocus` -- preserve the original
+				// "don't steal focus back on close" behavior.
+				e.preventDefault();
+			}}
 		>
 			{#if user}
 				<div class=" flex flex-col gap-2 w-full rounded-lg">
@@ -80,6 +86,6 @@
 					</div>
 				</div>
 			{/if}
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</slot>
 </DropdownMenu.Root>

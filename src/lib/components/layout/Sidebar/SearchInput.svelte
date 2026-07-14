@@ -1,11 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { getAllTags } from '$lib/apis/chats';
 	import { tags } from '$lib/stores';
-	import { getContext, createEventDispatcher, onMount, onDestroy, tick } from 'svelte';
+	import { getContext, createEventDispatcher, onMount, onDestroy } from 'svelte';
 	import { fade } from 'svelte/transition';
 
 	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let placeholder = '';
 	export let value = '';
@@ -22,7 +24,6 @@
 		}
 	];
 	let focused = false;
-	let loading = false;
 
 	let filteredOptions = options;
 	$: filteredOptions = options.filter((option) => {
@@ -54,9 +55,7 @@
 		: [];
 
 	const initTags = async () => {
-		loading = true;
 		await tags.set(await getAllTags(localStorage.token));
-		loading = false;
 	};
 
 	const documentClickHandler = (e) => {
@@ -159,7 +158,7 @@
 					<div class="px-1 font-medium dark:text-gray-300 text-gray-700 mb-1">Tags</div>
 
 					<div class="max-h-60 overflow-auto">
-						{#each filteredTags as tag, tagIdx}
+						{#each filteredTags as tag, tagIdx (tag.id)}
 							<button
 								class=" px-1.5 py-0.5 flex gap-1 hover:bg-gray-100 dark:hover:bg-gray-900 w-full rounded {selectedIdx ===
 								tagIdx
@@ -195,7 +194,7 @@
 					</div>
 
 					<div class=" max-h-60 overflow-auto">
-						{#each filteredOptions as option, optionIdx}
+						{#each filteredOptions as option, optionIdx (option.name)}
 							<button
 								class=" px-1.5 py-0.5 flex gap-1 hover:bg-gray-100 dark:hover:bg-gray-900 w-full rounded {selectedIdx ===
 								optionIdx

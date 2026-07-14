@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { fade } from 'svelte/transition';
 
 	import { flyAndScale } from '$lib/utils/transitions';
@@ -11,7 +11,6 @@
 	export let className = 'bg-gray-50 dark:bg-gray-900 rounded-2xl';
 
 	let modalElement = null;
-	let mounted = false;
 
 	const sizeToWidth = (size) => {
 		if (size === 'full') {
@@ -40,10 +39,6 @@
 		return modals.length && modals[modals.length - 1] === modalElement;
 	};
 
-	onMount(() => {
-		mounted = true;
-	});
-
 	$: if (show && modalElement) {
 		document.body.appendChild(modalElement);
 		window.addEventListener('keydown', handleKeyDown);
@@ -63,7 +58,6 @@
 </script>
 
 {#if show}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div
 		bind:this={modalElement}

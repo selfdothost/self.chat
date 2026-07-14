@@ -1,60 +1,36 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, tick, getContext } from 'svelte';
 	import { openDB, deleteDB } from 'idb';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
-	import mermaid from 'mermaid';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
-	import { fade } from 'svelte/transition';
 
-	import { getKnowledgeBases } from '$lib/apis/knowledge';
-	import { getFunctions } from '$lib/apis/functions';
-	import { getModels, getVersionUpdates } from '$lib/apis';
-	import { getAllTags } from '$lib/apis/chats';
-	import { getPrompts } from '$lib/apis/prompts';
+	import { getModels } from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
 	import { getBanners } from '$lib/apis/configs';
 	import { getUserSettings } from '$lib/apis/users';
 
-	import { WEBUI_VERSION } from '$lib/constants';
-	import { compareVersion } from '$lib/utils';
-
-	import {
-		config,
-		user,
-		settings,
-		models,
-		prompts,
-		knowledge,
-		tools,
-		functions,
-		tags,
-		banners,
-		showSettings,
-		showChangelog,
-		temporaryChatEnabled
-	} from '$lib/stores';
+	import { config, user, settings, models, tools, banners, showSettings, showChangelog, temporaryChatEnabled } from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
 	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
-	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let loaded = false;
 	let DB = null;
 	let localDBChats = [];
 
-	let version;
-
 	onMount(async () => {
 		if ($user === undefined) {
-			await goto('/auth');
+			await goto(resolve('/auth'));
 		} else if (['user', 'admin'].includes($user.role)) {
 			try {
 				// Check if IndexedDB exists
@@ -70,7 +46,7 @@
 				}
 
 				console.log(DB);
-			} catch (error) {
+			} catch {
 				// IndexedDB Not Found
 			}
 
@@ -120,7 +96,9 @@
 				if (isCtrlPressed && isShiftPressed && event.key === ';') {
 					event.preventDefault();
 					console.log('copyLastCodeBlock');
-					const button = [...document.getElementsByClassName('copy-code-button')]?.at(-1);
+					const button = [...document.getElementsByClassName('copy-code-button')]?.at(
+						-1
+					) as HTMLElement;
 					button?.click();
 				}
 
@@ -128,7 +106,9 @@
 				if (isCtrlPressed && isShiftPressed && event.key.toLowerCase() === 'c') {
 					event.preventDefault();
 					console.log('copyLastResponse');
-					const button = [...document.getElementsByClassName('copy-response-button')]?.at(-1);
+					const button = [...document.getElementsByClassName('copy-response-button')]?.at(
+						-1
+					) as HTMLElement;
 					console.log(button);
 					button?.click();
 				}
@@ -170,7 +150,7 @@
 					event.preventDefault();
 					console.log('temporaryChat');
 					temporaryChatEnabled.set(!$temporaryChatEnabled);
-					await goto('/');
+					await goto(resolve('/(app)'));
 					const newChatButton = document.getElementById('new-chat-button');
 					setTimeout(() => {
 						newChatButton?.click();
@@ -186,50 +166,15 @@
 				temporaryChatEnabled.set(true);
 			}
 
-			// Check for version updates
-			if ($user.role === 'admin') {
-				// Check if the user has dismissed the update toast in the last 24 hours
-				if (localStorage.dismissedUpdateToast) {
-					const dismissedUpdateToast = new Date(Number(localStorage.dismissedUpdateToast));
-					const now = new Date();
-
-					if (now - dismissedUpdateToast > 24 * 60 * 60 * 1000) {
-						checkForVersionUpdates();
-					}
-				} else {
-					checkForVersionUpdates();
-				}
-			}
 			await tick();
 		}
 
 		loaded = true;
 	});
-
-	const checkForVersionUpdates = async () => {
-		version = await getVersionUpdates(localStorage.token).catch((error) => {
-			return {
-				current: WEBUI_VERSION,
-				latest: WEBUI_VERSION
-			};
-		});
-	};
 </script>
 
 <SettingsModal bind:show={$showSettings} />
 <ChangelogModal bind:show={$showChangelog} />
-
-{#if version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
-	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>
-		<UpdateInfoToast
-			{version}
-			on:close={() => {
-				localStorage.setItem('dismissedUpdateToast', Date.now().toString());
-				version = null;
-			}}
-		/>
-	</div>
-{/if}
 
 <div class="app relative">
 	<div
@@ -297,47 +242,3 @@
 		{/if}
 	</div>
 </div>
-
-<style>
-	.loading {
-		display: inline-block;
-		clip-path: inset(0 1ch 0 0);
-		animation: l 1s steps(3) infinite;
-		letter-spacing: -0.5px;
-	}
-
-	@keyframes l {
-		to {
-			clip-path: inset(0 -1ch 0 0);
-		}
-	}
-
-	pre[class*='language-'] {
-		position: relative;
-		overflow: auto;
-
-		/* make space  */
-		margin: 5px 0;
-		padding: 1.75rem 0 1.75rem 1rem;
-		border-radius: 10px;
-	}
-
-	pre[class*='language-'] button {
-		position: absolute;
-		top: 5px;
-		right: 5px;
-
-		font-size: 0.9rem;
-		padding: 0.15rem;
-		background-color: #828282;
-
-		border: ridge 1px #7b7b7c;
-		border-radius: 5px;
-		text-shadow: #c4c4c4 0 0 2px;
-	}
-
-	pre[class*='language-'] button:hover {
-		cursor: pointer;
-		background-color: #bcbabb;
-	}
-</style>

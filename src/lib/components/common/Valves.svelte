@@ -1,16 +1,34 @@
 <script>
-	import { onMount, getContext, createEventDispatcher } from 'svelte';
+	import { getContext, createEventDispatcher } from 'svelte';
 	const dispatch = createEventDispatcher();
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	import Switch from './Switch.svelte';
 
+	/**
+	 * JSON-schema-like shape returned by a tool/function/pipe's `valves` spec
+	 * endpoint — only the fields this component actually reads are modeled.
+	 * @typedef {Object} ValvesSpecProperty
+	 * @property {string} [title]
+	 * @property {string} [type]
+	 * @property {(string|number)[]} [enum]
+	 * @property {*} [default]
+	 * @property {string} [description]
+	 */
+	/**
+	 * @typedef {Object} ValvesSpec
+	 * @property {Record<string, ValvesSpecProperty>} [properties]
+	 * @property {string[]} [required]
+	 */
+
+	/** @type {ValvesSpec | null} */
 	export let valvesSpec = null;
 	export let valves = {};
 </script>
 
 {#if valvesSpec && Object.keys(valvesSpec?.properties ?? {}).length}
-	{#each Object.keys(valvesSpec.properties) as property, idx}
+	{#each Object.keys(valvesSpec.properties) as property, _idx (property)}
 		<div class=" py-0.5 w-full justify-between">
 			<div class="flex w-full justify-between">
 				<div class=" self-center text-xs font-medium">
@@ -59,7 +77,7 @@
 									dispatch('change');
 								}}
 							>
-								{#each valvesSpec.properties[property].enum as option}
+								{#each valvesSpec.properties[property].enum as option (option)}
 									<option value={option} selected={option === valves[property]}>
 										{option}
 									</option>

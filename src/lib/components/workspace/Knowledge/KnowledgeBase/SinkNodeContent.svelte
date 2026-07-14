@@ -3,7 +3,7 @@
 
     const dispatch = createEventDispatcher();
 
-    export let config: Record<string, any> = {};
+    export let config: Record<string, unknown> = {};
     export let stageLabel = "output";
 
     // The dataset name the curated output is saved under. Sent as dataset_name

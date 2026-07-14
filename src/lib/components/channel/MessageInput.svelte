@@ -1,12 +1,15 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
 
 	import { tick, getContext, onMount, onDestroy } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { config, mobile, settings, socket } from '$lib/stores';
+	import { config, mobile, settings } from '$lib/stores';
 	import { blobToFile, compressImage } from '$lib/utils';
 
 	import Tooltip from '../common/Tooltip.svelte';
@@ -21,7 +24,6 @@
 	import FilesOverlay from '../chat/MessageInput/FilesOverlay.svelte';
 
 	export let placeholder = $i18n.t('Send a Message');
-	export let transparentBackground = false;
 
 	export let id = null;
 
@@ -36,16 +38,19 @@
 
 	export let typingUsers = [];
 
-	export let onSubmit: Function;
-	export let onChange: Function;
+	export let onSubmit: AnyFn;
+	export let onChange: AnyFn;
 	export let scrollEnd = true;
-	export let scrollToBottom: Function = () => {};
+	export let scrollToBottom: AnyFn = () => {};
 
 	const screenCaptureHandler = async () => {
 		try {
 			// Request screen media
 			const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-				video: { cursor: 'never' },
+				// `cursor` is a real Screen Capture API constraint, just missing from TS's
+				// bundled DOM lib typings (MediaTrackConstraints hasn't caught up to spec).
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				video: { cursor: 'never' } as any,
 				audio: false
 			});
 			// Once the user selects a screen, temporarily create a video element
@@ -114,7 +119,10 @@
 						const height = $settings?.imageCompressionSize?.height ?? null;
 
 						if (width || height) {
-							imageUrl = await compressImage(imageUrl, width, height);
+							// compressImage (src/lib/utils) is untyped and its Promise executor's
+							// generic can't be inferred, so this resolves to `unknown` -- it always
+							// resolves either the original string dataURL or canvas.toDataURL().
+							imageUrl = (await compressImage(imageUrl, width, height)) as string;
 						}
 					}
 
@@ -200,7 +208,7 @@
 				files = files.filter((item) => item?.itemId !== tempItemId);
 			}
 		} catch (e) {
-			toast.error(e);
+			toast.error((e as Error)?.message ?? String(e));
 			files = files.filter((item) => item?.itemId !== tempItemId);
 		}
 	};
@@ -378,7 +386,7 @@
 						document.getElementById(`chat-input-${id}`)?.focus();
 					}}
 					on:confirm={async (e) => {
-						const { text, filename } = e.detail;
+						const { text } = e.detail;
 						content = `${content}${text} `;
 						recording = false;
 
@@ -395,11 +403,11 @@
 				>
 					<div
 						class="flex-1 flex flex-col relative w-full rounded-3xl px-1 bg-gray-600/5 dark:bg-gray-400/5 dark:text-gray-100"
-						dir={$settings?.chatDirection ?? 'LTR'}
+						dir={($settings?.chatDirection ?? 'LTR').toLowerCase() as 'ltr' | 'rtl'}
 					>
 						{#if files.length > 0}
 							<div class="mx-1 mt-2.5 mb-1 flex flex-wrap gap-2">
-								{#each files as file, fileIdx}
+								{#each files as file, fileIdx (file.id ?? file.url)}
 									{#if file.type === 'image'}
 										<div class=" relative group">
 											<div class="relative">
@@ -491,40 +499,45 @@
 										!(
 											'ontouchstart' in window ||
 											navigator.maxTouchPoints > 0 ||
-											navigator.msMaxTouchPoints > 0
+											// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy IE-only property, no modern DOM typing
+											(navigator as any).msMaxTouchPoints > 0
 										)}
 									{placeholder}
 									largeTextAsFile={$settings?.largeTextAsFile ?? false}
 									on:keydown={async (e) => {
-										e = e.detail.event;
-										const isCtrlPressed = e.ctrlKey || e.metaKey; // metaKey is for Cmd key on Mac
+										// RichTextInput forwards its ProseMirror keydown handler's real
+										// KeyboardEvent as e.detail.event (see RichTextInput.svelte); the
+										// outer `e` itself is just the CustomEvent wrapper.
+										const event: KeyboardEvent = e.detail.event;
 										if (
 											!$mobile ||
 											!(
 												'ontouchstart' in window ||
 												navigator.maxTouchPoints > 0 ||
-												navigator.msMaxTouchPoints > 0
+												// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy IE-only property, no modern DOM typing
+												(navigator as any).msMaxTouchPoints > 0
 											)
 										) {
 											// Prevent Enter key from creating a new line
 											// Uses keyCode '13' for Enter key for chinese/japanese keyboards
-											if (e.keyCode === 13 && !e.shiftKey) {
-												e.preventDefault();
+											if (event.keyCode === 13 && !event.shiftKey) {
+												event.preventDefault();
 											}
 
 											// Submit the content when Enter key is pressed
-											if (content !== '' && e.keyCode === 13 && !e.shiftKey) {
+											if (content !== '' && event.keyCode === 13 && !event.shiftKey) {
 												submitHandler();
 											}
 										}
 
-										if (e.key === 'Escape') {
+										if (event.key === 'Escape') {
 											console.log('Escape');
 										}
 									}}
 									on:paste={async (e) => {
-										e = e.detail.event;
-										console.log(e);
+										// See keydown handler above -- real ClipboardEvent lives on e.detail.event.
+										const event: ClipboardEvent = e.detail.event;
+										console.log(event);
 									}}
 								/>
 							</div>

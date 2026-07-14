@@ -1,17 +1,18 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
+	import { resolve } from '$app/paths';
 
-	const dispatch = createEventDispatcher();
-
-	import { getChatListByUserId, deleteChatById, getArchivedChatList } from '$lib/apis/chats';
+	import { getChatListByUserId, deleteChatById } from '$lib/apis/chats';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 	export let user;
@@ -19,13 +20,17 @@
 	let chats = null;
 
 	const deleteChatHandler = async (chatId) => {
-		const res = await deleteChatById(localStorage.token, chatId).catch((error) => {
+		await deleteChatById(localStorage.token, chatId).catch((error) => {
 			toast.error(error);
 		});
 
 		chats = await getChatListByUserId(localStorage.token, user.id);
 	};
 
+	// Assignments run inside an async IIFE/else branch triggered by this block;
+	// `chats` isn't part of the block's own condition (`show`), so setting it
+	// can't retrigger this reactive statement -- not an infinite loop.
+	/* eslint-disable svelte/infinite-reactive-loop */
 	$: if (show) {
 		(async () => {
 			if (user.id) {
@@ -35,6 +40,7 @@
 	} else {
 		chats = null;
 	}
+	/* eslint-enable svelte/infinite-reactive-loop */
 
 	let sortKey = 'updated_at'; // default sort key
 	let sortOrder = 'desc'; // default sort order
@@ -115,13 +121,13 @@
 										if (a[sortKey] < b[sortKey]) return sortOrder === 'asc' ? -1 : 1;
 										if (a[sortKey] > b[sortKey]) return sortOrder === 'asc' ? 1 : -1;
 										return 0;
-									}) as chat, idx}
+									}) as chat, idx (chat.id)}
 										<tr
 											class="bg-transparent {idx !== chats.length - 1 &&
 												'border-b'} dark:bg-gray-900 dark:border-gray-850 text-xs"
 										>
 											<td class="px-3 py-1">
-												<a href="/s/{chat.id}" target="_blank">
+												<a href={resolve('/s/[id]', { id: chat.id })} target="_blank">
 													<div class=" underline line-clamp-1 max-w-96">
 														{chat.title}
 													</div>

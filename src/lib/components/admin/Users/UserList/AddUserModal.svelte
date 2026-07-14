@@ -1,14 +1,16 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher } from 'svelte';
-	import { onMount, getContext } from 'svelte';
+	import { getContext } from 'svelte';
 	import { addUser } from '$lib/apis/auths';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let show = false;
@@ -64,7 +66,7 @@
 				const reader = new FileReader();
 
 				reader.onload = async (e) => {
-					const csv = e.target.result;
+					const csv = e.target.result as string;
 					const rows = csv.split('\n');
 
 					let userCount = 0;
@@ -100,7 +102,9 @@
 
 					toast.success(`Successfully imported ${userCount} users.`);
 					inputFiles = null;
-					const uploadInputElement = document.getElementById('upload-user-csv-input');
+					const uploadInputElement = document.getElementById(
+						'upload-user-csv-input'
+					) as HTMLInputElement | null;
 
 					if (uploadInputElement) {
 						uploadInputElement.value = null;
@@ -263,6 +267,7 @@
 									<a
 										class="underline dark:text-gray-200"
 										href="{WEBUI_BASE_URL}/static/user-import.csv"
+										rel="external"
 									>
 										{$i18n.t('Click here to download user import template file.')}
 									</a>
@@ -322,18 +327,5 @@
 		/* display: none; <- Crashes Chrome on hover */
 		-webkit-appearance: none;
 		margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
-	}
-
-	.tabs::-webkit-scrollbar {
-		display: none; /* for Chrome, Safari and Opera */
-	}
-
-	.tabs {
-		-ms-overflow-style: none; /* IE and Edge */
-		scrollbar-width: none; /* Firefox */
-	}
-
-	input[type='number'] {
-		-moz-appearance: textfield; /* Firefox */
 	}
 </style>

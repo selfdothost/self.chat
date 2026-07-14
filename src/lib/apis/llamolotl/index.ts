@@ -12,7 +12,7 @@ export type TrainingConfigDetail = {
 	content: string;
 };
 
-export type TrainingJobMetric = Record<string, any>;
+export type TrainingJobMetric = Record<string, unknown>;
 
 export type TrainingJob = {
 	job_id: string;
@@ -227,7 +227,7 @@ export const getLlamolotlModels = async (token: string = '', urlIdx: null | numb
 		throw error;
 	}
 
-	return (res?.data ?? []).sort((a: any, b: any) => {
+	return (res?.data ?? []).sort((a: { name: string }, b: { name: string }) => {
 		return a.name.localeCompare(b.name);
 	});
 };

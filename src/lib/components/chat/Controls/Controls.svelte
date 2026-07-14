@@ -1,7 +1,9 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { createEventDispatcher, getContext } from 'svelte';
 	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import AdvancedParams from '../Settings/Advanced/AdvancedParams.svelte';
@@ -10,9 +12,14 @@
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 
 	import { user } from '$lib/stores';
-	export let models = [];
 	export let chatFiles = [];
-	export let params = {};
+	// Holds the chat's `system` prompt (read directly below) plus whatever
+	// subset of AdvancedParams.svelte's ~20 model params (stream_response,
+	// mirostat_eta, etc. -- see that component's own `params` default) the
+	// user has overridden; bound straight into <AdvancedParams bind:params>
+	// below, so this has to stay structurally compatible with that shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	export let params: Record<string, any> = {};
 
 	let showValves = false;
 </script>
@@ -34,7 +41,7 @@
 		{#if chatFiles.length > 0}
 			<Collapsible title={$i18n.t('Files')} open={true} buttonClassName="w-full">
 				<div class="flex flex-col gap-1 mt-1.5" slot="content">
-					{#each chatFiles as file, fileIdx}
+					{#each chatFiles as file, fileIdx (file.itemId ?? file.id)}
 						<FileItem
 							className="w-full"
 							item={file}

@@ -1,12 +1,15 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	import { WEBUI_NAME, config, functions, models } from '$lib/stores';
+	import { WEBUI_NAME, functions, models } from '$lib/stores';
 	import { onMount, getContext, tick } from 'svelte';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import {
 		createNewFunction,
 		deleteFunctionById,
@@ -17,7 +20,6 @@
 		toggleGlobalById
 	} from '$lib/apis/functions';
 
-	import ArrowDownTray from '../icons/ArrowDownTray.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import ConfirmDialog from '../common/ConfirmDialog.svelte';
 	import { getModels } from '$lib/apis';
@@ -32,7 +34,7 @@
 	import Search from '../icons/Search.svelte';
 	import Plus from '../icons/Plus.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let shiftKey = false;
 
@@ -48,7 +50,7 @@
 
 	let showDeleteConfirm = false;
 
-	let filteredItems = [];
+	let filteredItems;
 	$: filteredItems = $functions
 		.filter(
 			(f) =>
@@ -70,7 +72,7 @@
 				id: `${_function.id}_clone`,
 				name: `${_function.name} (Clone)`
 			});
-			goto('/admin/functions/create');
+			goto(resolve('/(app)/admin/functions/create'));
 		}
 	};
 
@@ -109,13 +111,17 @@
 
 		if (res) {
 			if (func.is_global) {
-				func.type === 'filter'
-					? toast.success($i18n.t('Filter is now globally enabled'))
-					: toast.success($i18n.t('Function is now globally enabled'));
+				if (func.type === 'filter') {
+					toast.success($i18n.t('Filter is now globally enabled'));
+				} else {
+					toast.success($i18n.t('Function is now globally enabled'));
+				}
 			} else {
-				func.type === 'filter'
-					? toast.success($i18n.t('Filter is now globally disabled'))
-					: toast.success($i18n.t('Function is now globally disabled'));
+				if (func.type === 'filter') {
+					toast.success($i18n.t('Filter is now globally disabled'));
+				} else {
+					toast.success($i18n.t('Function is now globally disabled'));
+				}
 			}
 
 			functions.set(await getFunctions(localStorage.token));
@@ -182,7 +188,7 @@
 		<div>
 			<a
 				class=" px-2 py-2 rounded-xl hover:bg-gray-700/10 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-medium text-sm flex items-center space-x-1"
-				href="/admin/functions/create"
+				href={resolve('/(app)/admin/functions/create')}
 			>
 				<Plus className="size-3.5" />
 			</a>
@@ -197,7 +203,7 @@
 		>
 			<a
 				class=" flex flex-1 space-x-3.5 cursor-pointer w-full"
-				href={`/admin/functions/edit?id=${encodeURIComponent(func.id)}`}
+				href={resolve(`/(app)/admin/functions/edit?id=${encodeURIComponent(func.id)}`)}
 			>
 				<div class="flex items-center text-left">
 					<div class=" flex-1 self-center pl-1">
@@ -294,7 +300,7 @@
 					<FunctionMenu
 						{func}
 						editHandler={() => {
-							goto(`/admin/functions/edit?id=${encodeURIComponent(func.id)}`);
+							goto(resolve(`/(app)/admin/functions/edit?id=${encodeURIComponent(func.id)}`));
 						}}
 						cloneHandler={() => {
 							cloneHandler(func);
@@ -326,7 +332,7 @@
 					<Tooltip content={func.is_active ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
 						<Switch
 							bind:state={func.is_active}
-							on:change={async (e) => {
+							on:change={async (_e) => {
 								toggleFunctionById(localStorage.token, func.id);
 								models.set(await getModels(localStorage.token));
 							}}
@@ -447,11 +453,11 @@
 	on:confirm={() => {
 		const reader = new FileReader();
 		reader.onload = async (event) => {
-			const _functions = JSON.parse(event.target.result);
+			const _functions = JSON.parse(event.target.result as string);
 			console.log(_functions);
 
 			for (const func of _functions) {
-				const res = await createNewFunction(localStorage.token, func).catch((error) => {
+				await createNewFunction(localStorage.token, func).catch((error) => {
 					toast.error(error);
 					return null;
 				});

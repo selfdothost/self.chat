@@ -1,28 +1,19 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
-	import { createPicker, getAuthToken } from '$lib/utils/google-drive-picker';
+	import { createPicker } from '$lib/utils/google-drive-picker';
 
 	import { onMount, tick, getContext, createEventDispatcher, onDestroy } from 'svelte';
 	const dispatch = createEventDispatcher();
 
-	import {
-		type Model,
-		mobile,
-		settings,
-		showSidebar,
-		models,
-		config,
-		showCallOverlay,
-		tools,
-		user as _user,
-		showControls
-	} from '$lib/stores';
+	import { type Model, mobile, settings, models, config, showCallOverlay, tools, user as _user, showControls } from '$lib/stores';
 
 	import { blobToFile, compressImage, createMessagesList, findWordIndices } from '$lib/utils';
 	import { transcribeAudio } from '$lib/apis/audio';
 	import { uploadFile } from '$lib/apis/files';
-	import { getTools } from '$lib/apis/tools';
 
 	import { WEBUI_BASE_URL, WEBUI_API_BASE_URL, PASTED_TEXT_CHARACTER_LIMIT } from '$lib/constants';
 
@@ -36,21 +27,20 @@
 	import XMark from '../icons/XMark.svelte';
 	import RichTextInput from '../common/RichTextInput.svelte';
 	import { generateAutoCompletion } from '$lib/apis';
-	import { error, text } from '@sveltejs/kit';
 	import Image from '../common/Image.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let transparentBackground = false;
 
-	export let onChange: Function = () => {};
-	export let createMessagePair: Function;
-	export let stopResponse: Function;
+	export let onChange: AnyFn = () => {};
+	export let createMessagePair: AnyFn;
+	export let stopResponse: AnyFn;
 
 	export let autoScroll = false;
 
 	export let atSelectedModel: Model | undefined = undefined;
-	export let selectedModels: [''];
+	export let selectedModels: string[];
 
 	let selectedModelIds = [];
 	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
@@ -73,7 +63,6 @@
 	let loaded = false;
 	let recording = false;
 
-	let chatInputContainerElement;
 	let chatInputElement;
 
 	let filesInputElement;
@@ -82,7 +71,6 @@
 	let inputFiles;
 	let dragged = false;
 
-	let user = null;
 	export let placeholder = '';
 
 	let visionCapableModels = [];
@@ -102,7 +90,11 @@
 		try {
 			// Request screen media
 			const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-				video: { cursor: 'never' },
+				// `cursor` is part of the Screen Capture spec's video constraints for
+				// getDisplayMedia() (MDN: MediaTrackConstraints) but lib.dom.d.ts's
+				// MediaTrackConstraints type doesn't model it yet.
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				video: { cursor: 'never' } as any,
 				audio: false
 			});
 			// Once the user selects a screen, temporarily create a video element
@@ -207,7 +199,7 @@
 				files = files.filter((item) => item?.itemId !== tempItemId);
 			}
 		} catch (e) {
-			toast.error(e);
+			toast.error((e as Error)?.message ?? String(e));
 			files = files.filter((item) => item?.itemId !== tempItemId);
 		}
 	};
@@ -522,7 +514,7 @@
 								document.getElementById('chat-input')?.focus();
 							}}
 							on:confirm={async (e) => {
-								const { text, filename } = e.detail;
+								const { text } = e.detail;
 								prompt = `${prompt}${text} `;
 
 								recording = false;
@@ -545,11 +537,12 @@
 						>
 							<div
 								class="flex-1 flex flex-col relative w-full rounded-3xl px-1 bg-gray-600/5 dark:bg-gray-400/5 dark:text-gray-100"
-								dir={$settings?.chatDirection ?? 'LTR'}
+								dir={($settings?.chatDirection ?? 'LTR').toLowerCase() as 'ltr' | 'rtl'}
 							>
 								{#if files.length > 0}
 									<div class="mx-1 mt-2.5 mb-1 flex flex-wrap gap-2">
-										{#each files as file, fileIdx}
+										<!-- files mix uploaded items (itemId) with plain image entries (no id at all, e.g. screen capture/paste); removal is already positional via files.splice(fileIdx, 1), so index is the only identity every entry actually has -->
+										{#each files as file, fileIdx (fileIdx)}
 											{#if file.type === 'image'}
 												<div class=" relative group">
 													<div class="relative">
@@ -652,7 +645,7 @@
 													console.error('Google Drive Error:', error);
 													toast.error(
 														$i18n.t('Error accessing Google Drive: {{error}}', {
-															error: error.message
+															error: (error as Error)?.message ?? String(error)
 														})
 													);
 												}
@@ -696,7 +689,8 @@
 													!(
 														'ontouchstart' in window ||
 														navigator.maxTouchPoints > 0 ||
-														navigator.msMaxTouchPoints > 0
+														// eslint-disable-next-line @typescript-eslint/no-explicit-any -- msMaxTouchPoints is an obsolete IE-only Navigator property with no modern type definition
+														(navigator as any).msMaxTouchPoints > 0
 													)}
 												placeholder={placeholder ? placeholder : $i18n.t('Send a Message')}
 												largeTextAsFile={$settings?.largeTextAsFile ?? false}
@@ -722,37 +716,37 @@
 													console.log(res);
 													return res;
 												}}
-												on:keydown={async (e) => {
-													e = e.detail.event;
+												on:keydown={async (e: CustomEvent<{ event: KeyboardEvent }>) => {
+													const event = e.detail.event;
 
-													const isCtrlPressed = e.ctrlKey || e.metaKey; // metaKey is for Cmd key on Mac
+													const isCtrlPressed = event.ctrlKey || event.metaKey; // metaKey is for Cmd key on Mac
 													const commandsContainerElement =
 														document.getElementById('commands-container');
 
-													if (e.key === 'Escape') {
+													if (event.key === 'Escape') {
 														stopResponse();
 													}
 
 													// Command/Ctrl + Shift + Enter to submit a message pair
-													if (isCtrlPressed && e.key === 'Enter' && e.shiftKey) {
-														e.preventDefault();
+													if (isCtrlPressed && event.key === 'Enter' && event.shiftKey) {
+														event.preventDefault();
 														createMessagePair(prompt);
 													}
 
 													// Check if Ctrl + R is pressed
-													if (prompt === '' && isCtrlPressed && e.key.toLowerCase() === 'r') {
-														e.preventDefault();
+													if (prompt === '' && isCtrlPressed && event.key.toLowerCase() === 'r') {
+														event.preventDefault();
 														console.log('regenerate');
 
 														const regenerateButton = [
 															...document.getElementsByClassName('regenerate-response-button')
-														]?.at(-1);
+														]?.at(-1) as HTMLElement | undefined;
 
 														regenerateButton?.click();
 													}
 
-													if (prompt === '' && e.key == 'ArrowUp') {
-														e.preventDefault();
+													if (prompt === '' && event.key == 'ArrowUp') {
+														event.preventDefault();
 
 														const userMessageElement = [
 															...document.getElementsByClassName('user-message')
@@ -762,15 +756,15 @@
 															userMessageElement.scrollIntoView({ block: 'center' });
 															const editButton = [
 																...document.getElementsByClassName('edit-user-message-button')
-															]?.at(-1);
+															]?.at(-1) as HTMLElement | undefined;
 
 															editButton?.click();
 														}
 													}
 
 													if (commandsContainerElement) {
-														if (commandsContainerElement && e.key === 'ArrowUp') {
-															e.preventDefault();
+														if (commandsContainerElement && event.key === 'ArrowUp') {
+															event.preventDefault();
 															commandsElement.selectUp();
 
 															const commandOptionButton = [
@@ -779,8 +773,8 @@
 															commandOptionButton.scrollIntoView({ block: 'center' });
 														}
 
-														if (commandsContainerElement && e.key === 'ArrowDown') {
-															e.preventDefault();
+														if (commandsContainerElement && event.key === 'ArrowDown') {
+															event.preventDefault();
 															commandsElement.selectDown();
 
 															const commandOptionButton = [
@@ -789,22 +783,22 @@
 															commandOptionButton.scrollIntoView({ block: 'center' });
 														}
 
-														if (commandsContainerElement && e.key === 'Tab') {
-															e.preventDefault();
+														if (commandsContainerElement && event.key === 'Tab') {
+															event.preventDefault();
 
 															const commandOptionButton = [
 																...document.getElementsByClassName('selected-command-option-button')
-															]?.at(-1);
+															]?.at(-1) as HTMLElement | undefined;
 
 															commandOptionButton?.click();
 														}
 
-														if (commandsContainerElement && e.key === 'Enter') {
-															e.preventDefault();
+														if (commandsContainerElement && event.key === 'Enter') {
+															event.preventDefault();
 
 															const commandOptionButton = [
 																...document.getElementsByClassName('selected-command-option-button')
-															]?.at(-1);
+															]?.at(-1) as HTMLElement | undefined;
 
 															if (commandOptionButton) {
 																commandOptionButton?.click();
@@ -818,34 +812,35 @@
 															!(
 																'ontouchstart' in window ||
 																navigator.maxTouchPoints > 0 ||
-																navigator.msMaxTouchPoints > 0
+																// eslint-disable-next-line @typescript-eslint/no-explicit-any -- msMaxTouchPoints is an obsolete IE-only Navigator property with no modern type definition
+																(navigator as any).msMaxTouchPoints > 0
 															)
 														) {
 															// Prevent Enter key from creating a new line
 															// Uses keyCode '13' for Enter key for chinese/japanese keyboards
-															if (e.keyCode === 13 && !e.shiftKey) {
-																e.preventDefault();
+															if (event.keyCode === 13 && !event.shiftKey) {
+																event.preventDefault();
 															}
 
 															// Submit the prompt when Enter key is pressed
-															if (prompt !== '' && e.keyCode === 13 && !e.shiftKey) {
+															if (prompt !== '' && event.keyCode === 13 && !event.shiftKey) {
 																dispatch('submit', prompt);
 															}
 														}
 													}
 
-													if (e.key === 'Escape') {
+													if (event.key === 'Escape') {
 														console.log('Escape');
 														atSelectedModel = undefined;
 														selectedToolIds = [];
 														webSearchEnabled = false;
 													}
 												}}
-												on:paste={async (e) => {
-													e = e.detail.event;
-													console.log(e);
+												on:paste={async (e: CustomEvent<{ event: ClipboardEvent }>) => {
+													const event = e.detail.event;
+													console.log(event);
 
-													const clipboardData = e.clipboardData || window.clipboardData;
+													const clipboardData = event.clipboardData || window.clipboardData;
 
 													if (clipboardData && clipboardData.items) {
 														for (const item of clipboardData.items) {
@@ -869,7 +864,7 @@
 																	const text = clipboardData.getData('text/plain');
 
 																	if (text.length > PASTED_TEXT_CHARACTER_LIMIT) {
-																		e.preventDefault();
+																		event.preventDefault();
 																		const blob = new Blob([text], { type: 'text/plain' });
 																		const file = new File([blob], `Pasted_Text_${Date.now()}.txt`, {
 																			type: 'text/plain'
@@ -897,7 +892,8 @@
 													!(
 														'ontouchstart' in window ||
 														navigator.maxTouchPoints > 0 ||
-														navigator.msMaxTouchPoints > 0
+														// eslint-disable-next-line @typescript-eslint/no-explicit-any -- msMaxTouchPoints is an obsolete IE-only Navigator property with no modern type definition
+														(navigator as any).msMaxTouchPoints > 0
 													)
 												) {
 													// Prevent Enter key from creating a new line
@@ -932,7 +928,7 @@
 
 													const regenerateButton = [
 														...document.getElementsByClassName('regenerate-response-button')
-													]?.at(-1);
+													]?.at(-1) as HTMLElement | undefined;
 
 													regenerateButton?.click();
 												}
@@ -946,7 +942,7 @@
 
 													const editButton = [
 														...document.getElementsByClassName('edit-user-message-button')
-													]?.at(-1);
+													]?.at(-1) as HTMLElement | undefined;
 
 													console.log(userMessageElement);
 
@@ -979,7 +975,7 @@
 
 													const commandOptionButton = [
 														...document.getElementsByClassName('selected-command-option-button')
-													]?.at(-1);
+													]?.at(-1) as HTMLElement | undefined;
 
 													if (e.shiftKey) {
 														prompt = `${prompt}\n`;
@@ -995,7 +991,7 @@
 
 													const commandOptionButton = [
 														...document.getElementsByClassName('selected-command-option-button')
-													]?.at(-1);
+													]?.at(-1) as HTMLElement | undefined;
 
 													commandOptionButton?.click();
 												} else if (e.key === 'Tab') {
@@ -1008,16 +1004,16 @@
 														prompt = prompt.substring(0, word?.endIndex + 1);
 														await tick();
 
-														e.target.scrollTop = e.target.scrollHeight;
+														(e.target as HTMLTextAreaElement).scrollTop = (e.target as HTMLTextAreaElement).scrollHeight;
 														prompt = fullPrompt;
 														await tick();
 
 														e.preventDefault();
-														e.target.setSelectionRange(word?.startIndex, word.endIndex + 1);
+														(e.target as HTMLTextAreaElement).setSelectionRange(word?.startIndex, word.endIndex + 1);
 													}
 
-													e.target.style.height = '';
-													e.target.style.height = Math.min(e.target.scrollHeight, 320) + 'px';
+													(e.target as HTMLTextAreaElement).style.height = '';
+													(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 320) + 'px';
 												}
 
 												if (e.key === 'Escape') {
@@ -1029,12 +1025,12 @@
 											}}
 											rows="1"
 											on:input={async (e) => {
-												e.target.style.height = '';
-												e.target.style.height = Math.min(e.target.scrollHeight, 320) + 'px';
+												(e.target as HTMLTextAreaElement).style.height = '';
+												(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 320) + 'px';
 											}}
 											on:focus={async (e) => {
-												e.target.style.height = '';
-												e.target.style.height = Math.min(e.target.scrollHeight, 320) + 'px';
+												(e.target as HTMLTextAreaElement).style.height = '';
+												(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 320) + 'px';
 											}}
 											on:paste={async (e) => {
 												const clipboardData = e.clipboardData || window.clipboardData;
@@ -1166,7 +1162,7 @@
 
 																	showCallOverlay.set(true);
 																	showControls.set(true);
-																} catch (err) {
+																} catch {
 																	// If the user denies the permission or an error occurs, show an error message
 																	toast.error(
 																		$i18n.t('Permission denied when accessing media devices')

@@ -1,16 +1,17 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { DropdownMenu } from 'bits-ui';
-	import { createEventDispatcher, getContext, onMount } from 'svelte';
+	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
+	import { createEventDispatcher, getContext } from 'svelte';
+	import { resolve } from '$app/paths';
 
-	import { flyAndScale } from '$lib/utils/transitions';
-	import { goto } from '$app/navigation';
 	import ArchiveBox from '$lib/components/icons/ArchiveBox.svelte';
 	import { showSettings, activeUserIds, USAGE_POOL, mobile, showSidebar } from '$lib/stores';
-	import { fade, slide } from 'svelte/transition';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { userSignOut } from '$lib/apis/auths';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 	export let role = '';
@@ -30,12 +31,11 @@
 	</DropdownMenu.Trigger>
 
 	<slot name="content">
-		<DropdownMenu.Content
+		<DropdownMenuContent
 			class="w-full {className} text-sm rounded-xl px-1 py-1.5 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg font-primary"
 			sideOffset={8}
 			side="bottom"
 			align="start"
-			transition={(e) => fade(e, { duration: 100 })}
 		>
 			<button
 				class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
@@ -92,7 +92,7 @@
 			{#if role === 'admin'}
 				<a
 					class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					href="/playground"
+					href={resolve('/(app)/playground')}
 					on:click={() => {
 						show = false;
 
@@ -122,7 +122,7 @@
 
 				<a
 					class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					href="/admin"
+					href={resolve('/(app)/admin')}
 					on:click={() => {
 						show = false;
 
@@ -217,6 +217,6 @@
 			<!-- <DropdownMenu.Item class="flex items-center px-3 py-2 text-sm ">
 				<div class="flex items-center">Profile</div>
 			</DropdownMenu.Item> -->
-		</DropdownMenu.Content>
+		</DropdownMenuContent>
 	</slot>
 </DropdownMenu.Root>

@@ -1,12 +1,14 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let messages = [];
 	let textAreaElement: HTMLTextAreaElement;
 	onMount(() => {
-		messages.forEach((message, idx) => {
+		messages.forEach((_message, _idx) => {
 			textAreaElement.style.height = '';
 			textAreaElement.style.height = textAreaElement.scrollHeight + 'px';
 		});
@@ -14,7 +16,8 @@
 </script>
 
 <div class="py-3 space-y-3">
-	{#each messages as message, idx}
+	<!-- messages are anonymous {role, content} objects with no stable id; index is fine, the playground list is only ever appended to, never reordered/filtered -->
+	{#each messages as message, idx (idx)}
 		<div class="flex gap-2 group">
 			<div class="flex items-start pt-1">
 				<div
@@ -35,11 +38,11 @@
 						role: message.role === 'user' ? $i18n.t('a user') : $i18n.t('an assistant')
 					})}
 					rows="1"
-					on:input={(e) => {
+					on:input={(_e) => {
 						textAreaElement.style.height = '';
 						textAreaElement.style.height = textAreaElement.scrollHeight + 'px';
 					}}
-					on:focus={(e) => {
+					on:focus={(_e) => {
 						textAreaElement.style.height = '';
 						textAreaElement.style.height = textAreaElement.scrollHeight + 'px';
 

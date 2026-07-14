@@ -11,7 +11,7 @@
 # 16Gi fits the vite 6GB+ heap (see Dockerfile NODE_OPTIONS) and keeps us off
 # `bigbuild`, which is reserved for the heavy from-source builds (e.g. llamolotl).
 
-stages: [lint, build, publish]
+stages: [lint, test, build, publish]
 
 include:
   - project: 'selfshipyard/selfai/self.ai'
@@ -36,6 +36,37 @@ lint:
   script:
     - npm run lint:types   # svelte-check; advisory until the UI settles
   allow_failure: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: [src/**/*, package.json, package-lock.json, tsconfig.json, .gitlab-ci.yml]
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [src/**/*, package.json, package-lock.json, tsconfig.json, .gitlab-ci.yml]
+
+# eslint: flat config (eslint.config.js), ESLint 9+/typescript-eslint unified
+# package, eslint-plugin-svelte 3. The rule-set expansion from that migration
+# surfaced a fresh 470-violation backlog (selfshipyard/selfai/self.chat#9),
+# burned down to 0 across !33/!35/!36/!37/!38/!39. Blocking again.
+lint:eslint:
+  stage: lint
+  image: node:22-alpine3.20
+  before_script:
+    - npm ci
+  script:
+    - npm run lint:frontend
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: [src/**/*, package.json, package-lock.json, eslint.config.js, .gitlab-ci.yml]
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [src/**/*, package.json, package-lock.json, eslint.config.js, .gitlab-ci.yml]
+
+# --- test: vitest unit tests -------------------------------------------------
+test:unit:
+  stage: test
+  image: node:22-alpine3.20
+  before_script:
+    - npm ci
+  script:
+    - npm run test:frontend -- --run
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: [src/**/*, package.json, package-lock.json]

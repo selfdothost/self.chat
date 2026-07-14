@@ -1,38 +1,25 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 
 	import { onMount, getContext, createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 
-	import {
-		getQuerySettings,
-		updateQuerySettings,
-		resetVectorDB,
-		getEmbeddingConfig,
-		updateEmbeddingConfig,
-		getRerankingConfig,
-		updateRerankingConfig,
-		resetUploadDir,
-		getRAGConfig,
-		updateRAGConfig
-	} from '$lib/apis/retrieval';
+	import { getQuerySettings, updateQuerySettings, resetVectorDB, getEmbeddingConfig, updateEmbeddingConfig, getRerankingConfig, updateRerankingConfig, getRAGConfig, updateRAGConfig } from '$lib/apis/retrieval';
 
-	import { knowledge, models } from '$lib/stores';
-	import { getKnowledgeBases } from '$lib/apis/knowledge';
-	import { uploadDir, deleteAllFiles, deleteFileById } from '$lib/apis/files';
+	import { deleteAllFiles } from '$lib/apis/files';
 
 	import ResetUploadDirConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import ResetVectorDBConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
-	import { text } from '@sveltejs/kit';
 	import Textarea from '$lib/components/common/Textarea.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let scanDirLoading = false;
 	let updateEmbeddingModelLoading = false;
 	let updateRerankingModelLoading = false;
 
@@ -128,9 +115,14 @@
 		if (res) {
 			console.log('embeddingModelUpdateHandler:', res);
 			if (res.status === true) {
-				toast.success($i18n.t('Embedding model set to "{{embedding_model}}"', res), {
-					duration: 1000 * 10
-				});
+				toast.success(
+					$i18n.t('Embedding model set to "{{embedding_model}}"', {
+						embedding_model: res.embedding_model
+					}),
+					{
+						duration: 1000 * 10
+					}
+				);
 			}
 		}
 	};
@@ -152,13 +144,18 @@
 			console.log('rerankingModelUpdateHandler:', res);
 			if (res.status === true) {
 				if (rerankingModel === '') {
-					toast.success($i18n.t('Reranking model disabled', res), {
+					toast.success($i18n.t('Reranking model disabled'), {
 						duration: 1000 * 10
 					});
 				} else {
-					toast.success($i18n.t('Reranking model set to "{{reranking_model}}"', res), {
-						duration: 1000 * 10
-					});
+					toast.success(
+						$i18n.t('Reranking model set to "{{reranking_model}}"', {
+							reranking_model: rerankingModel
+						}),
+						{
+							duration: 1000 * 10
+						}
+					);
 				}
 			}
 		}
@@ -175,7 +172,7 @@
 			toast.error($i18n.t('Tika Server URL required.'));
 			return;
 		}
-		const res = await updateRAGConfig(localStorage.token, {
+		await updateRAGConfig(localStorage.token, {
 			pdf_extract_images: pdfExtractImages,
 			enable_google_drive_integration: enableGoogleDriveIntegration,
 			file: {
@@ -300,11 +297,12 @@
 						bind:value={embeddingEngine}
 						placeholder="Select an embedding model engine"
 						on:change={(e) => {
-							if (e.target.value === 'ollama') {
+							const value = (e.target as HTMLSelectElement).value;
+							if (value === 'ollama') {
 								embeddingModel = '';
-							} else if (e.target.value === 'openai') {
+							} else if (value === 'openai') {
 								embeddingModel = 'text-embedding-3-small';
-							} else if (e.target.value === '') {
+							} else if (value === '') {
 								embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
 							}
 						}}
@@ -567,7 +565,7 @@
 						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-none text-right"
 						bind:value={contentExtractionEngine}
 						on:change={(e) => {
-							showTikaServerUrl = e.target.value === 'tika';
+							showTikaServerUrl = (e.target as HTMLSelectElement).value === 'tika';
 						}}
 					>
 						<option value="">{$i18n.t('Default')} </option>

@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext, createEventDispatcher } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
-	import { chatId, showArtifacts, showControls } from '$lib/stores';
+	import { showArtifacts, showControls } from '$lib/stores';
 	import XMark from '../icons/XMark.svelte';
 	import { copyToClipboard, createMessagesList } from '$lib/utils';
 	import ArrowsPointingOut from '../icons/ArrowsPointingOut.svelte';
@@ -30,6 +31,10 @@
 		getContents();
 	}
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const getContents = () => {
 		contents = [];
 		messages.forEach((message) => {
@@ -143,7 +148,7 @@
 		iframeElement.contentWindow.addEventListener(
 			'click',
 			function (e) {
-				const target = e.target.closest('a');
+				const target = (e.target as HTMLElement).closest('a');
 				if (target && target.href) {
 					e.preventDefault();
 					const url = new URL(target.href, iframeElement.baseURI);
@@ -171,12 +176,16 @@
 	};
 
 	const showFullScreen = () => {
+		// webkit/ms prefixed fullscreen fallbacks for older browsers -- not in
+		// modern DOM typings, but still needed for cross-browser support.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const el = iframeElement as any;
 		if (iframeElement.requestFullscreen) {
 			iframeElement.requestFullscreen();
-		} else if (iframeElement.webkitRequestFullscreen) {
-			iframeElement.webkitRequestFullscreen();
-		} else if (iframeElement.msRequestFullscreen) {
-			iframeElement.msRequestFullscreen();
+		} else if (el.webkitRequestFullscreen) {
+			el.webkitRequestFullscreen();
+		} else if (el.msRequestFullscreen) {
+			el.msRequestFullscreen();
 		}
 	};
 

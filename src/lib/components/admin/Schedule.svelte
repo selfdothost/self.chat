@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -17,7 +19,7 @@
 		type ScheduledJobType
 	} from '$lib/apis/schedule';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const POLL_MS = 8000;
 	const getToken = () => localStorage.getItem('token') ?? '';
 
@@ -34,6 +36,21 @@
 	// Filter
 	let filterType: 'all' | 'training' | 'eval' | 'curation' = 'all';
 	let filterStatus: 'all' | 'active' | 'scheduled' | 'completed' = 'active';
+
+	// Typed (not inline) so opt.v keeps its literal-union type instead of
+	// widening to `string` -- these feed filterType/filterStatus above.
+	const typeFilterOptions: { v: 'all' | 'training' | 'eval' | 'curation'; l: string }[] = [
+		{ v: 'all', l: 'All Types' },
+		{ v: 'training', l: 'Training' },
+		{ v: 'eval', l: 'Eval' },
+		{ v: 'curation', l: 'Curation' }
+	];
+	const statusFilterOptions: { v: 'all' | 'active' | 'scheduled' | 'completed'; l: string }[] = [
+		{ v: 'active', l: 'Active' },
+		{ v: 'scheduled', l: 'Scheduled' },
+		{ v: 'completed', l: 'History' },
+		{ v: 'all', l: 'All' }
+	];
 
 	// ── Derived ──────────────────────────────────────────────────────
 	$: filteredJobs = jobs.filter((j) => {
@@ -101,6 +118,7 @@
 	const refresh = async (quiet = false) => {
 		try {
 			jobs = await getAllScheduledJobs(getToken());
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			if (!quiet) toast.error(e?.detail ?? e?.message ?? 'Failed to load jobs');
 		} finally {
@@ -113,6 +131,7 @@
 		try {
 			await fn();
 			await refresh(true);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			toast.error(typeof e === 'string' ? e : e?.detail ?? 'Action failed');
 		} finally {
@@ -190,7 +209,7 @@
 <!-- Filters -->
 <div class="flex flex-wrap gap-2 mb-3">
 	<div class="flex rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
-		{#each [{ v: 'all', l: 'All Types' }, { v: 'training', l: 'Training' }, { v: 'eval', l: 'Eval' }, { v: 'curation', l: 'Curation' }] as opt}
+		{#each typeFilterOptions as opt (opt.v)}
 			<button
 				class="px-3 py-1 text-xs font-medium transition {filterType === opt.v
 					? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
@@ -202,7 +221,7 @@
 		{/each}
 	</div>
 	<div class="flex rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
-		{#each [{ v: 'active', l: 'Active' }, { v: 'scheduled', l: 'Scheduled' }, { v: 'completed', l: 'History' }, { v: 'all', l: 'All' }] as opt}
+		{#each statusFilterOptions as opt (opt.v)}
 			<button
 				class="px-3 py-1 text-xs font-medium transition {filterStatus === opt.v
 					? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
@@ -272,7 +291,6 @@
 								{dayjs(job.created_at * 1000).fromNow()}
 							</Tooltip>
 						</td>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<td class="px-3 py-2 text-right" on:click|stopPropagation>
 							<div class="flex items-center justify-end gap-1">
 								{#if job.status === 'pending'}

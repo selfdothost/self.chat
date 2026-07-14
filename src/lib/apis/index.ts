@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+import { WEBUI_BASE_URL } from '$lib/constants';
 
 export const getModels = async (token: string = '', base: boolean = false) => {
 	let error = null;
@@ -24,7 +24,7 @@ export const getModels = async (token: string = '', base: boolean = false) => {
 		throw error;
 	}
 
-	let models = res?.data ?? [];
+	const models = res?.data ?? [];
 	return models;
 };
 
@@ -33,6 +33,9 @@ type ChatCompletedForm = {
 	messages: string[];
 	chat_id: string;
 	session_id: string;
+	// The response message id -- sent alongside session_id/chat_id so the
+	// backend can correlate this completion with the in-flight socket event.
+	id?: string;
 };
 
 export const chatCompleted = async (token: string, body: ChatCompletedForm) => {
@@ -72,6 +75,12 @@ type ChatActionForm = {
 	model: string;
 	messages: string[];
 	chat_id: string;
+	session_id?: string;
+	// The response message id this action applies to.
+	id?: string;
+	// Action-specific payload (e.g. feedback content) -- shape varies per action_id.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	event?: Record<string, any>;
 };
 
 export const chatAction = async (token: string, action_id: string, body: ChatActionForm) => {
@@ -365,7 +374,7 @@ export const generateQueries = async (
 	model: string,
 	messages: object[],
 	prompt: string,
-	type?: string = 'web_search'
+	type: string = 'web_search'
 ) => {
 	let error = null;
 
@@ -561,7 +570,7 @@ export const getPipelinesList = async (token: string = '') => {
 		throw error;
 	}
 
-	let pipelines = res?.data ?? [];
+	const pipelines = res?.data ?? [];
 	return pipelines;
 };
 
@@ -704,7 +713,7 @@ export const getPipelines = async (token: string, urlIdx?: string) => {
 		throw error;
 	}
 
-	let pipelines = res?.data ?? [];
+	const pipelines = res?.data ?? [];
 	return pipelines;
 };
 
@@ -858,32 +867,6 @@ export const getChangelog = async () => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_BASE_URL}/api/changelog`, {
-		method: 'GET',
-		headers: {
-			'Content-Type': 'application/json'
-		}
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			console.log(err);
-			error = err;
-			return null;
-		});
-
-	if (error) {
-		throw error;
-	}
-
-	return res;
-};
-
-export const getVersionUpdates = async () => {
-	let error = null;
-
-	const res = await fetch(`${WEBUI_BASE_URL}/api/version/updates`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json'
@@ -1112,15 +1095,42 @@ export interface ModelConfig {
 	meta: ModelMeta;
 	base_model_id?: string;
 	params: ModelParams;
+	// Standard read/write ACL bag (group_ids/user_ids per action), same shape
+	// used by Knowledge/Prompts/etc — genuinely dynamic, see AccessControl.svelte.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	access_control?: Record<string, any> | null;
 }
 
 export interface ModelMeta {
 	description?: string;
-	capabilities?: object;
+	// Known checkboxes rendered by workspace/Models/Capabilities.svelte; kept
+	// as an open record since new capability flags get added there over time.
+	capabilities?: {
+		vision?: boolean;
+		usage?: boolean;
+		citations?: boolean;
+		[key: string]: boolean | undefined;
+	};
 	profile_image_url?: string;
+	tags?: { name: string }[];
+	toolIds?: string[];
+	hidden?: boolean;
+	filterIds?: string[];
+	actionIds?: string[];
+	active_loras?: { file: string; scale: number }[];
+	suggestion_prompts?: { content: string }[] | null;
+	// Knowledge entries come in a few legacy/current shapes (raw collection
+	// refs vs. collection-name arrays) that get normalized on read — genuinely
+	// heterogeneous, not a single fixed shape.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	knowledge?: any[];
 }
 
-export interface ModelParams {}
+// Spread into request payloads / bound to AdvancedParams.svelte's open-ended
+// advanced-params bag (stream_response, seed, stop, temperature, ...) — a
+// genuinely dynamic, per-model-backend set of fields, not a fixed shape.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ModelParams = Record<string, any>;
 
 export type GlobalModelConfig = ModelConfig[];
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -10,7 +12,7 @@
 	} from '$lib/apis/evaluations/langtests';
 	import type { EvalJob } from '$lib/apis/evaluations/jobs';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	// ── Types ──────────────────────────────────────────────────────────
 	type SummaryModel = {
@@ -27,7 +29,7 @@
 		total_samples: number;
 		eval_time: string | null;
 		created_at: string | null;
-		config: Record<string, any>;
+		config: Record<string, unknown>;
 		results_file: string;
 	};
 
@@ -48,12 +50,11 @@
 	let modelRunsLoading = false;
 
 	// Run detail view — uses LiveEvalView
-	let selectedRun: RunSummary | null = null;
 	let activeDetailJob: EvalJob | null = null;
 
 	// ── Derived ────────────────────────────────────────────────────────
 	$: sortedSummary = [...summaryModels].sort((a, b) => {
-		let va: any, vb: any;
+		let va: string | number, vb: string | number;
 		if (summarySortKey === 'model') {
 			va = a.model.toLowerCase();
 			vb = b.model.toLowerCase();
@@ -98,7 +99,6 @@
 	}
 
 	function selectRunDetail(run: RunSummary) {
-		selectedRun = run;
 		// Construct a minimal EvalJob-like object for LiveEvalView
 		activeDetailJob = {
 			id: run.id,
@@ -107,6 +107,9 @@
 			benchmark: Object.keys(run.benchmarks).join(', '),
 			model_id: run.model,
 			status: 'completed',
+			// Matches CodeTests.svelte's identical synthesized-job pattern: an
+			// already-completed run has no future schedule.
+			scheduled_for: null,
 			error_message: null,
 			meta: { total_samples: run.total_samples },
 			created_at: run.created_at ? new Date(run.created_at).getTime() / 1000 : 0,
@@ -124,7 +127,6 @@
 
 	function goBackToModelRuns() {
 		viewMode = 'model-runs';
-		selectedRun = null;
 		activeDetailJob = null;
 	}
 
@@ -228,7 +230,7 @@
 								{/if}
 							</div>
 						</th>
-						{#each benchmarkNames as bm}
+						{#each benchmarkNames as bm (bm)}
 							<th
 								scope="col"
 								class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white capitalize"
@@ -265,7 +267,7 @@
 							<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
 								{row.model}
 							</td>
-							{#each benchmarkNames as bm}
+							{#each benchmarkNames as bm (bm)}
 								<td class="px-3 py-2 text-right font-semibold">
 									{#if row.benchmarks[bm] !== undefined}
 										<span class={scoreColor(row.benchmarks[bm])}>

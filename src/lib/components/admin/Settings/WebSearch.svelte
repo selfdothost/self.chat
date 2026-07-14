@@ -1,15 +1,16 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { getRAGConfig, updateRAGConfig } from '$lib/apis/retrieval';
 	import Switch from '$lib/components/common/Switch.svelte';
 
-	import { models } from '$lib/stores';
 	import { onMount, getContext } from 'svelte';
-	import { toast } from 'svelte-sonner';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: Function;
+	export let saveHandler: AnyFn;
 
 	let webConfig = null;
 	let webSearchEngines = [
@@ -33,7 +34,7 @@
 	let youtubeProxyUrl = '';
 
 	const submitHandler = async () => {
-		const res = await updateRAGConfig(localStorage.token, {
+		await updateRAGConfig(localStorage.token, {
 			web: webConfig,
 			youtube: {
 				language: youtubeLanguage.split(',').map((lang) => lang.trim()),
@@ -90,7 +91,7 @@
 							required
 						>
 							<option disabled selected value="">{$i18n.t('Select a engine')}</option>
-							{#each webSearchEngines as engine}
+							{#each webSearchEngines as engine (engine)}
 								<option value={engine}>{engine}</option>
 							{/each}
 						</select>

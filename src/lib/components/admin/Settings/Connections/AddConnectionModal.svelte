@@ -1,9 +1,11 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { getContext, onMount } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { models } from '$lib/stores';
 	import { verifyOpenAIConnection } from '$lib/apis/openai';
 	import { verifyOllamaConnection } from '$lib/apis/ollama';
 	import { verifyLlamolotlConnection } from '$lib/apis/llamolotl';
@@ -12,13 +14,12 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
 	import Minus from '$lib/components/icons/Minus.svelte';
-	import PencilSolid from '$lib/components/icons/PencilSolid.svelte';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 
-	export let onSubmit: Function = () => {};
-	export let onDelete: Function = () => {};
+	export let onSubmit: AnyFn = () => {};
+	export let onDelete: AnyFn = () => {};
 
 	export let show = false;
 	export let edit = false;
@@ -239,7 +240,7 @@
 
 								<div class="flex-1">
 									<SensitiveInput
-										className="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+										inputClassName="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
 										bind:value={key}
 										placeholder={$i18n.t('API Key')}
 										required={!ollama && !llamolotl && !curator}
@@ -277,7 +278,8 @@
 
 							{#if modelIds.length > 0}
 								<div class="flex flex-col">
-									{#each modelIds as modelId, modelIdx}
+									<!-- addModelHandler doesn't dedupe; the same model ID can be added twice, so a value key isn't safe -->
+									{#each modelIds as modelId, modelIdx (modelIdx)}
 										<div class=" flex gap-2 w-full justify-between items-center">
 											<div class=" text-sm flex-1 py-1 rounded-lg">
 												{modelId}

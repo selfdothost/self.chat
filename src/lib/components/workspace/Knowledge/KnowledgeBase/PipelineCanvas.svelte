@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher, afterUpdate } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { v4 as uuidv4 } from 'uuid';
 	import PipelineNode from './PipelineNode.svelte';
 	import SourceNodeContent from './SourceNodeContent.svelte';
@@ -78,7 +79,7 @@
 		x: number;
 		y: number;
 		headerColor: string;
-		config: Record<string, any>;
+		config: Record<string, unknown>;
 	};
 
 	type Connection = {
@@ -169,7 +170,7 @@
 	let contextMenuY = 0;
 	let contextMenuCanvasX = 0;
 	let contextMenuCanvasY = 0;
-	let collapsedGroups = new Set<string>(
+	let collapsedGroups = new SvelteSet<string>(
 		NODE_TYPES.map(nt => nt.group).filter((g): g is string => !!g)
 	);
 	let nodeSearch = '';
@@ -202,6 +203,10 @@
 		if (!canvasEl) return;
 		const canvasRect = canvasEl.getBoundingClientRect();
 		const ports = canvasEl.querySelectorAll('.port');
+		// Built fresh and reassigned to `portPositions` below (never mutated
+		// in place) -- reactivity comes from the reassignment, not from Svelte
+		// observing this Map, so SvelteMap would add nothing here.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const next = new Map<string, { x: number; y: number }>();
 		ports.forEach((port) => {
 			const el = port as HTMLElement;
@@ -300,7 +305,7 @@
 
 	function addNode(type: NodeDef['type'], label: string, headerColor: string, template?: NodeTemplate) {
 		const id = uuidv4();
-		const defaultParams: Record<string, any> = {};
+		const defaultParams: Record<string, unknown> = {};
 		if (template) {
 			for (const p of template.params) {
 				if (p.default !== undefined && p.default !== null) {
@@ -330,7 +335,6 @@
 		} else {
 			collapsedGroups.add(group);
 		}
-		collapsedGroups = collapsedGroups;
 	}
 
 	function dismissContextMenu() {
@@ -347,7 +351,7 @@
 	}
 	
 
-	function handleNodeConfigChange(nodeId: string, newConfig: Record<string, any>) {
+	function handleNodeConfigChange(nodeId: string, newConfig: Record<string, unknown>) {
 		nodes = nodes.map((n) => (n.id === nodeId ? { ...n, config: newConfig } : n));
 		dispatch('configchange', { nodes, connections });
 	}
@@ -440,7 +444,12 @@
 
 <svelte:window on:keydown={handleKeyDown} />
 
+<!-- Keyboard equivalents for this pannable node-canvas surface are handled by
+     the svelte:window keydown listener above (Delete/Escape/etc.), not a
+     handler on the surface div itself — it's a background/pan target, not a
+     discrete interactive control. -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y-click-events-have-key-events -->
 <div
 	class="relative w-full h-full overflow-hidden"
 	bind:this={containerEl}
@@ -448,6 +457,7 @@
 >
 	<!-- Canvas surface -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<div
 		class="absolute inset-0 overflow-hidden"
 		class:cursor-crosshair={!!draggingConnection}
@@ -472,7 +482,7 @@
 
 		<!-- Connection lines (in screen space, ports track their own positions) -->
 		<svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 1;">
-			{#each connections as conn, i}
+			{#each connections as _conn, i (`${_conn.fromId}->${_conn.toId}`)}
 				{#if computedPaths[i]}
 					<path d={computedPaths[i]} fill="none" stroke="#94a3b8" stroke-width="2" />
 				{/if}
@@ -509,7 +519,9 @@
 							on:configchange={(e) => handleNodeConfigChange(node.id, e.detail)}
 						/>
 					{:else if node.type === 'transform'}
-						{@const tpl = node.config?.stage_type ? TEMPLATES_BY_STAGE_TYPE[node.config.stage_type] : null}
+						{@const tpl = node.config?.stage_type
+							? TEMPLATES_BY_STAGE_TYPE[node.config.stage_type as string]
+							: null}
 						{#if tpl}
 							<TransformNodeContent
 								template={tpl}
@@ -535,7 +547,11 @@
 
 	<!-- Context menu (rendered in container so it stays inside the KB panel) -->
 	{#if contextMenuVisible}
+		<!-- click|stopPropagation here only stops the menu's own clicks from
+		     bubbling to the dismiss handler above — not a keyboard-operable
+		     control in its own right, so there's no keyboard equivalent to add. -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<div
 			class="absolute z-50 min-w-[160px] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-1 text-sm max-h-[70vh] overflow-y-auto"
 			style="left: {contextMenuX}px; top: {contextMenuY}px;"
@@ -561,7 +577,7 @@
 			        on:click|stopPropagation
 			    />
 			</div>
-			{#each filteredNodeTypes as nt, i}
+			{#each filteredNodeTypes as nt, i (nt.label)}
 				{#if nt.group && (i === 0 || filteredNodeTypes[i - 1].group !== nt.group)}
 				<button
 						    class="w-full flex items-center gap-1.5 px-3 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-gray-400 font-semibold border-t border-gray-100 dark:border-gray-800 mt-1 hover:text-gray-600 dark:hover:text-gray-300 transition"

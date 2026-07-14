@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import Schedule from './Schedule.svelte';
 	import CalendarView from './JobLogs/CalendarView.svelte';
 	import WindowsView from './JobLogs/WindowsView.svelte';
 	import QueueMonitor from './JobLogs/QueueMonitor.svelte';
 	import { getAllScheduledJobs, type ScheduledJob } from '$lib/apis/schedule';
 
-	const i18n: any = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let selectedTab = 'schedule';
 
@@ -16,7 +18,7 @@
 	onMount(async () => {
 		try {
 			jobs = await getAllScheduledJobs(localStorage.token);
-		} catch (e) {
+		} catch {
 			// non-fatal — calendar will be empty
 		}
 		loaded = true;

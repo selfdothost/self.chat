@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AnyFn } from '$lib/types';
 	import { marked } from 'marked';
 	import TurndownService from 'turndown';
 	const turndownService = new TurndownService({
@@ -11,8 +12,7 @@
 	import { createEventDispatcher } from 'svelte';
 	const eventDispatch = createEventDispatcher();
 
-	import { EditorState, Plugin, PluginKey, TextSelection } from 'prosemirror-state';
-	import { Decoration, DecorationSet } from 'prosemirror-view';
+	import { TextSelection } from 'prosemirror-state';
 
 	import { Editor } from '@tiptap/core';
 
@@ -36,7 +36,7 @@
 	export let id = '';
 
 	export let preserveBreaks = false;
-	export let generateAutoCompletion: Function = async () => null;
+	export let generateAutoCompletion: AnyFn = async () => null;
 	export let autocomplete = false;
 	export let messageInput = false;
 	export let shiftEnter = false;
@@ -44,10 +44,6 @@
 
 	let element;
 	let editor;
-
-	const options = {
-		throwOnError: false
-	};
 
 	// Function to find the next template in the document
 	function findNextTemplate(doc, from = 0) {
@@ -131,7 +127,7 @@
 		if (preserveBreaks) {
 			turndownService.addRule('preserveBreaks', {
 				filter: 'br', // Target <br> elements
-				replacement: function (content) {
+				replacement: function (_content) {
 					return '<br/>';
 				}
 			});
@@ -143,7 +139,7 @@
 				return marked.parse(value.replaceAll(`\n<br/>`, `<br/>`), {
 					breaks: false
 				});
-			} catch (error) {
+			} catch {
 				// If no attempts remain, fallback to plain text
 				if (attempts <= 1) {
 					return value;
@@ -243,7 +239,7 @@
 								const { $head } = state.selection;
 
 								// Recursive function to check ancestors for specific node types
-								function isInside(nodeTypes: string[]): boolean {
+								const isInside = (nodeTypes: string[]): boolean => {
 									let currentNode = $head;
 									while (currentNode) {
 										if (nodeTypes.includes(currentNode.parent.type.name)) {
@@ -253,7 +249,7 @@
 										currentNode = state.doc.resolve(currentNode.before()); // Move to the parent node
 									}
 									return false;
-								}
+								};
 
 								const isInCodeBlock = isInside(['codeBlock']);
 								const isInList = isInside(['listItem', 'bulletList', 'orderedList']);

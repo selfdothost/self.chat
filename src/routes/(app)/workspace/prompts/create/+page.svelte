@@ -1,10 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { prompts } from '$lib/stores';
-	import { onMount, tick, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { createNewPrompt, getPrompts } from '$lib/apis/prompts';
 	import PromptEditor from '$lib/components/workspace/Prompts/PromptEditor.svelte';
@@ -20,7 +23,7 @@
 			toast.success($i18n.t('Prompt created successfully'));
 
 			await prompts.set(await getPrompts(localStorage.token));
-			await goto('/workspace/prompts');
+			await goto(resolve('/(app)/workspace/prompts'));
 		}
 	};
 

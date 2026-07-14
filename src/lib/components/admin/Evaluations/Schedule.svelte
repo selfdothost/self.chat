@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	dayjs.extend(relativeTime);
@@ -20,7 +22,7 @@
 	} from '$lib/apis/evaluations/jobs';
 	import { getModels } from '$lib/apis/index';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let loaded = false;
 	let submitting = false;
@@ -49,7 +51,7 @@
 	const loadModels = async () => {
 		try {
 			const allModels = await getModels(localStorage.token);
-			modelItems = (allModels ?? []).map((m: any) => ({
+			modelItems = (allModels ?? []).map((m: { id: string; name?: string }) => ({
 				value: m.id,
 				label: m.name ?? m.id
 			}));
@@ -219,11 +221,20 @@
 		}
 	};
 
-	onMount(async () => {
-		await refreshJobs();
-		loaded = true;
+	onMount(() => {
+		// NB: onMount only registers a cleanup function when one is returned
+		// *synchronously* -- an `async () => {...}` callback's return value is
+		// always wrapped in a Promise, so the interval-clearing cleanup below
+		// used to never actually run on unmount (the poll interval leaked
+		// forever). Keep the async setup work in an inner IIFE and return the
+		// cleanup directly from this (synchronous) onMount callback instead.
+		(async () => {
+			await refreshJobs();
+			loaded = true;
 
-		pollInterval = setInterval(refreshJobs, 8000);
+			pollInterval = setInterval(refreshJobs, 8000);
+		})();
+
 		return () => {
 			if (pollInterval) clearInterval(pollInterval);
 		};
@@ -285,7 +296,7 @@
 				<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Benchmark')}</div>
 				<select class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800"
 					bind:value={runBenchmark}>
-					{#each benchmarkOptions as bm}
+					{#each benchmarkOptions as bm (bm.id)}
 						<option value={bm.id}>{bm.name}</option>
 					{/each}
 				</select>
@@ -323,7 +334,7 @@
 								/>
 							</div>
 							<div class="max-h-48 overflow-y-auto px-1 pb-1">
-								{#each filteredModels as model}
+								{#each filteredModels as model (model.value)}
 									<button
 										type="button"
 										class="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition {runModelId === model.value ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
@@ -421,7 +432,6 @@
 						<td class="px-3 py-2 text-gray-500">
 							{dayjs(job.created_at * 1000).fromNow()}
 						</td>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<td class="px-3 py-2 text-right" on:click|stopPropagation>
 							<div class="flex items-center justify-end gap-1">
 								{#if job.status === 'pending'}

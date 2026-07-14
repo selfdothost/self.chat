@@ -1,20 +1,20 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 
 	import { goto } from '$app/navigation';
-	import { onMount, tick, getContext } from 'svelte';
+	import { resolve } from '$app/paths';
+	import { onMount, getContext } from 'svelte';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
-	import { WEBUI_NAME, config, user, models, settings, showSidebar } from '$lib/stores';
+	import { config, user, models, settings } from '$lib/stores';
 	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
 
 	import { splitStream } from '$lib/utils';
 	import Selector from '$lib/components/chat/ModelSelector/Selector.svelte';
-	import MenuLines from '../icons/MenuLines.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let loaded = false;
 	let text = '';
 
 	let selectedModelId = '';
@@ -106,7 +106,7 @@
 
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
-			await goto('/');
+			await goto(resolve('/'));
 		}
 
 		if ($settings?.models) {
@@ -116,7 +116,6 @@
 		} else {
 			selectedModelId = '';
 		}
-		loaded = true;
 	});
 </script>
 
@@ -185,13 +184,3 @@
 	</div>
 </div>
 
-<style>
-	.scrollbar-hidden::-webkit-scrollbar {
-		display: none; /* for Chrome, Safari and Opera */
-	}
-
-	.scrollbar-hidden {
-		-ms-overflow-style: none; /* IE and Edge */
-		scrollbar-width: none; /* Firefox */
-	}
-</style>

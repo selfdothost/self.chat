@@ -1,25 +1,22 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	import { chats, user, settings, scrollPaginationEnabled, currentChatPage } from '$lib/stores';
+	import { chats, scrollPaginationEnabled, currentChatPage } from '$lib/stores';
 
-	import {
-		archiveAllChats,
-		createNewChat,
-		deleteAllChats,
-		getAllChats,
-		getAllUserChats,
-		getChatList
-	} from '$lib/apis/chats';
+	import { archiveAllChats, createNewChat, deleteAllChats, getAllChats, getChatList } from '$lib/apis/chats';
 	import { getImportOrigin, convertOpenAIChats } from '$lib/utils';
-	import { onMount, getContext } from 'svelte';
+	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveSettings: Function;
+	export let saveSettings: AnyFn;
 
 	// Chats
 	let importFiles;
@@ -34,7 +31,7 @@
 
 		let reader = new FileReader();
 		reader.onload = (event) => {
-			let chats = JSON.parse(event.target.result);
+			let chats = JSON.parse(event.target.result as string);
 			console.log(chats);
 			if (getImportOrigin(chats) == 'openai') {
 				try {
@@ -75,7 +72,7 @@
 	};
 
 	const archiveAllChatsHandler = async () => {
-		await goto('/');
+		await goto(resolve('/'));
 		await archiveAllChats(localStorage.token).catch((error) => {
 			toast.error(error);
 		});
@@ -86,7 +83,7 @@
 	};
 
 	const deleteAllChatsHandler = async () => {
-		await goto('/');
+		await goto(resolve('/'));
 		await deleteAllChats(localStorage.token).catch((error) => {
 			toast.error(error);
 		});

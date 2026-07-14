@@ -1,4 +1,7 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
 
@@ -13,10 +16,10 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: Function;
-	export let saveSettings: Function;
+	export let saveHandler: AnyFn;
+	export let saveSettings: AnyFn;
 
 	let profileImageUrl = '';
 	let name = '';
@@ -88,7 +91,7 @@
 			type="file"
 			hidden
 			accept="image/*"
-			on:change={(e) => {
+			on:change={(_e) => {
 				const files = profileImageInputElement.files ?? [];
 				let reader = new FileReader();
 				reader.onload = (event) => {

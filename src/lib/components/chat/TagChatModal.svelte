@@ -1,14 +1,12 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 	import Modal from '../common/Modal.svelte';
 
 	import Tags from '../common/Tags.svelte';
 
-	const i18n = getContext('i18n');
-
 	export let tags;
-	export let deleteTag: Function;
-	export let addTag: Function;
+	export let deleteTag: AnyFn;
+	export let addTag: AnyFn;
 
 	export let show = false;
 </script>

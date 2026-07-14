@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { getContext, onMount, tick } from 'svelte';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import { getContext } from 'svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
 	export let citation;
@@ -75,7 +77,7 @@
 			<div
 				class="flex flex-col w-full dark:text-gray-200 overflow-y-scroll max-h-[22rem] scrollbar-hidden"
 			>
-				{#each mergedDocuments as document, documentIdx}
+				{#each mergedDocuments as document, documentIdx (document.document)}
 					<div class="flex flex-col w-full">
 						<div class="text-sm font-medium dark:text-gray-300">
 							{$i18n.t('Source')}
@@ -97,6 +99,7 @@
 												? document.source.url
 												: `#`}
 										target="_blank"
+										rel="external"
 									>
 										{document?.metadata?.name ?? document.source.name}
 									</a>

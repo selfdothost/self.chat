@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { onMount, onDestroy, getContext, createEventDispatcher } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -11,7 +13,7 @@
 	} from '$lib/apis/evaluations/jobs';
 	import { getCodeTestDetails, getCodeTests } from '$lib/apis/evaluations/codetests';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let job: EvalJob;
@@ -25,10 +27,14 @@
 	let events: LiveEvalEvent[] = [];
 	let benchmarks: Record<string, number> = {};
 
+	// Graded aggregate scores for a code-eval run: {task: {pass@1: 0.8}}, or
+	// occasionally a bare number when the harness reports one metric per task.
+	type CodeScoreValue = Record<string, number> | number;
+
 	// Graded aggregate scores for a code-eval run (pass@1 per task), pulled from
 	// the code-eval results summary — the per-task detail list has pass/fail but
 	// not the harness's official aggregate.
-	let codeScores: Record<string, any> = {};
+	let codeScores: Record<string, CodeScoreValue> = {};
 	let expandedIndex: number | null = null;
 
 	// ── code-eval graded (pass/fail) path ──────────────────────────────
@@ -75,7 +81,9 @@
 	// `code_job_id` (or job.id). Prefer the real dispatch key so a user's own job
 	// resolves to its graded result file instead of falling back to job.id (which
 	// isn't a result key) and degrading to the raw-events view.
-	$: resultId = (job.meta as any)?.code_eval_job_id ?? (job.meta as any)?.code_job_id ?? job.id;
+	// job.meta is `Record<string, unknown> | null`, but these dispatch keys are
+	// always strings when present (same contract as job.id).
+	$: resultId = (job.meta?.code_eval_job_id ?? job.meta?.code_job_id ?? job.id) as string;
 
 	$: totalTasks = events.length > 0 ? (events[events.length - 1].total ?? events.length) : 0;
 	$: hasBenchmarks = Object.keys(benchmarks).length > 0;
@@ -119,7 +127,7 @@
 	// Flatten code-eval scores ({task: {pass@1: 0.8}}) into displayable badges.
 	// Prefers pass@1, falls back to the first pass@k / bare number present.
 	const codeScoreEntries = (
-		scores: Record<string, any>
+		scores: Record<string, CodeScoreValue>
 	): { task: string; label: string; pct: number }[] => {
 		const out: { task: string; label: string; pct: number }[] = [];
 		for (const [task, metric] of Object.entries(scores ?? {})) {
@@ -140,7 +148,9 @@
 	async function loadCodeScores() {
 		try {
 			const all = await getCodeTests(localStorage.token);
-			const entry = (all ?? []).find((r: any) => r.id === resultId);
+			const entry = (all ?? []).find(
+				(r: { id: string; scores?: Record<string, CodeScoreValue> }) => r.id === resultId
+			);
 			codeScores = entry?.scores ?? {};
 		} catch {
 			// scores unavailable — the per-task list still renders
@@ -173,8 +183,8 @@
 		status = 'loading';
 		try {
 			const data = await getEvalJobEvents(localStorage.token, job.id);
-			events = (data as any).events ?? [];
-			benchmarks = (data as any).benchmarks ?? {};
+			events = data.events ?? [];
+			benchmarks = data.benchmarks ?? {};
 			status = 'done';
 		} catch (e) {
 			status = 'error';
@@ -205,8 +215,8 @@
 		// so this may come back empty — handled by the "not synced yet" state.
 		try {
 			const data = await getEvalJobEvents(localStorage.token, job.id);
-			events = (data as any).events ?? [];
-			benchmarks = (data as any).benchmarks ?? {};
+			events = data.events ?? [];
+			benchmarks = data.benchmarks ?? {};
 			codeFallback = events.length > 0;
 		} catch {
 			// no events either — leave codeTasks empty; UI shows retry state
@@ -425,7 +435,7 @@
 	<!-- Benchmark scores (events path) -->
 	{#if !isCode && hasBenchmarks}
 		<div class="mb-3 flex flex-wrap gap-3 text-xs">
-			{#each Object.entries(benchmarks) as [bench, score]}
+			{#each Object.entries(benchmarks) as [bench, score] (bench)}
 				<div class="px-2 py-1 rounded bg-gray-50 dark:bg-gray-850">
 					<span class="text-gray-500 capitalize">{formatBenchmarkName(bench)}:</span>
 					<span class="font-semibold ml-1 {scoreColor(score)}">{score.toFixed(1)}%</span>
@@ -437,7 +447,7 @@
 	<!-- Graded scores (code-eval): the harness's aggregate pass@k per task -->
 	{#if isCode && codeScoreEntries(codeScores).length}
 		<div class="mb-3 flex flex-wrap gap-3 text-xs">
-			{#each codeScoreEntries(codeScores) as e}
+			{#each codeScoreEntries(codeScores) as e (e.task)}
 				<div class="px-2 py-1 rounded bg-gray-50 dark:bg-gray-850">
 					<span class="text-gray-500 capitalize"
 						>{formatBenchmarkName(e.task)}{e.label ? ` ${e.label}` : ''}:</span
@@ -540,7 +550,7 @@
 							{/if}
 
 							<!-- Samples / Completions -->
-							{#each task.samples as sample, idx}
+							{#each task.samples as sample, idx (sample.completion_id)}
 								<div>
 									<div class="flex items-center gap-2 mb-1">
 										<span class="text-[10px] uppercase font-semibold text-gray-500">{$i18n.t('Sample')} {idx + 1}</span>
@@ -629,7 +639,7 @@
 								{getEventLabel(event)}
 							</span>
 							{#if event.metrics}
-								{#each Object.entries(event.metrics) as [key, val]}
+								{#each Object.entries(event.metrics) as [key, val] (key)}
 									<span class="px-1.5 py-0.5 rounded text-[10px] font-medium {Number(val) >= 0.5 ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'}">
 										{key}: {formatMetricValue(val)}
 									</span>
@@ -689,7 +699,7 @@
 								</div>
 							{/if}
 							{#if event.completions}
-								{#each event.completions as completion, ci}
+								{#each event.completions as completion, ci (ci)}
 									<div>
 										<div class="text-[11px] uppercase font-medium text-gray-500 dark:text-gray-400 mb-1">
 											{$i18n.t('Response')}{event.completions.length > 1 ? ` #${ci + 1}` : ''}
@@ -704,7 +714,7 @@
 										{$i18n.t('Metrics')}
 									</div>
 									<div class="flex flex-wrap gap-2">
-										{#each Object.entries(event.metrics) as [key, val]}
+										{#each Object.entries(event.metrics) as [key, val] (key)}
 											<span class="px-2 py-1 rounded-lg text-xs font-mono bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300">
 												{key}: {formatMetricValue(val)}
 											</span>

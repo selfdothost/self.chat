@@ -1,5 +1,6 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { getToolById, getTools, updateToolById } from '$lib/apis/tools';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -10,6 +11,7 @@
 	import { onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let tool = null;
@@ -17,6 +19,10 @@
 	const saveHandler = async (data) => {
 		console.log(data);
 
+		// extractFrontmatter (src/lib/utils) is untyped and its return type infers
+		// as `{}` -- the frontmatter block genuinely carries whatever keys the
+		// tool's docstring declares, required_selfai_ui_version among them.
+		/** @type {{ required_selfai_ui_version?: string } & Record<string, any>} */
 		const manifest = extractFrontmatter(data.content);
 		if (compareVersion(manifest?.required_selfai_ui_version ?? '0.0.0', WEBUI_VERSION)) {
 			console.log('Version is lower than required');
@@ -58,7 +64,7 @@
 		if (id) {
 			tool = await getToolById(localStorage.token, id).catch((error) => {
 				toast.error(error);
-				goto('/workspace/tools');
+				goto(resolve('/(app)/workspace/tools'));
 				return null;
 			});
 

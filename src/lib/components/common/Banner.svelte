@@ -13,7 +13,7 @@
 		title: '',
 		content: '',
 		url: '',
-		dismissable: true,
+		dismissible: true,
 		timestamp: Math.floor(Date.now() / 1000)
 	};
 
@@ -57,8 +57,9 @@
 						<div class="flex md:hidden group w-fit md:items-center">
 							<a
 								class="text-gray-700 dark:text-white text-xs font-semibold underline"
-								href="/assets/files/whitepaper.pdf"
-								target="_blank">Learn More</a
+								href={banner.url}
+								target="_blank"
+								rel="external">Learn More</a
 							>
 
 							<div
@@ -83,6 +84,7 @@
 				</div>
 
 				<div class="flex-1 text-xs text-gray-700 dark:text-white">
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurify.sanitize() runs on banner.content (admin-authored, /configs/banners) before marked.parse(); DOMPurify treats the string as an HTML fragment so any embedded tags are stripped before markdown conversion ever sees them -->
 					{@html marked.parse(DOMPurify.sanitize(banner.content))}
 				</div>
 			</div>
@@ -91,8 +93,9 @@
 				<div class="hidden md:flex group w-fit md:items-center">
 					<a
 						class="text-gray-700 dark:text-white text-xs font-semibold underline"
-						href="/"
-						target="_blank">Learn More</a
+						href={banner.url}
+						target="_blank"
+						rel="external">Learn More</a
 					>
 
 					<div class=" ml-1 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-white">

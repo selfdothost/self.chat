@@ -58,10 +58,11 @@
 			</a>
 		{/if}
 
-		{#each status.urls as url, urlIdx}
+		{#each status.urls as url, urlIdx (url)}
 			<a
 				href={url}
 				target="_blank"
+				rel="external"
 				class="flex w-full items-center p-3 px-4 {urlIdx === status.urls.length - 1
 					? ''
 					: 'border-b border-gray-300/30 dark:border-gray-700/50'} group/item justify-between font-normal text-gray-800 dark:text-gray-300"

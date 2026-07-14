@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import { functions, models } from '$lib/stores';
 	import { createNewFunction, getFunctions } from '$lib/apis/functions';
@@ -10,6 +11,7 @@
 	import { compareVersion, extractFrontmatter } from '$lib/utils';
 	import { WEBUI_VERSION } from '$lib/constants';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let mounted = false;
@@ -19,6 +21,10 @@
 	const saveHandler = async (data) => {
 		console.log(data);
 
+		// extractFrontmatter (src/lib/utils) is untyped and its return type infers
+		// as `{}` -- the frontmatter block genuinely carries whatever keys the
+		// function's docstring declares, required_selfai_ui_version among them.
+		/** @type {{ required_selfai_ui_version?: string } & Record<string, any>} */
 		const manifest = extractFrontmatter(data.content);
 		if (compareVersion(manifest?.required_selfai_ui_version ?? '0.0.0', WEBUI_VERSION)) {
 			console.log('Version is lower than required');
@@ -49,7 +55,7 @@
 			functions.set(await getFunctions(localStorage.token));
 			models.set(await getModels(localStorage.token));
 
-			await goto('/admin/functions');
+			await goto(resolve('/(app)/admin/functions'));
 		}
 	};
 

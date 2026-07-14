@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	import { socket, user } from '$lib/stores';
 
@@ -32,6 +33,10 @@
 		messagesContainerElement.scrollTop = messagesContainerElement.scrollHeight;
 	};
 
+		// Svelte compiles $: blocks in dependency order, not source order --
+	// this is called from an earlier reactive block despite being declared
+	// here. ESLint's static top-down analysis can't see that reordering.
+	// eslint-disable-next-line no-useless-assignment
 	const initHandler = async () => {
 		messages = null;
 		top = false;
@@ -49,7 +54,7 @@
 			await tick();
 			scrollToBottom();
 		} else {
-			goto('/');
+			goto(resolve('/'));
 		}
 	};
 
@@ -123,7 +128,7 @@
 			return;
 		}
 
-		const res = await sendMessage(localStorage.token, channel.id, {
+		await sendMessage(localStorage.token, channel.id, {
 			parent_id: threadId,
 			content: content,
 			data: data

@@ -63,8 +63,12 @@ function detailsExtension() {
 	};
 }
 
-export default function (options = {}) {
+export default function (_options = {}) {
+	// `detailsExtension` takes no arguments and never reads `options` --
+	// it never did, so passing it along was always a no-op at runtime,
+	// just a type error under strict arity checking. Kept as an unused
+	// param (prefixed) to preserve this factory's call signature.
 	return {
-		extensions: [detailsExtension(options)]
+		extensions: [detailsExtension()]
 	};
 }

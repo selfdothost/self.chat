@@ -1,22 +1,14 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { getContext, onMount } from 'svelte';
-	const i18n = getContext('i18n');
+	import { getContext } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { WEBUI_NAME, models, MODEL_DOWNLOAD_POOL, user, config } from '$lib/stores';
+	import { models, MODEL_DOWNLOAD_POOL } from '$lib/stores';
 	import { splitStream } from '$lib/utils';
 
-	import {
-		createModel,
-		deleteModel,
-		downloadModel,
-		getOllamaUrls,
-		getOllamaVersion,
-		pullModel,
-		uploadModel,
-		getOllamaConfig,
-		getOllamaModels
-	} from '$lib/apis/ollama';
+	import { createModel, deleteModel, downloadModel, pullModel, uploadModel, getOllamaModels } from '$lib/apis/ollama';
 	import { getModels } from '$lib/apis';
 
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -51,11 +43,11 @@
 	let createModelDigest = '';
 	let createModelPullProgress = null;
 
-	let digest = '';
-	let pullProgress = null;
-
 	let modelUploadMode = 'file';
-	let modelInputFile: File[] | null = null;
+	// bind:files on the <input type="file"> below hands back the real
+	// FileList the browser populates -- FileList isn't constructible from a
+	// plain array, so this must stay FileList, not File[].
+	let modelInputFile: FileList | null = null;
 	let modelFileUrl = '';
 	let modelFileContent = `TEMPLATE """{{ .System }}\nUSER: {{ .Prompt }}\nASSISTANT: """\nPARAMETER num_ctx 4096\nPARAMETER stop "</s>"\nPARAMETER stop "USER:"\nPARAMETER stop "ASSISTANT:"`;
 	let modelFileDigest = '';
@@ -70,7 +62,7 @@
 			console.log(model);
 
 			updateModelId = model.id;
-			const [res, controller] = await pullModel(localStorage.token, model.id, urlIdx).catch(
+			const [res] = await pullModel(localStorage.token, model.id, urlIdx).catch(
 				(error) => {
 					toast.error(error);
 					return null;
@@ -216,14 +208,13 @@
 							}
 						}
 					}
-				} catch (error) {
-					console.log(error);
-					if (typeof error !== 'string') {
-						error = error.message;
-					}
+				} catch (err) {
+					console.log(err);
+					const errorMessage =
+						typeof err === 'string' ? err : ((err as Error)?.message ?? String(err));
 
-					toast.error(error);
-					// opts.callback({ success: false, error, modelName: opts.modelName });
+					toast.error(errorMessage);
+					// opts.callback({ success: false, error: errorMessage, modelName: opts.modelName });
 				}
 			}
 
@@ -364,23 +355,17 @@
 										!data.status.includes('sha256')
 									) {
 										toast.success(data.status);
-									} else {
-										if (data.digest) {
-											digest = data.digest;
-
-											if (data.completed) {
-												pullProgress = Math.round((data.completed / data.total) * 1000) / 10;
-											} else {
-												pullProgress = 100;
-											}
-										}
 									}
+									// NOTE: unlike the pull-by-tag and create-by-URL paths above, this
+									// create-from-file path never surfaced digest/progress to any UI
+									// state (the local vars it wrote to were write-only and unread) —
+									// left as-is rather than guessing at the intended reactive wiring.
 								}
 							}
 						}
 					} catch (error) {
 						console.log(error);
-						toast.error(error);
+						toast.error((error as Error)?.message ?? String(error));
 					}
 				}
 			}
@@ -489,7 +474,7 @@
 					}
 				} catch (error) {
 					console.log(error);
-					toast.error(error);
+					toast.error((error as Error)?.message ?? String(error));
 				}
 			}
 		}
@@ -668,7 +653,7 @@
 								</div>
 
 								{#if Object.keys($MODEL_DOWNLOAD_POOL).length > 0}
-									{#each Object.keys($MODEL_DOWNLOAD_POOL) as model}
+									{#each Object.keys($MODEL_DOWNLOAD_POOL) as model (model)}
 										{#if 'pullProgress' in $MODEL_DOWNLOAD_POOL[model]}
 											<div class="flex flex-col">
 												<div class="font-medium mb-1">{model}</div>
@@ -737,7 +722,7 @@
 											{#if !deleteModelTag}
 												<option value="" disabled selected>{$i18n.t('Select a model')}</option>
 											{/if}
-											{#each ollamaModels as model}
+											{#each ollamaModels as model (model.id)}
 												<option value={model.id} class="bg-gray-50 dark:bg-gray-700"
 													>{model.name +
 														' (' +

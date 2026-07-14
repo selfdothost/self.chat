@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { getContext, onMount, onDestroy } from 'svelte';
-	import dayjs from 'dayjs';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import type { QueueItem } from '$lib/apis/queue';
 	import { getQueue, runNow, promoteJob } from '$lib/apis/queue';
 
-	const i18n = getContext<any>('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	const POLL_INTERVAL_MS = 15_000;
 
@@ -36,6 +37,7 @@
 		try {
 			await runNow(localStorage.token, item.job_type, item.id);
 			await load();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			alert(typeof e === 'string' ? e : $i18n.t('Failed to promote job'));
 		}
@@ -47,6 +49,7 @@
 		try {
 			await promoteJob(localStorage.token, item.job_type, item.id);
 			await load();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
 			alert(typeof e === 'string' ? e : $i18n.t('Failed to promote job'));
 		}

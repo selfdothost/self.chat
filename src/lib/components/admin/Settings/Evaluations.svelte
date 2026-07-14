@@ -1,7 +1,9 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import { models, user } from '$lib/stores';
-	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
+	import { createEventDispatcher, onMount, getContext } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 	import { getModels } from '$lib/apis';
@@ -14,7 +16,7 @@
 	import Model from './Evaluations/Model.svelte';
 	import ArenaModelModal from './Evaluations/ArenaModelModal.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let config = null;
 	let showAddModel = false;
@@ -118,13 +120,13 @@
 
 					<div class="flex flex-col gap-2">
 						{#if (config?.EVALUATION_ARENA_MODELS ?? []).length > 0}
-							{#each config.EVALUATION_ARENA_MODELS as model, index}
+							{#each config.EVALUATION_ARENA_MODELS as model, index (model.id)}
 								<Model
 									{model}
 									on:edit={(e) => {
 										editModelHandler(e.detail, index);
 									}}
-									on:delete={(e) => {
+									on:delete={(_e) => {
 										deleteModelHandler(index);
 									}}
 								/>

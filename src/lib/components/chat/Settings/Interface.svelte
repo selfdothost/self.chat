@@ -1,17 +1,17 @@
 <script lang="ts">
-	import { getBackendConfig } from '$lib/apis';
-	import { setDefaultPromptSuggestions } from '$lib/apis/configs';
-	import { config, models, settings, user } from '$lib/stores';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
+	import { config, settings, user } from '$lib/stores';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { updateUserInfo } from '$lib/apis/users';
 	import { getUserPosition } from '$lib/utils';
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveSettings: Function;
+	export let saveSettings: AnyFn;
 
 	let backgroundImageUrl = null;
 	let inputFiles = null;
@@ -23,7 +23,6 @@
 
 	let responseAutoCopy = false;
 	let widescreenMode = false;
-	let splitLargeChunks = false;
 	let scrollOnBranchChange = true;
 	let userLocation = false;
 
@@ -44,18 +43,12 @@
 		height: ''
 	};
 
-	// Admin - Show Update Available Toast
-	let showUpdateToast = true;
+	// Admin
 	let showChangelog = true;
 
 	let showEmojiInCall = false;
 	let voiceInterruption = false;
 	let hapticFeedback = false;
-
-	const toggleSplitLargeChunks = async () => {
-		splitLargeChunks = !splitLargeChunks;
-		saveSettings({ splitLargeChunks: splitLargeChunks });
-	};
 
 	const togglesScrollOnBranchChange = async () => {
 		scrollOnBranchChange = !scrollOnBranchChange;
@@ -75,11 +68,6 @@
 	const toggleLandingPageMode = async () => {
 		landingPageMode = landingPageMode === '' ? 'chat' : '';
 		saveSettings({ landingPageMode: landingPageMode });
-	};
-
-	const toggleShowUpdateToast = async () => {
-		showUpdateToast = !showUpdateToast;
-		saveSettings({ showUpdateToast: showUpdateToast });
 	};
 
 	const toggleNotificationSound = async () => {
@@ -205,7 +193,6 @@
 		responseAutoCopy = $settings.responseAutoCopy ?? false;
 
 		showUsername = $settings.showUsername ?? false;
-		showUpdateToast = $settings.showUpdateToast ?? true;
 		showChangelog = $settings.showChangelog ?? true;
 
 		showEmojiInCall = $settings.showEmojiInCall ?? false;
@@ -217,7 +204,6 @@
 		landingPageMode = $settings.landingPageMode ?? '';
 		chatBubble = $settings.chatBubble ?? true;
 		widescreenMode = $settings.widescreenMode ?? false;
-		splitLargeChunks = $settings.splitLargeChunks ?? false;
 		scrollOnBranchChange = $settings.scrollOnBranchChange ?? true;
 		chatDirection = $settings.chatDirection ?? 'LTR';
 		userLocation = $settings.userLocation ?? false;
@@ -227,7 +213,13 @@
 		hapticFeedback = $settings.hapticFeedback ?? false;
 
 		imageCompression = $settings.imageCompression ?? false;
-		imageCompressionSize = $settings.imageCompressionSize ?? { width: '', height: '' };
+		// Settings.imageCompressionSize's fields are optional (unset before first
+		// save), but the local `imageCompressionSize` state backs bound text
+		// inputs and needs both fields present as strings.
+		imageCompressionSize = {
+			width: $settings.imageCompressionSize?.width ?? '',
+			height: $settings.imageCompressionSize?.height ?? ''
+		};
 
 		defaultModelId = $settings?.models?.at(0) ?? '';
 		if ($config?.default_models) {
@@ -402,28 +394,6 @@
 			</div>
 
 			{#if $user.role === 'admin'}
-				<div>
-					<div class=" py-0.5 flex w-full justify-between">
-						<div class=" self-center text-xs">
-							{$i18n.t('Toast notifications for new updates')}
-						</div>
-
-						<button
-							class="p-1 px-3 text-xs flex rounded transition"
-							on:click={() => {
-								toggleShowUpdateToast();
-							}}
-							type="button"
-						>
-							{#if showUpdateToast === true}
-								<span class="ml-2 self-center">{$i18n.t('On')}</span>
-							{:else}
-								<span class="ml-2 self-center">{$i18n.t('Off')}</span>
-							{/if}
-						</button>
-					</div>
-				</div>
-
 				<div>
 					<div class=" py-0.5 flex w-full justify-between">
 						<div class=" self-center text-xs">

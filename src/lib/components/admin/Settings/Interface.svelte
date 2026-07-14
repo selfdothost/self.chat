@@ -1,10 +1,11 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { v4 as uuidv4 } from 'uuid';
-	import { toast } from 'svelte-sonner';
 
 	import { getBackendConfig, getTaskConfig, updateTaskConfig } from '$lib/apis';
 	import { setDefaultPromptSuggestions } from '$lib/apis/configs';
-	import { config, models, settings, user } from '$lib/stores';
+	import { config, models, user } from '$lib/stores';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 
 	import { banners as _banners } from '$lib/stores';
@@ -18,7 +19,7 @@
 
 	const dispatch = createEventDispatcher();
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let taskConfig = {
 		TASK_MODEL: '',
@@ -39,7 +40,15 @@
 	const updateInterfaceHandler = async () => {
 		taskConfig = await updateTaskConfig(localStorage.token, taskConfig);
 
-		promptSuggestions = await setDefaultPromptSuggestions(localStorage.token, promptSuggestions);
+		// setDefaultPromptSuggestions (src/lib/apis/configs) declares its 2nd param
+		// as `string`, but it just JSON.stringifies it as `{ suggestions }` and
+		// promptSuggestions is genuinely an array here (see onMount below) --
+		// that signature looks like a copy/paste bug in configs/index.ts, out of
+		// scope for this file. Cast at the call site rather than mask it silently.
+		promptSuggestions = await setDefaultPromptSuggestions(
+			localStorage.token,
+			promptSuggestions as unknown as string
+		);
 		await updateBanners();
 
 		await config.set(await getBackendConfig());
@@ -99,7 +108,7 @@
 							placeholder={$i18n.t('Select a model')}
 						>
 							<option value="" selected>{$i18n.t('Current Model')}</option>
-							{#each $models.filter((m) => m.owned_by === 'ollama') as model}
+							{#each $models.filter((m) => m.owned_by === 'ollama') as model (model.id)}
 								<option value={model.id} class="bg-gray-100 dark:bg-gray-700">
 									{model.name}
 								</option>
@@ -115,7 +124,7 @@
 							placeholder={$i18n.t('Select a model')}
 						>
 							<option value="" selected>{$i18n.t('Current Model')}</option>
-							{#each $models as model}
+							{#each $models as model (model.id)}
 								<option value={model.id} class="bg-gray-100 dark:bg-gray-700">
 									{model.name}
 								</option>
@@ -274,7 +283,7 @@
 					</button>
 				</div>
 				<div class="flex flex-col space-y-1">
-					{#each banners as banner, bannerIdx}
+					{#each banners as banner, bannerIdx (banner.id)}
 						<div class=" flex justify-between">
 							<div class="flex flex-row flex-1 border rounded-xl dark:border-gray-800">
 								<select
@@ -359,7 +368,8 @@
 						</button>
 					</div>
 					<div class="grid lg:grid-cols-2 flex-col gap-1.5">
-						{#each promptSuggestions as prompt, promptIdx}
+						<!-- no stable id on prompt suggestions; index is fine, list is only appended/spliced in place, never reordered -->
+						{#each promptSuggestions as prompt, promptIdx (promptIdx)}
 							<div
 								class=" flex border border-gray-100 dark:border-none dark:bg-gray-850 rounded-xl py-1.5"
 							>

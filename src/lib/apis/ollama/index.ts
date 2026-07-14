@@ -336,7 +336,7 @@ export const generateTextCompletion = async (token: string = '', model: string, 
 };
 
 export const generateChatCompletion = async (token: string = '', body: object) => {
-	let controller = new AbortController();
+	const controller = new AbortController();
 	let error = null;
 
 	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/chat`, {
@@ -364,7 +364,10 @@ export const createModel = async (
 	token: string,
 	tagName: string,
 	content: string,
-	urlIdx: string | null = null
+	// urlIdx is a numeric index into the connections array (matches
+	// pullModel/getOllamaModels below and every call site) — the `string`
+	// annotation here was inconsistent with that, not a deliberate choice.
+	urlIdx: number | null = null
 ) => {
 	let error = null;
 
@@ -394,7 +397,7 @@ export const createModel = async (
 	return res;
 };
 
-export const deleteModel = async (token: string, tagName: string, urlIdx: string | null = null) => {
+export const deleteModel = async (token: string, tagName: string, urlIdx: number | null = null) => {
 	let error = null;
 
 	const res = await fetch(
@@ -471,7 +474,7 @@ export const pullModel = async (token: string, tagName: string, urlIdx: number |
 export const downloadModel = async (
 	token: string,
 	download_url: string,
-	urlIdx: string | null = null
+	urlIdx: number | null = null
 ) => {
 	let error = null;
 
@@ -504,7 +507,7 @@ export const downloadModel = async (
 	return res;
 };
 
-export const uploadModel = async (token: string, file: File, urlIdx: string | null = null) => {
+export const uploadModel = async (token: string, file: File, urlIdx: number | null = null) => {
 	let error = null;
 
 	const formData = new FormData();

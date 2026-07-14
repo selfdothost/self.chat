@@ -1,12 +1,13 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { v4 as uuidv4 } from 'uuid';
-	import { chats, config, settings, user as _user, mobile, currentChatPage } from '$lib/stores';
-	import { tick, getContext, onMount, createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { chats, settings, user as _user, currentChatPage } from '$lib/stores';
+	import { tick, getContext } from 'svelte';
 
 	import { toast } from 'svelte-sonner';
 	import { getChatList, updateChatById } from '$lib/apis/chats';
-	import { copyToClipboard, findWordIndices } from '$lib/utils';
 
 	import Message from './Messages/Message.svelte';
 	import Loader from '../common/Loader.svelte';
@@ -14,7 +15,7 @@
 
 	import ChatPlaceholder from './ChatPlaceholder.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let className = 'h-full flex pt-8';
 
@@ -22,20 +23,25 @@
 	export let user = $_user;
 
 	export let prompt;
-	export let history = {};
+	// A chat message node's remaining fields (content, model, done, etc.) vary
+	// by message type/role, so they're left as `any` rather than modeled here.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	type HistoryMessage = { id: string; parentId: string | null; childrenIds: string[]; [key: string]: any };
+	type History = { messages: Record<string, HistoryMessage>; currentId?: string | null };
+	export let history: History = { messages: {}, currentId: null };
 	export let selectedModels;
 
 	let messages = [];
 
-	export let sendPrompt: Function;
-	export let continueResponse: Function;
-	export let regenerateResponse: Function;
-	export let mergeResponses: Function;
+	export let sendPrompt: AnyFn;
+	export let continueResponse: AnyFn;
+	export let regenerateResponse: AnyFn;
+	export let mergeResponses: AnyFn;
 
-	export let chatActionHandler: Function;
-	export let showMessage: Function = () => {};
-	export let submitMessage: Function = () => {};
-	export let addMessages: Function = () => {};
+	export let chatActionHandler: AnyFn;
+	export let showMessage: AnyFn = () => {};
+	export let submitMessage: AnyFn = () => {};
+	export let addMessages: AnyFn = () => {};
 
 	export let readOnly = false;
 
@@ -343,7 +349,7 @@
 				let text = p;
 
 				if (p.includes('{{CLIPBOARD}}')) {
-					const clipboardText = await navigator.clipboard.readText().catch((err) => {
+					const clipboardText = await navigator.clipboard.readText().catch((_err) => {
 						toast.error($i18n.t('Failed to read clipboard contents'));
 						return '{{CLIPBOARD}}';
 					});
@@ -374,7 +380,7 @@
 				<div class="w-full">
 					{#if messages.at(0)?.parentId !== null}
 						<Loader
-							on:visible={(e) => {
+							on:visible={(_e) => {
 								console.log('visible');
 								if (!messagesLoading) {
 									loadMoreMessages();

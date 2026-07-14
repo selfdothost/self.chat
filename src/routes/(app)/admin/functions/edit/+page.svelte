@@ -3,6 +3,7 @@
 	import { onMount, getContext } from 'svelte';
 
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import { functions, models } from '$lib/stores';
 	import { updateFunctionById, getFunctions, getFunctionById } from '$lib/apis/functions';
@@ -13,6 +14,7 @@
 	import { compareVersion, extractFrontmatter } from '$lib/utils';
 	import { WEBUI_VERSION } from '$lib/constants';
 
+	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
 	let func = null;
@@ -20,7 +22,12 @@
 	const saveHandler = async (data) => {
 		console.log(data);
 
-		const manifest = extractFrontmatter(data.content);
+		// extractFrontmatter's return type is inferred as `{}` (it builds the
+		// object dynamically via `frontmatter[key] = value`), so the frontmatter
+		// field this file actually reads needs a local cast.
+		const manifest = /** @type {{ required_selfai_ui_version?: string }} */ (
+			extractFrontmatter(data.content)
+		);
 		if (compareVersion(manifest?.required_selfai_ui_version ?? '0.0.0', WEBUI_VERSION)) {
 			console.log('Version is lower than required');
 			toast.error(
@@ -59,7 +66,7 @@
 		if (id) {
 			func = await getFunctionById(localStorage.token, id).catch((error) => {
 				toast.error(error);
-				goto('/admin/functions');
+				goto(resolve('/(app)/admin/functions'));
 				return null;
 			});
 

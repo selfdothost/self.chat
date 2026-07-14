@@ -1,8 +1,10 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import Sortable from 'sortablejs';
 
-	import { createEventDispatcher, getContext, onMount } from 'svelte';
-	const i18n = getContext('i18n');
+	import { getContext, onMount } from 'svelte';
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { models } from '$lib/stores';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -10,8 +12,10 @@
 
 	export let modelIds = [];
 
-	let sortable = null;
-	let modelListElement = null;
+	// Untyped (`= null` with no annotation) made `modelListElement.children`
+	// resolve to `any`, which in turn made Array.from(...)'s element type
+	// infer as `unknown` below instead of `Element`.
+	let modelListElement: HTMLDivElement | null = null;
 
 	const positionChangeHandler = () => {
 		const modelList = Array.from(modelListElement.children).map((child) =>
@@ -22,9 +26,9 @@
 	};
 
 	onMount(() => {
-		sortable = Sortable.create(modelListElement, {
+		Sortable.create(modelListElement, {
 			animation: 150,
-			onUpdate: async (event) => {
+			onUpdate: async (_event) => {
 				positionChangeHandler();
 			}
 		});
@@ -33,7 +37,7 @@
 
 {#if modelIds.length > 0}
 	<div class="flex flex-col -translate-x-1" bind:this={modelListElement}>
-		{#each modelIds as modelId, modelIdx (modelId)}
+		{#each modelIds as modelId, _modelIdx (modelId)}
 			<div class=" flex gap-2 w-full justify-between items-center" id="model-item-{modelId}">
 				<Tooltip content={modelId} placement="top-start">
 					<div class="flex items-center gap-1">

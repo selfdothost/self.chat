@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 	$: dispatch('change', open);
@@ -24,8 +24,6 @@
 
 <div class={className}>
 	{#if title !== null}
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<div
 			class="{buttonClassName} cursor-pointer"
 			on:pointerup={() => {
@@ -49,8 +47,6 @@
 			</div>
 		</div>
 	{:else}
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<div
 			class="{buttonClassName} cursor-pointer"
 			on:pointerup={() => {

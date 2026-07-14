@@ -1,13 +1,14 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
 	import { createEventDispatcher, getContext } from 'svelte';
 	import { formatFileSize } from '$lib/utils';
 
 	import FileItemModal from './FileItemModal.svelte';
-	import GarbageBin from '../icons/GarbageBin.svelte';
 	import Spinner from './Spinner.svelte';
 	import Tooltip from './Tooltip.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
 	export let className = 'w-60';
@@ -26,18 +27,8 @@
 	export let size: number;
 
 	let showModal = false;
-</script>
 
-{#if item}
-	<FileItemModal bind:show={showModal} bind:item {edit} />
-{/if}
-
-<button
-	class="relative group p-1.5 {className} flex items-center gap-1 {colorClassName} {small
-		? 'rounded-xl'
-		: 'rounded-2xl'} text-left"
-	type="button"
-	on:click={async () => {
+	const openHandler = async () => {
 		if (item?.file?.data?.content) {
 			showModal = !showModal;
 		} else {
@@ -51,6 +42,25 @@
 		}
 
 		dispatch('click');
+	};
+</script>
+
+{#if item}
+	<FileItemModal bind:show={showModal} bind:item {edit} />
+{/if}
+
+<div
+	role="button"
+	tabindex="0"
+	class="relative group p-1.5 {className} flex items-center gap-1 {colorClassName} {small
+		? 'rounded-xl'
+		: 'rounded-2xl'} text-left"
+	on:click={openHandler}
+	on:keydown={(e) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			openHandler();
+		}
 	}}
 >
 	{#if !small}
@@ -145,4 +155,4 @@
 			</button> -->
 		</div>
 	{/if}
-</button>
+</div>

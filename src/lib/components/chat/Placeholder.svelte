@@ -1,14 +1,18 @@
 <script lang="ts">
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { marked } from 'marked';
 
 	import { onMount, getContext, tick, createEventDispatcher } from 'svelte';
-	import { blur, fade } from 'svelte/transition';
+	import { fade } from 'svelte/transition';
 
 	const dispatch = createEventDispatcher();
 
 	import { config, user, models as _models, temporaryChatEnabled } from '$lib/stores';
-	import { sanitizeResponseContent, findWordIndices } from '$lib/utils';
+	import type { Model } from '$lib/stores';
+	import { sanitizeResponseContent } from '$lib/utils';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
 	import Suggestions from './Suggestions.svelte';
@@ -16,17 +20,17 @@
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
 	import MessageInput from './MessageInput.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let transparentBackground = false;
 
-	export let createMessagePair: Function;
-	export let stopResponse: Function;
+	export let createMessagePair: AnyFn;
+	export let stopResponse: AnyFn;
 
 	export let autoScroll = false;
 
 	export let atSelectedModel: Model | undefined;
-	export let selectedModels: [''];
+	export let selectedModels: string[];
 
 	export let history;
 
@@ -42,7 +46,7 @@
 		let text = p;
 
 		if (p.includes('{{CLIPBOARD}}')) {
-			const clipboardText = await navigator.clipboard.readText().catch((err) => {
+			const clipboardText = await navigator.clipboard.readText().catch((_err) => {
 				toast.error($i18n.t('Failed to read clipboard contents'));
 				return '{{CLIPBOARD}}';
 			});
@@ -106,7 +110,8 @@
 			<div class="flex flex-row justify-center gap-3 sm:gap-3.5 w-fit px-5">
 				<div class="flex flex-shrink-0 justify-center">
 					<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
-						{#each models as model, modelIdx}
+						<!-- compare mode lets the user pick the same model into more than one slot; index is the only stable disambiguator -->
+						{#each models as model, modelIdx (modelIdx)}
 							<Tooltip
 								content={(models[modelIdx]?.info?.meta?.tags ?? [])
 									.map((tag) => tag.name.toUpperCase())
@@ -149,13 +154,15 @@
 						<Tooltip
 							className=" w-fit"
 							content={marked.parse(
-								sanitizeResponseContent(models[selectedModelIdx]?.info?.meta?.description ?? '')
+								sanitizeResponseContent(models[selectedModelIdx]?.info?.meta?.description ?? ''),
+								{ async: false }
 							)}
 							placement="top"
 						>
 							<div
 								class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
 							>
+								<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitizeResponseContent() (src/lib/utils/index.ts) HTML-entity-escapes < and > before this reaches marked.parse() -->
 								{@html marked.parse(
 									sanitizeResponseContent(models[selectedModelIdx]?.info?.meta?.description)
 								)}

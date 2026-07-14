@@ -1,15 +1,17 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher } from 'svelte';
-	import { onMount, getContext } from 'svelte';
+	import type { i18n as i18nType } from 'i18next';
+	import type { Writable } from 'svelte/store';
+	import { getContext } from 'svelte';
 
 	import Modal from '../../common/Modal.svelte';
 
-	const i18n = getContext('i18n');
-	const dispatch = createEventDispatcher();
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let show = false;
-	export let manifest = {};
+	// Plugin/tool manifest frontmatter (see extractFrontmatter() in
+	// $lib/utils) -- an open bag of string fields (funding_url, version,
+	// required_selfai_ui_version, ...), not a fixed shape.
+	export let manifest: Record<string, string> = {};
 </script>
 
 <Modal size="sm" bind:show>
@@ -62,6 +64,7 @@
 							<a
 								href={manifest.funding_url}
 								target="_blank"
+								rel="external"
 								class="underline text-blue-400 hover:text-blue-300">{manifest.funding_url}</a
 							>
 						</div>
@@ -81,24 +84,4 @@
 	</div>
 </Modal>
 
-<style>
-	input::-webkit-outer-spin-button,
-	input::-webkit-inner-spin-button {
-		/* display: none; <- Crashes Chrome on hover */
-		-webkit-appearance: none;
-		margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
-	}
 
-	.tabs::-webkit-scrollbar {
-		display: none; /* for Chrome, Safari and Opera */
-	}
-
-	.tabs {
-		-ms-overflow-style: none; /* IE and Edge */
-		scrollbar-width: none; /* Firefox */
-	}
-
-	input[type='number'] {
-		-moz-appearance: textfield; /* Firefox */
-	}
-</style>
