@@ -11,7 +11,7 @@
 # 16Gi fits the vite 6GB+ heap (see Dockerfile NODE_OPTIONS) and keeps us off
 # `bigbuild`, which is reserved for the heavy from-source builds (e.g. llamolotl).
 
-stages: [lint, test, build, publish]
+stages: [lint, test, build, e2e, publish]
 
 include:
   - project: 'selfshipyard/selfai/self.ai'
@@ -26,6 +26,23 @@ sync:public-alpha:
   extends: .sync-public-alpha
   variables:
     MIRROR_EXCLUDE_PATHS: ""
+
+# --- pipeline validation: guarantees a non-empty pipeline for every MR/push -
+# Every other job here is gated behind a `changes:` filter, so a diff that
+# touches none of those paths (CHANGELOG.md, docs/, README, ...) matches zero
+# jobs. GitLab then refuses to create a pipeline at all ("the resulting
+# pipeline would have been empty"), which permanently blocks merging under
+# "pipelines must succeed" -- there's nothing for that check to point at.
+# This job has no `changes:` filter, so it always runs.
+pipeline:validate:
+  stage: lint
+  image: alpine:3.20
+  tags: [yard]
+  script:
+    - echo "pipeline OK"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
 
 # --- lint: advisory, runs on the bare scaffold too --------------------------
 lint:
@@ -99,3 +116,153 @@ build:web:
       changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
+
+# --- e2e: Cypress specs against a live self.ai API (sqlite, ephemeral) ------
+# selfshipyard/selfai/self.chat#5 — the 4 specs under cypress/e2e/ need a real
+# backend: registration.cy.ts registers the FIRST user and asserts they land
+# as admin (Users.get_num_users() == 0 in self.ai's
+# api/selfai_ui/routers/auths.py), which only holds against a genuinely empty
+# user table. Decision: no MSW rewrite, no separate integration repo — stand
+# self.ai's own API up right here, sqlite-backed (its zero-config default —
+# api/selfai_ui/env.py's DATABASE_URL falls back to
+# sqlite:///{DATA_DIR}/webui.db, and internal/db.py branches on "sqlite" in
+# the URL for the engine's connect_args). No Postgres service, no DB service
+# at all.
+#
+# Why a venv + git-archive fetch, not a `services:` container pulling self.ai's
+# published api image: that image lives in a DIFFERENT project's container
+# registry (container.home.../selfshipyard/selfai/self.ai/api), and whether
+# this runner's services-image pull auth reaches across projects the way the
+# job's own registry push does is NOT something readable from this repo — it
+# depends on runner/executor config we have no visibility into. A plain HTTPS
+# fetch of self.ai's api/ tree via GitLab's archive-by-path endpoint,
+# authenticated with this job's own CI_JOB_TOKEN, sidesteps that: both
+# projects have ci_job_token_scope_enabled: false (confirmed via the GitLab
+# API), the same cross-project trust the `include:` above already leans on.
+# Then `pip install` + `uvicorn selfai_ui.main:app` directly is the
+# "lightweight way to run just the API" self.ai's own Dockerfile comments
+# describe — api/ is torch-free, no CUDA, no model downloads (see
+# api/requirements-api.txt).
+#
+# Same-origin, not CORS: self.chat's production build calls the API with
+# relative URLs outside dev (WEBUI_BASE_URL='' — src/lib/constants.ts, and
+# Dockerfile's own header comment says as much), and cypress.config.ts's
+# baseUrl is hardcoded to http://localhost:8080. So this job builds
+# self.chat's static bundle and points self.ai's API at it via
+# FRONTEND_BUILD_DIR — exactly what self.ai/Dockerfile.combined does with two
+# published images, just assembled live from source instead. One origin, one
+# port, zero CORS_ALLOW_ORIGIN wiring.
+#
+# KNOWN GAP, not fixed by this job: chat.cy.ts drives real model selection
+# and inference (Ollama). ENABLE_OLLAMA_API/ENABLE_OPENAI_API are both False
+# below — there is no inference engine anywhere in this pipeline — so
+# `button[aria-label="model-item"]` will never exist and chat.cy.ts's 4 tests
+# are expected to fail here. That's a separate problem (a stub/mock model
+# provider, or carving chat.cy.ts out of this gate) from the DB wiring this
+# job solves. registration.cy.ts and settings.cy.ts need no inference and
+# should pass; documents.cy.ts is currently an empty stub file.
+#
+# UNVERIFIED (no live runner to check against before landing this):
+#   - cross-project CI_JOB_TOKEN read via the archive API, as reasoned above
+#   - requirements-api.txt installing cleanly on this image's system Python
+#     (Debian trixie ships newer than the 3.11 self.ai's own Dockerfile
+#     pins — most pins should have wheels by now, but unconfirmed)
+#   - egress to Cypress's own binary CDN (download.cypress.io) from this
+#     runner, same class of assumption as the PyPI/npm egress every other
+#     job here already depends on
+# allow_failure: true until a real pipeline run confirms this end to end —
+# same soft-landing pattern lint:ruff and lint:eslint used in this yard
+# before being made blocking.
+e2e:cypress:
+  stage: e2e
+  image: cypress/browsers:node-22.21.0-chrome-141.0.7390.107-1-ff-144.0-edge-141.0.3537.92-1
+  tags: [yard-midbuild]
+  timeout: 45m
+  allow_failure: true
+  variables:
+    NODE_OPTIONS: --max-old-space-size=6144
+    CYPRESS_CACHE_FOLDER: "$CI_PROJECT_DIR/.cache/Cypress"
+    SELFAI_PROJECT_PATH: "selfshipyard%2Fselfai%2Fself.ai"
+    SELFAI_REF: main
+    SELFAI_API_DIR: "$CI_PROJECT_DIR/.selfai-api"
+    HOST: "0.0.0.0"
+    PORT: "8080"
+    DATA_DIR: "$CI_PROJECT_DIR/.selfai-api-data"
+    FRONTEND_BUILD_DIR: "$CI_PROJECT_DIR/build"
+    ENABLE_OLLAMA_API: "False"
+    ENABLE_OPENAI_API: "False"
+    SCARF_NO_ANALYTICS: "true"
+    DO_NOT_TRACK: "true"
+    ANONYMIZED_TELEMETRY: "false"
+  before_script:
+    # cypress/browsers ships node+chrome+ff+edge+Xvfb (debian:13-slim base)
+    # but no Python — add just enough to run self.ai's API. python3-venv:
+    # Debian's system python is externally-managed (PEP 668); a venv avoids
+    # --break-system-packages entirely.
+    - apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip jq ca-certificates && rm -rf /var/lib/apt/lists/*
+    - npm ci
+  script:
+    # 1. Fetch self.ai's api/ tree only (no submodules, no full git history)
+    #    via GitLab's archive-by-path endpoint, authenticated with this job's
+    #    own CI_JOB_TOKEN.
+    - >
+      curl --fail --location --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+      "${CI_API_V4_URL}/projects/${SELFAI_PROJECT_PATH}/repository/archive.tar.gz?sha=${SELFAI_REF}&path=api"
+      -o /tmp/selfai-api.tar.gz
+    - mkdir -p "$SELFAI_API_DIR"
+      # archive.tar.gz --path=api wraps the tree in <project>-<ref>-<sha>/api/... ;
+      # strip both so requirements-api.txt/selfai_ui/ land at $SELFAI_API_DIR/.
+    - tar xzf /tmp/selfai-api.tar.gz -C "$SELFAI_API_DIR" --strip-components=2
+
+    # 2. Install the API-tier deps into a venv.
+    - python3 -m venv /tmp/selfai-venv
+    - . /tmp/selfai-venv/bin/activate
+    - pip install --no-cache-dir --upgrade pip
+    - pip install --no-cache-dir -r "$SELFAI_API_DIR/requirements-api.txt"
+
+    # 3. Build self.chat's static bundle (adapter-static -> ./build, SPA
+    #    fallback to index.html per svelte.config.js) for self.ai's API to
+    #    serve same-origin.
+    - npm run build
+
+    # 4. Start self.ai's API in the background: fresh job-local DATA_DIR (so
+    #    the sqlite DB is genuinely empty this run — required for
+    #    registration.cy.ts's "first user becomes admin" assumption), built
+    #    frontend wired in via FRONTEND_BUILD_DIR. WEBUI_SECRET_KEY is
+    #    generated explicitly rather than via start.sh's /dev/random file
+    #    dance — one less moving part in CI.
+    - mkdir -p "$DATA_DIR"
+    - export WEBUI_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+    - >
+      (cd "$SELFAI_API_DIR" && exec uvicorn selfai_ui.main:app --host "$HOST" --port "$PORT" --forwarded-allow-ips '*')
+      > "$CI_PROJECT_DIR/selfai-api.log" 2>&1 &
+    - echo $! > /tmp/selfai-api.pid
+
+    # 5. Wait for /health (same check as self.ai/api/Dockerfile's HEALTHCHECK).
+    - >
+      for i in $(seq 1 60); do
+        if curl --silent --fail http://localhost:8080/health | jq -e '.status == true' > /dev/null 2>&1; then
+          echo "self.ai API is up (after ${i}x2s polls)"; break;
+        fi
+        if [ "$i" -eq 60 ]; then
+          echo "self.ai API did not become healthy in time"; cat "$CI_PROJECT_DIR/selfai-api.log"; exit 1;
+        fi
+        sleep 2
+      done
+
+    # 6. Run the specs headless. See the KNOWN GAP note above re: chat.cy.ts.
+    - npm run cy:run
+  after_script:
+    - kill "$(cat /tmp/selfai-api.pid 2>/dev/null)" 2>/dev/null || true
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - cypress/videos/
+      - cypress/screenshots/
+      - selfai-api.log
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: [src/**/*, static/**/*, cypress/**/*, package.json, package-lock.json, cypress.config.ts, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*, .gitlab-ci.yml]
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [src/**/*, static/**/*, cypress/**/*, package.json, package-lock.json, cypress.config.ts, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*, .gitlab-ci.yml]

@@ -14,6 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Dependency modernization, round 2** (self.chat#6): bumped `i18next` 23→26,
+  `i18next-browser-languagedetector` 7→8, `eventsource-parser` 1→3, and
+  `codemirror-lang-hcl` beta.2→0.1.0 after confirming none of each package's
+  real breaking changes touch this codebase's actual usage. The
+  `eventsource-parser` bump required one mechanical fix: `ParsedEvent` was
+  renamed to `EventSourceMessage` upstream (`src/lib/apis/streaming/index.ts`).
+  `@huggingface/transformers`, `typescript`, `cypress`, and `tailwindcss` were
+  scoped but intentionally not bumped — see
+  `context/treasuremaps/2026-07-18-selfchat-dep-modernization-round2.md` in the
+  Data repo for why each needs real migration work rather than a version bump.
+
+### Fixed
+
+- **Model toggles reverting after a page refresh**: Admin → Settings → Models
+  (and Workspace → Models) toggles could silently flip back to their previous
+  state after reloading the page. The shared `Switch` component fired its
+  `change` event on every mount, not only on genuine user interaction — so
+  every page load re-fired a toggle for every visible model, independent of
+  what an admin actually clicked. Fixed by only dispatching `change` on real
+  interaction (bits-ui's `onCheckedChange`), not on component initialization.
+
+---
+
 ## [0.5.4] - 2024-01-05
 
 ### Added
