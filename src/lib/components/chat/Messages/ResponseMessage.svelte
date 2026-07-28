@@ -24,10 +24,12 @@
 	import RateComment from './RateComment.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import WebSearchResults from './ResponseMessage/WebSearchResults.svelte';
+	import WebFetchResult from './ResponseMessage/WebFetchResult.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import Error from './Error.svelte';
 	import Citations from './Citations.svelte';
 	import CodeExecutions from './CodeExecutions.svelte';
+	import Reasoning from './Reasoning.svelte';
 
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
@@ -36,29 +38,44 @@
 	import { getChatById } from '$lib/apis/chats';
 	import { generateTags } from '$lib/apis';
 
+	// One status event emitted by a tool over the event bus. Declared once and
+	// referenced by both `status` and `statusHistory`, which carried identical
+	// inline copies before and had already drifted from what the API actually
+	// sends: `error` is set by every failing tool status (web_search included)
+	// but was absent here, so reading it was a type error.
+	interface ChatStatus {
+		done: boolean;
+		action: string;
+		description: string;
+		hidden?: boolean;
+		error?: boolean;
+		// Search-shaped tools (web_search, deep_research): the query and the
+		// pages touched.
+		urls?: string[];
+		query?: string;
+		// Single-page tools (web_fetch): the one page read, and its title once
+		// the read succeeded.
+		url?: string;
+		title?: string;
+		// web_crawl: the destination knowledge base, and the background job the
+		// crawl runs under. The crawl is not finished when this status arrives.
+		knowledge_name?: string;
+		job_id?: string;
+	}
+
 	interface MessageType {
 		id: string;
 		model: string;
 		content: string;
+		// Model thinking, carried and persisted separately from `content` so it is never
+		// rendered or saved as the answer. Only Anthropic models populate it today
+		// (self.ai#59); every other provider leaves it undefined.
+		reasoning?: string;
 		files?: { type: string; url: string }[];
 		timestamp: number;
 		role: string;
-		statusHistory?: {
-			done: boolean;
-			action: string;
-			description: string;
-			urls?: string[];
-			query?: string;
-			hidden?: boolean;
-		}[];
-		status?: {
-			done: boolean;
-			action: string;
-			description: string;
-			urls?: string[];
-			query?: string;
-			hidden?: boolean;
-		};
+		statusHistory?: ChatStatus[];
+		status?: ChatStatus;
 		done: boolean;
 		error?: boolean | { content: string };
 		// RAG citation records -- shape matches Citations.svelte's local `Citation`
@@ -244,9 +261,12 @@
 			for (const [idx, sentence] of messageContentParts.entries()) {
 				const res = await synthesizeOpenAISpeech(
 					localStorage.token,
-					$settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
-						? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
-						: $config?.audio?.tts?.voice,
+					// A per-model voice (Workspace Model meta.audio.tts_voice) overrides
+					// the user/global default when this model is the one responding.
+					model?.info?.meta?.audio?.tts_voice ??
+						($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
+							? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
+							: $config?.audio?.tts?.voice),
 					sentence
 				).catch((error) => {
 					console.error(error);
@@ -552,7 +572,10 @@
 										</div>
 									{/if}
 
-									{#if status?.action === 'web_search' && status?.urls}
+									{#if (status?.action === 'web_search' || status?.action === 'deep_research') && status?.urls}
+										<!-- deep_research shares this surface deliberately: its status carries
+										     the same (query, urls) shape, and a reader wants the same thing --
+										     which pages were touched. web_search's own rendering is unchanged. -->
 										<WebSearchResults
 											status={{ urls: status?.urls ?? [], query: status?.query ?? '' }}
 										>
@@ -570,6 +593,11 @@
 														{$i18n.t(status?.description, {
 															count: status?.urls.length
 														})}
+													{:else if status?.description.includes('{{searchQuery}}')}
+														<!-- $i18n.t('Researching "{{searchQuery}}"') -->
+														{$i18n.t(status?.description, {
+															searchQuery: status?.query
+														})}
 													{:else if status?.description === 'No search query generated'}
 														{$i18n.t('No search query generated')}
 													{:else if status?.description === 'Generating search query'}
@@ -580,6 +608,59 @@
 												</div>
 											</div>
 										</WebSearchResults>
+									{:else if status?.action === 'web_crawl'}
+										<WebFetchResult
+											status={{
+												url: status?.url ?? '',
+												title: status?.knowledge_name ?? '',
+												done: status?.done,
+												error: status?.error
+											}}
+										>
+											<div class="flex flex-col justify-center -space-y-0.5">
+												<div
+													class="{status?.done === false
+														? 'shimmer'
+														: ''} text-gray-500 dark:text-gray-500 text-base line-clamp-1 text-wrap"
+												>
+													<!-- The crawl runs in the background; this reports that it
+													     started, not that it finished.
+													     $i18n.t('Crawling') / $i18n.t('Started crawling')
+													     $i18n.t('Could not start crawling') -->
+													{$i18n.t(status?.description?.replace(' {{url}}', '') ?? '')}
+													{#if status?.knowledge_name}
+														<span class="text-gray-400 dark:text-gray-600">
+															&rarr; {status.knowledge_name}
+														</span>
+													{/if}
+												</div>
+											</div>
+										</WebFetchResult>
+									{:else if status?.action === 'web_fetch'}
+										<WebFetchResult
+											status={{
+												url: status?.url ?? '',
+												title: status?.title ?? '',
+												done: status?.done,
+												error: status?.error
+											}}
+										>
+											<div class="flex flex-col justify-center -space-y-0.5">
+												<div
+													class="{status?.done === false
+														? 'shimmer'
+														: ''} text-gray-500 dark:text-gray-500 text-base line-clamp-1 text-wrap"
+												>
+													<!-- The URL is rendered as a link by the chip beside this
+													     label, so the placeholder is dropped rather than
+													     interpolated -- the address would otherwise appear twice.
+													     $i18n.t('Reading')
+													     $i18n.t('Read')
+													     $i18n.t('Could not read') -->
+													{$i18n.t(status?.description?.replace(' {{url}}', '') ?? '')}
+												</div>
+											</div>
+										</WebFetchResult>
 									{:else if status?.action === 'knowledge_search'}
 										<div class="flex flex-col justify-center -space-y-0.5">
 											<div
@@ -681,7 +762,9 @@
 							</div>
 						{:else}
 							<div class="w-full flex flex-col relative" id="response-content-container">
-								{#if message.content === '' && !message.error}
+								<Reasoning reasoning={message?.reasoning ?? ''} done={message?.done ?? false} />
+
+								{#if message.content === '' && !message.error && !message?.reasoning}
 									<Skeleton />
 								{:else if message.content && message.error !== true}
 									<!-- always show message contents even if there's an error -->

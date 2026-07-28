@@ -199,6 +199,30 @@
 		updatePortPositions();
 	});
 
+	// Bug (self.chat#28): `portPositions` is read reactively by `computedPaths`/
+	// `pendingPath` below, so reassigning it is a genuine state change from
+	// Svelte's point of view regardless of whether the *content* changed --
+	// Svelte flags any assignment to a tracked variable as dirty, it does not
+	// diff the new value against the old one. `afterUpdate` used to call
+	// `updatePortPositions()` and reassign unconditionally on every cycle, which
+	// is a self-sustaining loop even with zero nodes on the canvas (an empty
+	// `next` Map is still a *new* Map instance every time): reassign -> the two
+	// `$:` blocks above recompute -> render -> `afterUpdate` fires again ->
+	// reassign again, forever, until Svelte's `effect_update_depth_exceeded`
+	// guard kills the whole component. `portsEqual` below breaks the cycle by
+	// only reassigning when the actual computed positions changed.
+	function portsEqual(
+		a: Map<string, { x: number; y: number }>,
+		b: Map<string, { x: number; y: number }>
+	): boolean {
+		if (a.size !== b.size) return false;
+		for (const [key, pos] of a) {
+			const other = b.get(key);
+			if (!other || other.x !== pos.x || other.y !== pos.y) return false;
+		}
+		return true;
+	}
+
 	function updatePortPositions() {
 		if (!canvasEl) return;
 		const canvasRect = canvasEl.getBoundingClientRect();
@@ -218,7 +242,9 @@
 				y: rect.top + rect.height / 2 - canvasRect.top
 			});
 		});
-		portPositions = next;
+		if (!portsEqual(next, portPositions)) {
+			portPositions = next;
+		}
 	}
 
 	// Convert screen coords (relative to canvasEl) to world coords (accounting for pan)

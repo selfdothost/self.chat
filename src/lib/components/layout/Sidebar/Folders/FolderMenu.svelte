@@ -13,6 +13,8 @@
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Download from '$lib/components/icons/Download.svelte';
+	import Cog6 from '$lib/components/icons/Cog6.svelte';
+	import PencilSquare from '$lib/components/icons/PencilSquare.svelte';
 
 	let show = false;
 </script>
@@ -39,11 +41,31 @@
 			<DropdownMenu.Item
 				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 				onSelect={() => {
+					dispatch('newChat');
+				}}
+			>
+				<PencilSquare strokeWidth="2" className="size-4" />
+				<div class="flex items-center">{$i18n.t('New Chat')}</div>
+			</DropdownMenu.Item>
+
+			<DropdownMenu.Item
+				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+				onSelect={() => {
 					dispatch('rename');
 				}}
 			>
 				<Pencil strokeWidth="2" />
 				<div class="flex items-center">{$i18n.t('Rename')}</div>
+			</DropdownMenu.Item>
+
+			<DropdownMenu.Item
+				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+				onSelect={() => {
+					dispatch('configure');
+				}}
+			>
+				<Cog6 strokeWidth="2" />
+				<div class="flex items-center">{$i18n.t('Configure')}</div>
 			</DropdownMenu.Item>
 
 			<DropdownMenu.Item

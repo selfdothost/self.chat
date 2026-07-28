@@ -16,6 +16,7 @@
 	import { getLlamolotlConfig, updateLlamolotlConfig } from '$lib/apis/llamolotl';
 	import { getOllamaConfig, updateOllamaConfig } from '$lib/apis/ollama';
 	import { getOpenAIConfig, updateOpenAIConfig, getOpenAIModels } from '$lib/apis/openai';
+	import { getAnthropicConfig, updateAnthropicConfig } from '$lib/apis/anthropic';
 	import { getModels as _getModels } from '$lib/apis';
 
 	import { models, user } from '$lib/stores';
@@ -32,6 +33,20 @@
 	import LanguageEvalConnection from './Connections/LanguageEvalConnection.svelte';
 	import CodeEvalConnection from './Connections/CodeEvalConnection.svelte';
 	import LlamolotlConnection from './Connections/LlamolotlConnection.svelte';
+	import AnthropicConnection from './Connections/AnthropicConnection.svelte';
+	import AudioConnection from './Connections/AudioConnection.svelte';
+	import AudioConnectionModal from './Connections/AudioConnectionModal.svelte';
+	import {
+		getAudioConnectionTypes,
+		getAudioConnections,
+		createAudioConnection,
+		updateAudioConnection,
+		deleteAudioConnection
+	} from '$lib/apis/audio';
+	import type {
+		AudioConnection as AudioConnectionT,
+		AudioConnectionType
+	} from '$lib/apis/audio';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -55,6 +70,11 @@
 		ENABLE_LLAMOLOTL_API: boolean;
 		LLAMOLOTL_BASE_URLS: string[];
 		LLAMOLOTL_API_CONFIGS: object;
+	};
+	type AnthropicConfigShape = {
+		ENABLE_ANTHROPIC_API: boolean;
+		ANTHROPIC_BASE_URLS: string[];
+		ANTHROPIC_API_CONFIGS: object;
 	};
 	type CuratorConfigShape = {
 		ENABLE_CURATOR_API: boolean;
@@ -84,7 +104,11 @@
 	let OPENAI_API_BASE_URLS = [''];
 	let OPENAI_API_CONFIGS = {};
 
+	let ANTHROPIC_BASE_URLS = [''];
+	let ANTHROPIC_API_CONFIGS = {};
+
 	let ENABLE_OPENAI_API: null | boolean = null;
+	let ENABLE_ANTHROPIC_API: null | boolean = null;
 	let ENABLE_OLLAMA_API: null | boolean = null;
 	let ENABLE_LLAMOLOTL_API: null | boolean = null;
 	let ENABLE_CURATOR_API: null | boolean = null;
@@ -96,6 +120,14 @@
 	let showAddOllamaConnectionModal = false;
 	let showAddLlamolotlConnectionModal = false;
 	let showAddCuratorConnectionModal = false;
+
+	// Typed audio backends (the "Audio" section). These are the STT/TTS engine
+	// connections relocated off the Audio settings tab — see
+	// cavekit-audio-connections R1/R3/R5.
+	let audioConnectionTypes: AudioConnectionType[] = [];
+	let audioConnections: AudioConnectionT[] = [];
+	let showAddAudioConnectionModal = false;
+	let showAddAnthropicConnectionModal = false;
 
 	const updateOpenAIHandler = async () => {
 		if (ENABLE_OPENAI_API !== null) {
@@ -177,6 +209,42 @@
 		OLLAMA_API_CONFIGS[connection.url] = connection.config;
 
 		await updateOllamaHandler();
+	};
+
+	const updateAnthropicHandler = async () => {
+		if (ENABLE_ANTHROPIC_API !== null) {
+			// Remove duplicate and empty URLs. Note there is no keys array to keep in
+			// index-lockstep here -- the key lives in ANTHROPIC_API_CONFIGS[url].
+			ANTHROPIC_BASE_URLS = ANTHROPIC_BASE_URLS.filter(
+				(url, urlIdx) => ANTHROPIC_BASE_URLS.indexOf(url) === urlIdx && url !== ''
+			).map((url) => url.replace(/\/$/, ''));
+
+			if (ANTHROPIC_BASE_URLS.length === 0) {
+				ENABLE_ANTHROPIC_API = false;
+				toast.info($i18n.t('Anthropic API disabled'));
+			}
+
+			const res = await updateAnthropicConfig(localStorage.token, {
+				ENABLE_ANTHROPIC_API: ENABLE_ANTHROPIC_API,
+				ANTHROPIC_BASE_URLS: ANTHROPIC_BASE_URLS,
+				ANTHROPIC_API_CONFIGS: ANTHROPIC_API_CONFIGS
+			}).catch((error) => {
+				toast.error(error);
+			});
+
+			if (res) {
+				toast.success($i18n.t('Anthropic API settings updated'));
+				await models.set(await getModels());
+			}
+		}
+	};
+
+	const addAnthropicConnectionHandler = async (connection) => {
+		ANTHROPIC_BASE_URLS = [...ANTHROPIC_BASE_URLS, connection.url];
+		// The key rides inside the config bag rather than a sibling array.
+		ANTHROPIC_API_CONFIGS[connection.url] = { ...connection.config, key: connection.key };
+
+		await updateAnthropicHandler();
 	};
 
 	const updateLlamolotlHandler = async () => {
@@ -274,6 +342,7 @@
 		if ($user.role === 'admin') {
 			let ollamaConfig: Partial<OllamaConfigShape> = {};
 			let openaiConfig: Partial<OpenAIConfigShape> = {};
+			let anthropicConfig: Partial<AnthropicConfigShape> = {};
 			let llamolotlConfig: Partial<LlamolotlConfigShape> = {};
 			let curatorConfig: Partial<CuratorConfigShape> = {};
 			let languageEvalConfig: Partial<LanguageEvalConfig> = {};
@@ -285,6 +354,14 @@
 				})(),
 				(async () => {
 					openaiConfig = await getOpenAIConfig(localStorage.token);
+				})(),
+				(async () => {
+					// Fail soft, like the eval-config fetches below. A rejection here (e.g. the
+					// /anthropic ingress path not yet deployed, or the API being briefly
+					// unreachable) must NOT reject the whole Promise.all — that leaves every
+					// ENABLE_* null and the render gate never opens, blanking the entire tab
+					// (self.ai#59: exactly what a missing ingress route caused in prod).
+					anthropicConfig = await getAnthropicConfig(localStorage.token).catch(() => ({}));
 				})(),
 				(async () => {
 					llamolotlConfig = await getLlamolotlConfig(localStorage.token);
@@ -301,6 +378,7 @@
 			]);
 
 			ENABLE_OPENAI_API = openaiConfig.ENABLE_OPENAI_API;
+			ENABLE_ANTHROPIC_API = anthropicConfig.ENABLE_ANTHROPIC_API ?? false;
 			ENABLE_OLLAMA_API = ollamaConfig.ENABLE_OLLAMA_API;
 			ENABLE_LLAMOLOTL_API = llamolotlConfig.ENABLE_LLAMOLOTL_API;
 			ENABLE_CURATOR_API = curatorConfig.ENABLE_CURATOR_API;
@@ -310,6 +388,9 @@
 			OPENAI_API_BASE_URLS = openaiConfig.OPENAI_API_BASE_URLS;
 			OPENAI_API_KEYS = openaiConfig.OPENAI_API_KEYS;
 			OPENAI_API_CONFIGS = openaiConfig.OPENAI_API_CONFIGS;
+
+			ANTHROPIC_BASE_URLS = anthropicConfig.ANTHROPIC_BASE_URLS ?? [];
+			ANTHROPIC_API_CONFIGS = anthropicConfig.ANTHROPIC_API_CONFIGS ?? {};
 
 			OLLAMA_BASE_URLS = ollamaConfig.OLLAMA_BASE_URLS;
 			OLLAMA_API_CONFIGS = ollamaConfig.OLLAMA_API_CONFIGS;
@@ -342,6 +423,14 @@
 				});
 			}
 
+			if (ENABLE_ANTHROPIC_API) {
+				for (const url of ANTHROPIC_BASE_URLS) {
+					if (!ANTHROPIC_API_CONFIGS[url]) {
+						ANTHROPIC_API_CONFIGS[url] = {};
+					}
+				}
+			}
+
 			if (ENABLE_OLLAMA_API) {
 				for (const url of OLLAMA_BASE_URLS) {
 					if (!OLLAMA_API_CONFIGS[url]) {
@@ -365,8 +454,58 @@
 					}
 				}
 			}
+
+			await loadAudioConnections();
 		}
 	});
+
+	const loadAudioConnections = async () => {
+		// Both degrade to [] rather than throwing, so a deployment without audio
+		// configured simply renders an empty section.
+		[audioConnectionTypes, audioConnections] = await Promise.all([
+			getAudioConnectionTypes(localStorage.token),
+			getAudioConnections(localStorage.token)
+		]);
+	};
+
+	const addAudioConnectionHandler = async ({
+		type,
+		fields
+	}: {
+		type: string;
+		fields: Record<string, string>;
+	}) => {
+		try {
+			await createAudioConnection(localStorage.token, type, fields);
+			toast.success($i18n.t('Audio connection added'));
+			await loadAudioConnections();
+		} catch (e) {
+			toast.error(`${e}`);
+		}
+	};
+
+	const updateAudioConnectionHandler = async (
+		id: string,
+		{ fields }: { fields: Record<string, string> }
+	) => {
+		try {
+			await updateAudioConnection(localStorage.token, id, fields);
+			toast.success($i18n.t('Audio connection updated'));
+			await loadAudioConnections();
+		} catch (e) {
+			toast.error(`${e}`);
+		}
+	};
+
+	const deleteAudioConnectionHandler = async (id: string) => {
+		try {
+			await deleteAudioConnection(localStorage.token, id);
+			toast.success($i18n.t('Audio connection deleted'));
+			await loadAudioConnections();
+		} catch (e) {
+			toast.error(`${e}`);
+		}
+	};
 </script>
 
 <AddConnectionModal
@@ -375,27 +514,40 @@
 />
 
 <AddConnectionModal
-	ollama
+	type="ollama"
 	bind:show={showAddOllamaConnectionModal}
 	onSubmit={addOllamaConnectionHandler}
 />
 
 <AddConnectionModal
-	llamolotl
+	type="llamolotl"
 	bind:show={showAddLlamolotlConnectionModal}
 	onSubmit={addLlamolotlConnectionHandler}
 />
 
 <AddConnectionModal
-	curator
+	type="curator"
 	bind:show={showAddCuratorConnectionModal}
 	onSubmit={addCuratorConnectionHandler}
+/>
+
+<AddConnectionModal
+	type="anthropic"
+	bind:show={showAddAnthropicConnectionModal}
+	onSubmit={addAnthropicConnectionHandler}
+/>
+
+<AudioConnectionModal
+	bind:show={showAddAudioConnectionModal}
+	types={audioConnectionTypes}
+	onSubmit={addAudioConnectionHandler}
 />
 
 <form
 	class="flex flex-col h-full justify-between text-sm"
 	on:submit|preventDefault={() => {
 		updateOpenAIHandler();
+		updateAnthropicHandler();
 		updateOllamaHandler();
 		updateLlamolotlHandler();
 		updateCuratorHandler();
@@ -406,7 +558,7 @@
 	}}
 >
 	<div class=" overflow-y-scroll scrollbar-hidden h-full">
-		{#if ENABLE_OPENAI_API !== null && ENABLE_OLLAMA_API !== null && ENABLE_LLAMOLOTL_API !== null && ENABLE_CURATOR_API !== null && ENABLE_LANGUAGE_EVAL_API !== null && ENABLE_CODE_EVAL_API !== null}
+		{#if ENABLE_OPENAI_API !== null && ENABLE_ANTHROPIC_API !== null && ENABLE_OLLAMA_API !== null && ENABLE_LLAMOLOTL_API !== null && ENABLE_CURATOR_API !== null && ENABLE_LANGUAGE_EVAL_API !== null && ENABLE_CODE_EVAL_API !== null}
 			<div class="my-2">
 				<div class="mt-2 space-y-2 pr-1.5">
 					<div class="flex justify-between items-center text-sm">
@@ -467,6 +619,63 @@
 						</div>
 					{/if}
 				</div>
+			</div>
+
+			<hr class=" border-gray-50 dark:border-gray-850" />
+
+			<div class="pr-1.5 my-2">
+				<div class="flex justify-between items-center text-sm mb-2">
+					<div class="  font-medium">{$i18n.t('Anthropic API')}</div>
+
+					<div class="mt-1">
+						<Switch
+							bind:state={ENABLE_ANTHROPIC_API}
+							on:change={async () => {
+								updateAnthropicHandler();
+							}}
+						/>
+					</div>
+				</div>
+
+				{#if ENABLE_ANTHROPIC_API}
+					<hr class=" border-gray-50 dark:border-gray-850 my-2" />
+
+					<div class="">
+						<div class="flex justify-between items-center">
+							<div class="font-medium">{$i18n.t('Manage Anthropic API Connections')}</div>
+
+							<Tooltip content={$i18n.t(`Add Connection`)}>
+								<button
+									class="px-1"
+									on:click={() => {
+										showAddAnthropicConnectionModal = true;
+									}}
+									type="button"
+								>
+									<Plus />
+								</button>
+							</Tooltip>
+						</div>
+
+						<div class="flex flex-col gap-1.5 mt-1.5">
+							<!-- entries are mutable/duplicable url strings edited in place; index is the stable slot identity -->
+							{#each ANTHROPIC_BASE_URLS as url, idx (idx)}
+								<AnthropicConnection
+									bind:url
+									bind:config={ANTHROPIC_API_CONFIGS[url]}
+									onSubmit={() => {
+										updateAnthropicHandler();
+									}}
+									onDelete={() => {
+										ANTHROPIC_BASE_URLS = ANTHROPIC_BASE_URLS.filter(
+											(url, urlIdx) => idx !== urlIdx
+										);
+									}}
+								/>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
 
 			<hr class=" border-gray-50 dark:border-gray-850" />
@@ -646,6 +855,53 @@
 					</div>
 				{/if}
 			</div>
+			<hr class=" border-gray-50 dark:border-gray-850" />
+
+			<!--
+				Audio backends (STT/TTS), relocated off the Audio settings tab onto the
+				Connections surface — cavekit-audio-connections R1/R3/R5. Creation is
+				type-first: pick one of the five kinds, then only that kind's fields
+				appear (the field set comes from the server, never hardcoded here).
+			-->
+			<div class="pr-1.5 my-2">
+				<div class="flex justify-between items-center text-sm mb-2">
+					<div class="font-medium">{$i18n.t('Audio')}</div>
+
+					<Tooltip content={$i18n.t(`Add Connection`)}>
+						<button
+							class="px-1"
+							on:click={() => {
+								showAddAudioConnectionModal = true;
+							}}
+							type="button"
+						>
+							<Plus />
+						</button>
+					</Tooltip>
+				</div>
+
+				<div class="text-xs text-gray-500 mb-1.5">
+					{$i18n.t('Speech-to-text and text-to-speech backends.')}
+				</div>
+
+				<div class="flex flex-col gap-2 mt-1.5">
+					{#each audioConnections as connection (connection.id)}
+						<AudioConnection
+							{connection}
+							types={audioConnectionTypes}
+							onSubmit={({ fields }) => updateAudioConnectionHandler(connection.id, { fields })}
+							onDelete={() => deleteAudioConnectionHandler(connection.id)}
+						/>
+					{/each}
+
+					{#if audioConnections.length === 0}
+						<div class="text-xs text-gray-500">
+							{$i18n.t('No audio connections configured.')}
+						</div>
+					{/if}
+				</div>
+			</div>
+
 			{#if ENABLE_LANGUAGE_EVAL_API || LANGUAGE_EVAL_BASE_URLS.some((u) => u !== '')}
 				<hr class=" border-gray-50 dark:border-gray-850" />
 

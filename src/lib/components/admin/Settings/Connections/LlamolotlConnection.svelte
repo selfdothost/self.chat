@@ -27,7 +27,7 @@
 </script>
 
 <AddConnectionModal
-	llamolotl
+	type="llamolotl"
 	edit
 	bind:show={showConfigModal}
 	connection={{

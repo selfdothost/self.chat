@@ -470,9 +470,12 @@
 				if ($config.audio.tts.engine !== '') {
 					const res = await synthesizeOpenAISpeech(
 						localStorage.token,
-						$settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
-							? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
-							: $config?.audio?.tts?.voice,
+						// Per-model voice (Workspace Model meta.audio.tts_voice) overrides the
+						// user/global default for the model driving this voice call.
+						model?.info?.meta?.audio?.tts_voice ??
+							($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
+								? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
+								: $config?.audio?.tts?.voice),
 						content
 					).catch((error) => {
 						console.error(error);

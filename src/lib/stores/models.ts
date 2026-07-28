@@ -8,13 +8,13 @@ export const models: Writable<Model[]> = writable([]);
 // Maps model IDs to load status: "loaded", "loading", or "unloaded"
 export const modelLoadStatus: Writable<Record<string, string>> = writable({});
 
-export type Model = OpenAIModel | OllamaModel | ArenaModel | LlamolotlModel;
+export type Model = OpenAIModel | OllamaModel | ArenaModel | LlamolotlModel | AnthropicModel;
 
 type BaseModel = {
 	id: string;
 	name: string;
 	info?: ModelConfig;
-	owned_by: 'ollama' | 'openai' | 'arena' | 'llamolotl';
+	owned_by: 'ollama' | 'openai' | 'arena' | 'llamolotl' | 'anthropic';
 	// Client-side-only flags used to exclude local/preset or arena pseudo-model
 	// entries when picking a real base model (never sent by the backend on the
 	// wire; set/read only in this frontend).
@@ -41,6 +41,15 @@ export interface ArenaModel extends BaseModel {
 // AddConnectionModal.svelte's separate `llamolotl` connection flag).
 export interface LlamolotlModel extends BaseModel {
 	owned_by: 'llamolotl';
+	external?: boolean;
+	source?: string;
+}
+
+// Anthropic Messages API models. Not an OpenAI-compatible connection: the backend
+// router owns the payload/response conversion, so by the time a model reaches this
+// store it is already OpenAI-shaped (self.ai#59).
+export interface AnthropicModel extends BaseModel {
+	owned_by: 'anthropic';
 	external?: boolean;
 	source?: string;
 }

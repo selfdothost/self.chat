@@ -16,6 +16,7 @@
 		matchTrustedFileIframeSrc,
 		resizeIframeToContent,
 		revertSanitizedResponseContent,
+		sanitizeHref,
 		unescapeHtml
 	} from '$lib/utils';
 
@@ -56,11 +57,11 @@
 		{/if}
 	{:else if token.type === 'link'}
 		{#if token.tokens}
-			<a href={token.href} target="_blank" rel="nofollow external" title={token.title}>
+			<a href={sanitizeHref(token.href)} target="_blank" rel="nofollow external" title={token.title}>
 				<svelte:self id={`${id}-a`} tokens={token.tokens} {onSourceClick} />
 			</a>
 		{:else}
-			<a href={token.href} target="_blank" rel="nofollow external" title={token.title}>{token.text}</a>
+			<a href={sanitizeHref(token.href)} target="_blank" rel="nofollow external" title={token.title}>{token.text}</a>
 		{/if}
 	{:else if token.type === 'image'}
 		<Image src={token.href} alt={token.text} />

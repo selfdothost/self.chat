@@ -79,6 +79,95 @@
 
 						<Switch bind:state={webConfig.search.enabled} />
 					</div>
+
+					<div class=" py-0.5 flex w-full justify-between">
+						<div class=" self-center text-xs font-medium">
+							{$i18n.t('Enable Deep Research')}
+						</div>
+
+						<Switch bind:state={webConfig.search.deep_research_enabled} />
+					</div>
+
+					<div class=" mt-1 mb-2 text-xs text-gray-400 dark:text-gray-500">
+						{$i18n.t(
+							'Lets models read several pages and follow links between them for a single question. Slower and heavier than Web Search — enable deliberately.'
+						)}
+					</div>
+
+					{#if webConfig.search.deep_research_enabled}
+						<div class=" py-0.5 flex w-full justify-between">
+							<div class=" self-center text-xs font-medium">
+								{$i18n.t('Deep Research Page Limit')}
+							</div>
+
+							<div class="flex items-center relative">
+								<input
+									class="dark:bg-gray-900 w-16 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+									type="number"
+									min="1"
+									max="50"
+									placeholder={$i18n.t('e.g. 10')}
+									bind:value={webConfig.search.deep_research_max_pages}
+								/>
+							</div>
+						</div>
+
+						<div class=" mb-2 text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t(
+								'Most pages one research run may read before it stops. Higher is more thorough but slower and heavier on the browser service. Clamped to 1–50.'
+							)}
+						</div>
+					{/if}
+
+					<div class=" py-0.5 flex w-full justify-between">
+						<div class=" self-center text-xs font-medium">
+							{$i18n.t('Enable Web Crawl')}
+						</div>
+
+						<Switch bind:state={webConfig.search.web_crawl_enabled} />
+					</div>
+
+					<div class=" mt-1 mb-2 text-xs text-gray-400 dark:text-gray-500">
+						{$i18n.t(
+							'Lets models crawl a site into a knowledge base the user picks. Writes pages into that knowledge base — enable deliberately.'
+						)}
+					</div>
+
+					{#if webConfig.search.web_crawl_enabled}
+						<div class=" py-0.5 flex w-full justify-between">
+							<div class=" self-center text-xs font-medium">
+								{$i18n.t('Web Crawl Page Limit')}
+							</div>
+							<input
+								class="dark:bg-gray-900 w-16 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+								type="number"
+								min="1"
+								max="500"
+								placeholder={$i18n.t('e.g. 25')}
+								bind:value={webConfig.search.web_crawl_max_pages}
+							/>
+						</div>
+
+						<div class=" py-0.5 flex w-full justify-between">
+							<div class=" self-center text-xs font-medium">
+								{$i18n.t('Web Crawl Depth')}
+							</div>
+							<input
+								class="dark:bg-gray-900 w-16 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+								type="number"
+								min="1"
+								max="10"
+								placeholder={$i18n.t('e.g. 2')}
+								bind:value={webConfig.search.web_crawl_max_depth}
+							/>
+						</div>
+
+						<div class=" mb-2 text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t(
+								'Most pages one crawl may save, and how deep it follows links. The server clamps these to 1–500 and 1–10.'
+							)}
+						</div>
+					{/if}
 				</div>
 
 				<div class=" py-0.5 flex w-full justify-between">

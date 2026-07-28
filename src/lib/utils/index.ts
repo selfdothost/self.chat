@@ -37,6 +37,31 @@ export function matchTrustedFileIframeSrc(text: string): string | null {
 	return match ? match[1] : null;
 }
 
+// self.chat#27: marked's link tokenizer hands `token.href` through with no
+// scheme check, so `[click me](javascript:alert(document.cookie))` rendered
+// straight into `<a href={token.href}>` becomes a live, clickable
+// `javascript:` URI in the chat transcript -- and a same-origin `data:text/html`
+// link opened via target="_blank" is an equivalent script-execution vector.
+// Control characters and the numeric/named HTML-entity encodings of ":" are
+// stripped first so an obfuscated scheme (e.g. "java\tscript:", "javascript&colon;")
+// can't slip past the check the way it would still execute in a real browser.
+const DANGEROUS_URL_SCHEME_RE = /^([^\w]*)(javascript|data|vbscript|file):/i;
+// Stripping real control chars is the point: browsers ignore them when parsing a
+// URL scheme, so a raw tab/newline can hide a javascript: scheme from a naive check.
+// eslint-disable-next-line no-control-regex
+const URL_CTRL_CHAR_RE = /[\u0000-\u001F\u007F-\u009F]/g;
+const URL_HTML_ENTITY_COLON_RE = /&(#0*58|#x0*3a|colon);/gi;
+
+export function sanitizeHref(href: string | null | undefined): string {
+	if (!href) return '#';
+
+	const normalized = href.replace(URL_HTML_ENTITY_COLON_RE, ':').replace(URL_CTRL_CHAR_RE, '').trim();
+
+	if (!normalized || DANGEROUS_URL_SCHEME_RE.test(normalized)) return '#';
+
+	return href;
+}
+
 export function resizeIframeToContent(event: Event) {
 	const iframe = event.currentTarget as HTMLIFrameElement;
 	try {

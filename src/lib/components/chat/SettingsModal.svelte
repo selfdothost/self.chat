@@ -244,7 +244,6 @@
 				'evaluations',
 				'websearch',
 				'database',
-				'pipelines',
 				'images',
 				'audio',
 				'documents',

@@ -39,6 +39,9 @@
 
 	export let selectedToolIds = [];
 	export let webSearchEnabled = false;
+	export let deepResearchEnabled = false;
+	export let webCrawlEnabled = false;
+	export let webCrawlKbId = '';
 
 	let models = [];
 
@@ -202,6 +205,9 @@
 					bind:autoScroll
 					bind:selectedToolIds
 					bind:webSearchEnabled
+					bind:deepResearchEnabled
+					bind:webCrawlEnabled
+					bind:webCrawlKbId
 					bind:atSelectedModel
 					{transparentBackground}
 					{stopResponse}

@@ -39,7 +39,14 @@
 	} from '$lib/stores';
 	import { convertMessagesToHistory, copyToClipboard, getMessageContentParts, promptTemplate } from '$lib/utils';
 
-	import { createNewChat, getAllTags, getChatById, getChatList, updateChatById } from '$lib/apis/chats';
+	import {
+		createNewChat,
+		getAllTags,
+		getChatById,
+		getChatList,
+		updateChatById,
+		updateChatFolderIdById
+	} from '$lib/apis/chats';
 	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
 	import { processWeb, processYoutubeVideo } from '$lib/apis/retrieval';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
@@ -47,7 +54,10 @@
 	import { getAndUpdateUserLocation, getUserSettings } from '$lib/apis/users';
 	import { chatCompleted, chatAction, generateMoACompletion, stopTask } from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
+	import { getFolderById } from '$lib/apis/folders';
+	import { getKnowledgeBases } from '$lib/apis/knowledge';
 	import { uploadFile } from '$lib/apis/files';
+	import { seedFromFolderPreset } from '$lib/utils/folder-preset';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -86,6 +96,12 @@
 
 	let selectedToolIds = [];
 	let webSearchEnabled = false;
+	// Its own toggle, not part of Web Search: crawling is a different capability
+	// with a different cost. See selfai/self.ai middleware `deep_research_enabled`.
+	let deepResearchEnabled = false;
+	let webCrawlEnabled = false;
+	/** Destination KB for Web Crawl. '' = unconfigured; the tool isn't offered without it. */
+	let webCrawlKbId = '';
 
 	let chat = null;
 
@@ -119,6 +135,9 @@
 			files = [];
 			selectedToolIds = [];
 			webSearchEnabled = false;
+			deepResearchEnabled = false;
+			webCrawlEnabled = false;
+			webCrawlKbId = '';
 
 			loaded = false;
 
@@ -134,6 +153,9 @@
 						files = input.files;
 						selectedToolIds = input.selectedToolIds;
 						webSearchEnabled = input.webSearchEnabled;
+						deepResearchEnabled = input.deepResearchEnabled ?? false;
+						webCrawlEnabled = input.webCrawlEnabled ?? false;
+						webCrawlKbId = input.webCrawlKbId ?? '';
 					} catch {
 						// Corrupt/unparsable saved draft — leave the already-reset
 						// prompt/files/etc. defaults in place rather than restoring.
@@ -380,11 +402,15 @@
 				files = input.files;
 				selectedToolIds = input.selectedToolIds;
 				webSearchEnabled = input.webSearchEnabled;
+				deepResearchEnabled = input.deepResearchEnabled ?? false;
 			} catch {
 				prompt = '';
 				files = [];
 				selectedToolIds = [];
 				webSearchEnabled = false;
+				deepResearchEnabled = false;
+				webCrawlEnabled = false;
+				webCrawlKbId = '';
 			}
 		}
 
@@ -694,6 +720,9 @@
 		if ($page.url.searchParams.get('web-search') === 'true') {
 			webSearchEnabled = true;
 		}
+		if ($page.url.searchParams.get('deep-research') === 'true') {
+			deepResearchEnabled = true;
+		}
 
 		if ($page.url.searchParams.get('tools')) {
 			selectedToolIds = $page.url.searchParams
@@ -707,6 +736,49 @@
 				?.split(',')
 				.map((id) => id.trim())
 				.filter((id) => id);
+		}
+
+		// Folder-scoped new chat: seed the selected model, tools, and knowledge from
+		// the folder's preset (CS/R2). The active folder is carried on the `folder_id`
+		// URL param (T-012); the same param drives folder membership at creation. Each
+		// field is a plain no-op when unset (CS/R3) -- seeding only overrides fields the
+		// preset actually sets, leaving the rest at the unfoldered defaults resolved
+		// above. Seeded values are ordinary per-chat state afterward (CS/R4).
+		const seedFolderId = $page.url.searchParams.get('folder_id');
+		if (seedFolderId) {
+			const folder = await getFolderById(localStorage.token, seedFolderId).catch(() => null);
+			const preset = folder?.meta?.preset;
+
+			if (preset) {
+				// Ensure the option data the pure seeder filters against is available.
+				if (!$tools && Array.isArray(preset.tool_ids) && preset.tool_ids.length > 0) {
+					await tools.set(await getTools(localStorage.token));
+				}
+				const knowledgeBases =
+					Array.isArray(preset.knowledge_ids) && preset.knowledge_ids.length > 0
+						? ((await getKnowledgeBases(localStorage.token).catch(() => null)) ?? [])
+						: [];
+
+				const seed = seedFromFolderPreset(preset, {
+					modelIds: $models.map((m) => m.id),
+					toolIds: ($tools ?? []).map((t) => t.id),
+					knowledgeBases,
+					webSearchEnabled: !!$config?.features?.enable_web_search
+				});
+
+				if (seed.selectedModels) {
+					selectedModels = seed.selectedModels;
+				}
+				if (seed.selectedToolIds) {
+					selectedToolIds = seed.selectedToolIds;
+				}
+				if (seed.webSearchEnabled) {
+					webSearchEnabled = true;
+				}
+				if (seed.knowledgeCollections) {
+					files = [...files, ...seed.knowledgeCollections];
+				}
+			}
 		}
 
 		if ($page.url.searchParams.get('call') === 'true') {
@@ -1051,7 +1123,7 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
-		const { done, choices, content, sources, selected_model_id, error, usage } = data;
+		const { done, choices, content, reasoning, sources, selected_model_id, error, usage } = data;
 
 		if (error) {
 			await handleOpenAIError(error, message);
@@ -1062,6 +1134,15 @@
 		}
 
 		if (choices) {
+			// Model thinking, kept on its own field. Providers that don't emit it (every
+			// provider but Anthropic today) simply never set this. It is deliberately not
+			// merged into content: content is the answer and is what gets persisted.
+			const reasoningValue =
+				choices[0]?.message?.reasoning_content ?? choices[0]?.delta?.reasoning_content;
+			if (reasoningValue) {
+				message.reasoning = (message.reasoning ?? '') + reasoningValue;
+			}
+
 			if (choices[0]?.message?.content) {
 				// Non-stream response
 				message.content += choices[0]?.message?.content;
@@ -1101,6 +1182,12 @@
 					}
 				}
 			}
+		}
+
+		if (reasoning) {
+			// Backend sends the full accumulated reasoning (REALTIME_CHAT_SAVE disabled, and
+			// on the terminal done payload), so replace rather than append.
+			message.reasoning = reasoning;
 		}
 
 		if (content) {
@@ -1531,8 +1618,15 @@
 				files: files.length > 0 ? files : undefined,
 				tool_ids: selectedToolIds.length > 0 ? selectedToolIds : undefined,
 				features: {
-					web_search: webSearchEnabled
+					web_search: webSearchEnabled,
+					deep_research: deepResearchEnabled,
+					web_crawl: webCrawlEnabled
 				},
+
+				// Sibling of `features`, not inside it: features carries booleans,
+				// and the server binds the crawl destination from this. Only sent
+				// when the toggle is on, so a stale id can't leak into a request.
+				web_crawl_kb_id: webCrawlEnabled ? webCrawlKbId : undefined,
 
 				session_id: $socket?.id,
 				chat_id: $chatId,
@@ -1769,6 +1863,20 @@
 				timestamp: Date.now()
 			});
 
+			// If this chat was started from a folder's "New Chat" affordance, the
+			// active folder is carried on the `folder_id` URL param. Place the chat
+			// into that folder at creation time (CS/R1) so it belongs to the folder
+			// rather than the flat unfoldered list.
+			const activeFolderId = $page.url.searchParams.get('folder_id');
+			if (activeFolderId) {
+				await updateChatFolderIdById(localStorage.token, chat.id, activeFolderId).catch(
+					(error) => {
+						console.error(error);
+						return null;
+					}
+				);
+			}
+
 			currentChatPage.set(1);
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
 			await chatId.set(chat.id);
@@ -1935,6 +2043,9 @@
 								bind:autoScroll
 								bind:selectedToolIds
 								bind:webSearchEnabled
+								bind:deepResearchEnabled
+								bind:webCrawlEnabled
+								bind:webCrawlKbId
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{stopResponse}
@@ -1985,6 +2096,9 @@
 								bind:autoScroll
 								bind:selectedToolIds
 								bind:webSearchEnabled
+								bind:deepResearchEnabled
+								bind:webCrawlEnabled
+								bind:webCrawlKbId
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{stopResponse}

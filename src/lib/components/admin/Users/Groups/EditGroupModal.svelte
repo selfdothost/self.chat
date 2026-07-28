@@ -11,6 +11,7 @@
 	import Users from './Users.svelte';
 	import UserPlusSolid from '$lib/components/icons/UserPlusSolid.svelte';
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
+	import { getModScopes, type ModScopesResponse } from '$lib/apis/mods';
 
 	export let onSubmit: AnyFn = () => {};
 	export let onDelete: AnyFn = () => {};
@@ -48,6 +49,12 @@
 		}
 	};
 	export let userIds = [];
+
+	// Fetched once per modal mount (admin-only endpoint) -- shared by both
+	// surfaces this modal renders (Default Permissions when custom=false, a
+	// real Group's Permissions tab when custom=true), since both pass through
+	// the same <Permissions> instance.
+	let modScopes: ModScopesResponse[] = [];
 
 	const submitHandler = async () => {
 		loading = true;
@@ -93,10 +100,11 @@
 		init();
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		console.log(tabs);
 		selectedTab = tabs[0];
 		init();
+		modScopes = await getModScopes(localStorage.token).catch(() => []);
 	});
 </script>
 
@@ -219,7 +227,7 @@
 							{#if selectedTab == 'general'}
 								<Display bind:name bind:description />
 							{:else if selectedTab == 'permissions'}
-								<Permissions bind:permissions />
+								<Permissions bind:permissions mods={modScopes} />
 							{:else if selectedTab == 'users'}
 								<Users bind:userIds {users} />
 							{/if}

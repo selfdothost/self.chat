@@ -8,13 +8,17 @@
 		getAudioConfig,
 		updateAudioConfig,
 		getModels as _getModels,
-		getVoices as _getVoices
+		getVoices as _getVoices,
+		getSelectableVoices
 	} from '$lib/apis/audio';
 	import { config } from '$lib/stores';
 
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
+	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import VoiceCurationModal from './Audio/VoiceCurationModal.svelte';
 
 	import { TTS_RESPONSE_SPLIT } from '$lib/types';
+	import { orphanVoiceValue } from '$lib/utils/voice-default';
 
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
@@ -49,6 +53,33 @@
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let voices: any[] = [];
 	let models: Awaited<ReturnType<typeof _getModels>>['models'] = [];
+
+	// The admin-enabled (curated) self-hosted TTS voice set — cavekit-audio-admin-
+	// surface R1's "options offered are the admin-enabled set".
+	//
+	// DELIBERATELY SEPARATE from `voices` above. That one is engine-dependent and
+	// legacy: browser SpeechSynthesisVoice[] when TTS_ENGINE === '', the legacy
+	// /audio/voices response otherwise. Do not merge, overwrite or repurpose it.
+	// It still backs the Web API branch's voice select, where the curated set
+	// does not apply (see the comment on that branch).
+	//
+	// This reads /voice-catalog/voices/selectable — the SAME endpoint the shipped
+	// per-model voice picker (workspace/Models/ModelEditor.svelte) reads — so the
+	// options offered here are consistent with downstream voice selection by
+	// construction. It backs the default-voice selector in the openai/elevenlabs/
+	// azure branches.
+	let enabledVoices: Awaited<ReturnType<typeof getSelectableVoices>> = [];
+
+	// Whether the curated set above has been fetched at least once. `[]` is a
+	// legitimate result (the aggregation covers self-hosted TTS connections only,
+	// so a deployment on a hosted provider curates nothing), which makes "empty"
+	// indistinguishable from "not loaded yet" without this flag. The orphan
+	// detection below needs the distinction: before the first fetch resolves,
+	// every stored voice would look absent from the set.
+	let enabledVoicesLoaded = false;
+
+	// Whether the voice curation modal is open (cavekit-audio-admin-surface R2).
+	let showVoiceCurationModal = false;
 
 	const getModels = async () => {
 		if (TTS_ENGINE === '') {
@@ -88,6 +119,77 @@
 			}
 		}
 	};
+
+	const getEnabledVoices = async () => {
+		// Never throws and never toasts: getSelectableVoices normalizes a
+		// deployment with no self-hosted TTS connection to []. An empty set is a
+		// correct outcome here, not an error — it just means there is nothing
+		// curated to offer.
+		enabledVoices = await getSelectableVoices(localStorage.token);
+		enabledVoicesLoaded = true;
+	};
+
+	// cavekit-audio-admin-surface R2: curation is reached from here without
+	// leaving the admin settings context — the modal renders over this surface,
+	// there is no route change and no navigation.
+	//
+	// `changed` is true only when a toggle actually succeeded while the modal was
+	// open. Refetching only then is the point of the callback reporting it: an
+	// admin who opened the list, looked, and closed it should not trigger a
+	// pointless round trip. When something did change, the refetch is what stops
+	// a just-disabled voice from still being offered as the instance default
+	// without a page reload — and, if the disabled voice IS the current default,
+	// it is what moves it into the flagged not-in-the-enabled-set option below
+	// rather than silently dropping it.
+	const voiceCurationCloseHandler = async (changed: boolean) => {
+		if (changed) {
+			await getEnabledVoices();
+		}
+	};
+
+	// Option label for a curated voice: the voice's name plus whatever of
+	// language/gender the catalog actually carries for it.
+	//
+	// `id` is the only field guaranteed present — name, language and gender are
+	// all optional/nullable in the /voices/selectable payload and vary by TTS
+	// source. Each is filtered out when absent or blank rather than interpolated,
+	// which is what keeps a literal "null"/"undefined" out of the option text;
+	// name falls back to the id so an option is never blank.
+	const voiceLabel = (voice: (typeof enabledVoices)[number]) => {
+		const details = [voice.language, voice.gender].filter(
+			(detail): detail is string => typeof detail === 'string' && detail.trim() !== ''
+		);
+
+		const name = voice.name?.trim() || voice.id;
+
+		return details.length > 0 ? `${name} (${details.join(', ')})` : name;
+	};
+
+	// cavekit-audio-admin-surface R1 AC5 — a stored default that is absent from
+	// the offered set must be SURFACED, not silently discarded. Three real ways
+	// this happens: the value was hand-entered before the picker existed; the
+	// voice has since left the catalog; or the curated set is legitimately EMPTY
+	// because the active engine is a hosted provider. See voice-default.ts for
+	// the reasoning and its unit tests; empty string means "no orphan".
+	//
+	// The curated branches (openai/elevenlabs/azure) offer /voices/selectable.
+	$: curatedOrphanVoice = orphanVoiceValue(
+		TTS_VOICE,
+		enabledVoices.map(({ id }) => id),
+		enabledVoicesLoaded
+	);
+
+	// The Web API branch offers the visitor's own browser voices instead — a
+	// voiceURI stored from one machine's browser routinely does not exist on
+	// another's, and produced the same blank control. Treated as loaded only once
+	// the list is populated, because speechSynthesis.getVoices() is polled and
+	// starts empty; `voices` also holds a non-browser shape on other engines,
+	// which the engine check keeps out.
+	$: browserOrphanVoice = orphanVoiceValue(
+		TTS_VOICE,
+		voices.map((voice) => voice.voiceURI),
+		TTS_ENGINE === '' && voices.length > 0
+	);
 
 	const updateConfigHandler = async () => {
 		const res = await updateAudioConfig(localStorage.token, {
@@ -151,6 +253,7 @@
 
 		await getVoices();
 		await getModels();
+		await getEnabledVoices();
 	});
 </script>
 
@@ -380,6 +483,18 @@
 				<hr class=" dark:border-gray-850 my-2" />
 
 				{#if TTS_ENGINE === ''}
+					<!--
+						Web API engine: DELIBERATELY still driven by `voices` (the browser's
+						speechSynthesis list), not by the curated `enabledVoices` set the
+						backend-catalog branches below use.
+
+						Speech here is synthesized by the client's own browser, so the voices
+						on offer are whatever that browser/OS installs — they are not a
+						backend catalog, they differ per visitor, and none of them exist as
+						ids the voice catalog could enable or disable. The curated set simply
+						does not apply to this engine. This was already a real select element,
+						not free text, so R1's "selection, not a free-text field" already holds.
+					-->
 					<div>
 						<div class=" mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
 						<div class="flex w-full">
@@ -389,6 +504,15 @@
 									bind:value={TTS_VOICE}
 								>
 									<option value="" selected={TTS_VOICE !== ''}>{$i18n.t('Default')}</option>
+									{#if browserOrphanVoice !== ''}
+										<!-- R1 AC5: stored value this browser has no voice for — shown and
+										     selected rather than left as a blank control. -->
+										<option value={browserOrphanVoice} class="bg-gray-100 dark:bg-gray-700">
+											{$i18n.t('{{voice}} (current value — not in the enabled set)', {
+												voice: browserOrphanVoice
+											})}
+										</option>
+									{/if}
 									{#each voices as voice (voice.voiceURI)}
 										<option
 											value={voice.voiceURI}
@@ -445,21 +569,68 @@
 				{:else if TTS_ENGINE === 'openai'}
 					<div class=" flex gap-2">
 						<div class="w-full">
-							<div class=" mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+							<div class="flex justify-between items-center mb-1.5">
+								<div class=" text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+
+								<!--
+									cavekit-audio-admin-surface R2: the curation entry point sits next
+									to the control whose options it curates, and opens the curation
+									surface IN PLACE — a modal over the admin settings context. No
+									route change, no navigation away, no goto.
+								-->
+								<Tooltip
+									content={$i18n.t('Voices left enabled here are the ones users can choose from.')}
+								>
+									<button
+										class=" text-xs px-2 py-0.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition"
+										type="button"
+										on:click={() => {
+											showVoiceCurationModal = true;
+										}}
+									>
+										{$i18n.t('Manage Voices')}
+									</button>
+								</Tooltip>
+							</div>
 							<div class="flex w-full">
 								<div class="flex-1">
-									<input
-										list="voice-list"
+									<!--
+										Selection over the admin-enabled (curated) voice set, NOT free
+										text: `enabledVoices` comes from /voices/selectable, the same
+										endpoint the per-model voice picker reads, so what an admin can
+										set as the instance default is exactly what the backend reports
+										and curation allows. `bind:value` preselects the stored
+										TTS_VOICE on load.
+									-->
+									<select
 										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										aria-label={$i18n.t('TTS Voice')}
 										bind:value={TTS_VOICE}
-										placeholder="Select a voice"
-									/>
-
-									<datalist id="voice-list">
-										{#each voices as voice (voice.id)}
-											<option value={voice.id}>{voice.name}</option>
+									>
+										<option value="" class="bg-gray-100 dark:bg-gray-700"
+											>{$i18n.t('Default')}</option
+										>
+										{#if curatedOrphanVoice !== ''}
+											<!--
+												R1 AC5: the stored default is not in the curated set — a
+												hand-entered value, a voice that left the catalog, or a
+												hosted-provider deployment whose curated set is legitimately
+												empty. Rendered as a selected, flagged option so it is
+												surfaced rather than dropped to a blank control, and so an
+												untouched save round trips the original string unchanged.
+											-->
+											<option value={curatedOrphanVoice} class="bg-gray-100 dark:bg-gray-700">
+												{$i18n.t('{{voice}} (current value — not in the enabled set)', {
+													voice: curatedOrphanVoice
+												})}
+											</option>
+										{/if}
+										{#each enabledVoices as voice (voice.id)}
+											<option value={voice.id} class="bg-gray-100 dark:bg-gray-700"
+												>{voiceLabel(voice)}</option
+											>
 										{/each}
-									</datalist>
+									</select>
 								</div>
 							</div>
 						</div>
@@ -486,21 +657,68 @@
 				{:else if TTS_ENGINE === 'elevenlabs'}
 					<div class=" flex gap-2">
 						<div class="w-full">
-							<div class=" mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+							<div class="flex justify-between items-center mb-1.5">
+								<div class=" text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+
+								<!--
+									cavekit-audio-admin-surface R2: the curation entry point sits next
+									to the control whose options it curates, and opens the curation
+									surface IN PLACE — a modal over the admin settings context. No
+									route change, no navigation away, no goto.
+								-->
+								<Tooltip
+									content={$i18n.t('Voices left enabled here are the ones users can choose from.')}
+								>
+									<button
+										class=" text-xs px-2 py-0.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition"
+										type="button"
+										on:click={() => {
+											showVoiceCurationModal = true;
+										}}
+									>
+										{$i18n.t('Manage Voices')}
+									</button>
+								</Tooltip>
+							</div>
 							<div class="flex w-full">
 								<div class="flex-1">
-									<input
-										list="voice-list"
+									<!--
+										Selection over the admin-enabled (curated) voice set, NOT free
+										text: `enabledVoices` comes from /voices/selectable, the same
+										endpoint the per-model voice picker reads, so what an admin can
+										set as the instance default is exactly what the backend reports
+										and curation allows. `bind:value` preselects the stored
+										TTS_VOICE on load.
+									-->
+									<select
 										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										aria-label={$i18n.t('TTS Voice')}
 										bind:value={TTS_VOICE}
-										placeholder="Select a voice"
-									/>
-
-									<datalist id="voice-list">
-										{#each voices as voice (voice.id)}
-											<option value={voice.id}>{voice.name}</option>
+									>
+										<option value="" class="bg-gray-100 dark:bg-gray-700"
+											>{$i18n.t('Default')}</option
+										>
+										{#if curatedOrphanVoice !== ''}
+											<!--
+												R1 AC5: the stored default is not in the curated set — a
+												hand-entered value, a voice that left the catalog, or a
+												hosted-provider deployment whose curated set is legitimately
+												empty. Rendered as a selected, flagged option so it is
+												surfaced rather than dropped to a blank control, and so an
+												untouched save round trips the original string unchanged.
+											-->
+											<option value={curatedOrphanVoice} class="bg-gray-100 dark:bg-gray-700">
+												{$i18n.t('{{voice}} (current value — not in the enabled set)', {
+													voice: curatedOrphanVoice
+												})}
+											</option>
+										{/if}
+										{#each enabledVoices as voice (voice.id)}
+											<option value={voice.id} class="bg-gray-100 dark:bg-gray-700"
+												>{voiceLabel(voice)}</option
+											>
 										{/each}
-									</datalist>
+									</select>
 								</div>
 							</div>
 						</div>
@@ -527,21 +745,68 @@
 				{:else if TTS_ENGINE === 'azure'}
 					<div class=" flex gap-2">
 						<div class="w-full">
-							<div class=" mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+							<div class="flex justify-between items-center mb-1.5">
+								<div class=" text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+
+								<!--
+									cavekit-audio-admin-surface R2: the curation entry point sits next
+									to the control whose options it curates, and opens the curation
+									surface IN PLACE — a modal over the admin settings context. No
+									route change, no navigation away, no goto.
+								-->
+								<Tooltip
+									content={$i18n.t('Voices left enabled here are the ones users can choose from.')}
+								>
+									<button
+										class=" text-xs px-2 py-0.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition"
+										type="button"
+										on:click={() => {
+											showVoiceCurationModal = true;
+										}}
+									>
+										{$i18n.t('Manage Voices')}
+									</button>
+								</Tooltip>
+							</div>
 							<div class="flex w-full">
 								<div class="flex-1">
-									<input
-										list="voice-list"
+									<!--
+										Selection over the admin-enabled (curated) voice set, NOT free
+										text: `enabledVoices` comes from /voices/selectable, the same
+										endpoint the per-model voice picker reads, so what an admin can
+										set as the instance default is exactly what the backend reports
+										and curation allows. `bind:value` preselects the stored
+										TTS_VOICE on load.
+									-->
+									<select
 										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										aria-label={$i18n.t('TTS Voice')}
 										bind:value={TTS_VOICE}
-										placeholder="Select a voice"
-									/>
-
-									<datalist id="voice-list">
-										{#each voices as voice (voice.id)}
-											<option value={voice.id}>{voice.name}</option>
+									>
+										<option value="" class="bg-gray-100 dark:bg-gray-700"
+											>{$i18n.t('Default')}</option
+										>
+										{#if curatedOrphanVoice !== ''}
+											<!--
+												R1 AC5: the stored default is not in the curated set — a
+												hand-entered value, a voice that left the catalog, or a
+												hosted-provider deployment whose curated set is legitimately
+												empty. Rendered as a selected, flagged option so it is
+												surfaced rather than dropped to a blank control, and so an
+												untouched save round trips the original string unchanged.
+											-->
+											<option value={curatedOrphanVoice} class="bg-gray-100 dark:bg-gray-700">
+												{$i18n.t('{{voice}} (current value — not in the enabled set)', {
+													voice: curatedOrphanVoice
+												})}
+											</option>
+										{/if}
+										{#each enabledVoices as voice (voice.id)}
+											<option value={voice.id} class="bg-gray-100 dark:bg-gray-700"
+												>{voiceLabel(voice)}</option
+											>
 										{/each}
-									</datalist>
+									</select>
 								</div>
 							</div>
 						</div>
@@ -604,3 +869,12 @@
 		</button>
 	</div>
 </form>
+
+<!--
+	Mounted as a sibling of the settings form, not inside it: the curation modal
+	contains its own interactive controls, and nesting them in this form would put
+	them in its submit scope. Modal.svelte reparents itself to document.body when
+	shown, so this renders over the admin settings context either way — which is
+	R2's requirement (reachable without leaving admin settings).
+-->
+<VoiceCurationModal bind:show={showVoiceCurationModal} onClose={voiceCurationCloseHandler} />

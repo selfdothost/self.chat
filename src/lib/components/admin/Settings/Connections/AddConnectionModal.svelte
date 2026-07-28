@@ -10,6 +10,7 @@
 	import { verifyOllamaConnection } from '$lib/apis/ollama';
 	import { verifyLlamolotlConnection } from '$lib/apis/llamolotl';
 	import { verifyCuratorConnection } from '$lib/apis/curator';
+	import { verifyAnthropicConnection } from '$lib/apis/anthropic';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
@@ -21,13 +22,31 @@
 	export let onSubmit: AnyFn = () => {};
 	export let onDelete: AnyFn = () => {};
 
+	// Provider identity used to be four mutually-exclusive booleans (ollama/llamolotl/
+	// curator, with "none of them" implicitly meaning OpenAI). Adding a fifth provider
+	// made that untenable: "requires a key" was encoded as "is not one of the other
+	// three" rather than as a property of the provider. It is now one tagged value plus
+	// a table (self.ai#59).
+	//
+	// The alias is declared before the `type` prop on purpose: `type X = ...` after a
+	// value named `type` in the same scope is a parser ambiguity worth not poking.
+	type ProviderType = 'openai' | 'ollama' | 'llamolotl' | 'curator' | 'anthropic';
+
+	const PROVIDERS: Record<ProviderType, { verify: AnyFn; requiresKey: boolean }> = {
+		openai: { verify: verifyOpenAIConnection, requiresKey: true },
+		anthropic: { verify: verifyAnthropicConnection, requiresKey: true },
+		ollama: { verify: verifyOllamaConnection, requiresKey: false },
+		llamolotl: { verify: verifyLlamolotlConnection, requiresKey: false },
+		curator: { verify: verifyCuratorConnection, requiresKey: false }
+	};
+
 	export let show = false;
 	export let edit = false;
-	export let ollama = false;
-	export let llamolotl = false;
-	export let curator = false;
+	export let type: ProviderType = 'openai';
 
 	export let connection = null;
+
+	$: provider = PROVIDERS[type] ?? PROVIDERS.openai;
 
 	let url = '';
 	let key = '';
@@ -40,55 +59,13 @@
 
 	let loading = false;
 
-	const verifyOllamaHandler = async () => {
-		const res = await verifyOllamaConnection(localStorage.token, url, key).catch((error) => {
+	const verifyHandler = async () => {
+		const res = await provider.verify(localStorage.token, url, key).catch((error) => {
 			toast.error(error);
 		});
 
 		if (res) {
 			toast.success($i18n.t('Server connection verified'));
-		}
-	};
-
-	const verifyOpenAIHandler = async () => {
-		const res = await verifyOpenAIConnection(localStorage.token, url, key).catch((error) => {
-			toast.error(error);
-		});
-
-		if (res) {
-			toast.success($i18n.t('Server connection verified'));
-		}
-	};
-
-	const verifyLlamolotlHandler = async () => {
-		const res = await verifyLlamolotlConnection(localStorage.token, url, key).catch((error) => {
-			toast.error(error);
-		});
-
-		if (res) {
-			toast.success($i18n.t('Server connection verified'));
-		}
-	};
-
-	const verifyCuratorHandler = async () => {
-		const res = await verifyCuratorConnection(localStorage.token, url, key).catch((error) => {
-			toast.error(error);
-		});
-
-		if (res) {
-			toast.success($i18n.t('Server connection verified'));
-		}
-	};
-
-	const verifyHandler = () => {
-		if (curator) {
-			verifyCuratorHandler();
-		} else if (llamolotl) {
-			verifyLlamolotlHandler();
-		} else if (ollama) {
-			verifyOllamaHandler();
-		} else {
-			verifyOpenAIHandler();
 		}
 	};
 
@@ -102,9 +79,9 @@
 	const submitHandler = async () => {
 		loading = true;
 
-		if (!ollama && !llamolotl && !curator && (!url || !key)) {
+		if (provider.requiresKey && (!url || !key)) {
 			loading = false;
-			toast.error('URL and Key are required');
+			toast.error($i18n.t('URL and Key are required'));
 			return;
 		}
 
@@ -243,7 +220,7 @@
 										inputClassName="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
 										bind:value={key}
 										placeholder={$i18n.t('API Key')}
-										required={!ollama && !llamolotl && !curator}
+										required={provider.requiresKey}
 									/>
 								</div>
 							</div>
@@ -299,13 +276,13 @@
 								</div>
 							{:else}
 								<div class="text-gray-500 text-xs text-center py-2 px-10">
-									{#if curator}
+									{#if type === 'curator'}
 										{$i18n.t('No model filtering needed for Curator connections')}
-									{:else if llamolotl}
+									{:else if type === 'llamolotl' || type === 'anthropic'}
 										{$i18n.t('Leave empty to include all models from "{{URL}}/v1/models" endpoint', {
 											URL: url
 										})}
-									{:else if ollama}
+									{:else if type === 'ollama'}
 										{$i18n.t('Leave empty to include all models from "{{URL}}/api/tags" endpoint', {
 											URL: url
 										})}

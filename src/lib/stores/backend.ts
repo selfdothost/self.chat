@@ -19,6 +19,8 @@ export type Config = {
 		enable_signup: boolean;
 		enable_login_form: boolean;
 		enable_web_search?: boolean;
+		enable_deep_research?: boolean;
+		enable_web_crawl?: boolean;
 		enable_websocket?: boolean;
 		enable_ldap?: boolean;
 		enable_curator?: boolean;

@@ -19,6 +19,7 @@
 
 	import Tooltip from '../common/Tooltip.svelte';
 	import InputMenu from './MessageInput/InputMenu.svelte';
+	import WebCrawlConfigModal from './MessageInput/WebCrawlConfigModal.svelte';
 	import Headphone from '../icons/Headphone.svelte';
 	import VoiceRecording from './MessageInput/VoiceRecording.svelte';
 	import FileItem from '../common/FileItem.svelte';
@@ -52,13 +53,36 @@
 
 	export let selectedToolIds = [];
 	export let webSearchEnabled = false;
+	export let deepResearchEnabled = false;
+	export let webCrawlEnabled = false;
+	export let webCrawlKbId = '';
 
 	$: onChange({
 		prompt,
 		files,
 		selectedToolIds,
-		webSearchEnabled
+		webSearchEnabled,
+		deepResearchEnabled,
+		webCrawlEnabled,
+		webCrawlKbId
 	});
+
+	// The Configure modal lives here, not in InputMenu: the dropdown closes when
+	// it opens, which would unmount a modal owned by the dropdown.
+	let showWebCrawlModal = false;
+
+	const onWebCrawlSaved = (e: CustomEvent<{ kbId: string }>) => {
+		webCrawlKbId = e.detail.kbId;
+		// Choosing a destination IS the intent to use it, so enable without
+		// making the user go back and find the switch.
+		webCrawlEnabled = true;
+	};
+
+	const onWebCrawlCancelled = () => {
+		// Nothing chosen -> stay off. Reassigned explicitly so the Switch, which
+		// flipped its own internal state on click, is driven back to off.
+		webCrawlEnabled = false;
+	};
 
 	let loaded = false;
 	let recording = false;
@@ -333,6 +357,13 @@
 	});
 </script>
 
+<WebCrawlConfigModal
+	bind:show={showWebCrawlModal}
+	bind:kbId={webCrawlKbId}
+	on:save={onWebCrawlSaved}
+	on:cancel={onWebCrawlCancelled}
+/>
+
 <FilesOverlay show={dragged} />
 
 {#if loaded}
@@ -373,7 +404,7 @@
 				</div>
 
 				<div class="w-full relative">
-					{#if atSelectedModel !== undefined || selectedToolIds.length > 0 || webSearchEnabled}
+					{#if atSelectedModel !== undefined || selectedToolIds.length > 0 || webSearchEnabled || deepResearchEnabled || webCrawlEnabled}
 						<div
 							class="px-3 pb-0.5 pt-1.5 text-left w-full flex flex-col absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-gray-900 z-10"
 						>
@@ -421,6 +452,40 @@
 											</span>
 										</div>
 										<div class=" translate-y-[0.5px]">{$i18n.t('Search the web')}</div>
+									</div>
+								</div>
+							{/if}
+
+							{#if deepResearchEnabled}
+								<div class="flex items-center justify-between w-full">
+									<div class="flex items-center gap-2.5 text-sm dark:text-gray-500">
+										<div class="pl-1">
+											<span class="relative flex size-2">
+												<span
+													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"
+												/>
+												<span class="relative inline-flex rounded-full size-2 bg-sky-500" />
+											</span>
+										</div>
+										<div class=" translate-y-[0.5px]">{$i18n.t('Deep research the web')}</div>
+									</div>
+								</div>
+							{/if}
+
+							{#if webCrawlEnabled}
+								<div class="flex items-center justify-between w-full">
+									<div class="flex items-center gap-2.5 text-sm dark:text-gray-500">
+										<div class="pl-1">
+											<span class="relative flex size-2">
+												<span
+													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"
+												/>
+												<span class="relative inline-flex rounded-full size-2 bg-amber-500" />
+											</span>
+										</div>
+										<div class=" translate-y-[0.5px]">
+											{$i18n.t('Crawl a site into a knowledge base')}
+										</div>
 									</div>
 								</div>
 							{/if}
@@ -625,6 +690,10 @@
 									<div class="ml-1 self-end mb-1.5 flex space-x-1">
 										<InputMenu
 											bind:webSearchEnabled
+											bind:deepResearchEnabled
+											bind:webCrawlEnabled
+											bind:webCrawlKbId
+											onConfigureWebCrawl={() => (showWebCrawlModal = true)}
 											bind:selectedToolIds
 											{screenCaptureHandler}
 											uploadFilesHandler={() => {
@@ -834,6 +903,8 @@
 														atSelectedModel = undefined;
 														selectedToolIds = [];
 														webSearchEnabled = false;
+														deepResearchEnabled = false;
+														webCrawlEnabled = false;
 													}
 												}}
 												on:paste={async (e: CustomEvent<{ event: ClipboardEvent }>) => {

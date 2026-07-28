@@ -13,6 +13,9 @@ type TextStreamUpdate = {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	error?: any;
 	usage?: ResponseUsage;
+	// Model thinking, kept separate from `value` so it is never rendered as the answer.
+	// Only Anthropic models populate this today (self.ai#59).
+	reasoning?: string;
 };
 
 type ResponseUsage = {
@@ -91,6 +94,12 @@ async function* openAIStreamToIterator(
 				continue;
 			}
 
+			const reasoning = parsedData.choices?.[0]?.delta?.reasoning_content;
+			if (reasoning) {
+				yield { done: false, value: '', reasoning };
+				continue;
+			}
+
 			yield {
 				done: false,
 				value: parsedData.choices?.[0]?.delta?.content ?? ''
@@ -125,6 +134,11 @@ async function* streamLargeDeltasAsRandomChunks(
 			continue;
 		}
 		if (textStreamUpdate.usage) {
+			yield textStreamUpdate;
+			continue;
+		}
+		if (textStreamUpdate.reasoning) {
+			// Not chunked -- the fluid-typing effect is for the answer, not for thinking.
 			yield textStreamUpdate;
 			continue;
 		}

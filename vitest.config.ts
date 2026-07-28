@@ -1,5 +1,11 @@
+import { fileURLToPath } from 'node:url';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
+
+// Alias targets must be absolute: Vite resolves a relative alias value relative
+// to the *importing* file, so a relative target breaks for any importer outside
+// the repo root (e.g. src/lib/constants.ts importing $app/environment).
+const mock = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
 	plugins: [sveltekit()],
@@ -18,9 +24,10 @@ export default defineConfig({
 		globals: true,
 		setupFiles: ['./vitest-setup.ts'],
 		alias: {
-			'$app/navigation': './src/test-mocks/app-navigation.ts',
-			'$app/stores': './src/test-mocks/app-stores.ts',
-			'$app/environment': './src/test-mocks/app-environment.ts'
+			'$app/navigation': mock('./src/test-mocks/app-navigation.ts'),
+			'$app/stores': mock('./src/test-mocks/app-stores.ts'),
+			'$app/environment': mock('./src/test-mocks/app-environment.ts'),
+			'$app/paths': mock('./src/test-mocks/app-paths.ts')
 		}
 	}
 });

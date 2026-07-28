@@ -1,15 +1,20 @@
 # self.chat CI — build the SvelteKit client image and publish to the yard's
 # private registry.
 #
-# Nothing builds on the bastion; CI builds and publishes. kaniko (daemonless)
-# NOT buildah — the runner pods have no /dev/fuse. Image lands at
-#   $CI_REGISTRY_IMAGE:<short-sha>
-# Flux's ImagePolicy promotes from there; CI only builds + pushes.
+# Nothing builds on the bastion; CI builds and publishes. buildkit-rootless
+# (daemonless) NOT kaniko (gitlab-profile#60 / self.infrastructure#143): kaniko's
+# writable layer always lands on the node's containerd root and can't be
+# redirected; buildkit's state is a flag (`--root`) pointed at the /builds mount,
+# and it runs rootless (uid 1000). Image lands at $CI_REGISTRY_IMAGE:<short-sha>;
+# Flux's ImagePolicy promotes from there.
 #
 # Runner #28 is run_untagged=false → every job MUST carry a tag. Light jobs use
 # `yard`; the frontend build runs on `yard-midbuild` (2x 8c/16Gi, floating) —
 # 16Gi fits the vite 6GB+ heap (see Dockerfile NODE_OPTIONS) and keeps us off
 # `bigbuild`, which is reserved for the heavy from-source builds (e.g. llamolotl).
+#
+# Two-job split (selfinfra/zlib reference): build:web is the MR gate (builds with
+# NO --output = kaniko --no-push); publish:web builds + pushes on main only.
 
 stages: [lint, test, build, e2e, publish]
 
@@ -20,6 +25,31 @@ include:
 
 default:
   tags: [yard]
+
+variables:
+  BUILDKIT_IMAGE: "moby/buildkit:v0.31.2-rootless"   # pinned, not master
+  # Bursty CI jobs: SMALL requests so a job schedules even on a busy node, HIGH
+  # limits so it can burst when it actually runs. These jobs sit idle until
+  # triggered, need real CPU/RAM only briefly, and don't all run at once — so
+  # right-sizing the request (not the limit) is what lets k8s bin-pack them.
+  # Requires the runner to permit resource overwrites (self.infrastructure#173).
+  KUBERNETES_CPU_REQUEST: "250m"
+  KUBERNETES_CPU_LIMIT: "8"
+  KUBERNETES_MEMORY_REQUEST: "1Gi"
+  KUBERNETES_MEMORY_LIMIT: "16Gi"
+
+# Registry auth + buildkit state dir, both OUTSIDE the build context (a SIBLING
+# of $CI_PROJECT_DIR): the CI_JOB_TOKEN credential must never sit where a
+# `COPY . .` could bake it into the image (gitlab-profile#60 trap 3). --root
+# points build bytes at the /builds mount, off the node containerd root (#143).
+.buildkit-before: &buildkit-before
+  - export BK_SCRATCH="${CI_BUILDS_DIR:-/builds}/.buildkit"
+  - mkdir -p "$BK_SCRATCH" 2>/dev/null || export BK_SCRATCH="$(dirname "$CI_PROJECT_DIR")/.buildkit"
+  - mkdir -p "$BK_SCRATCH/state" "$BK_SCRATCH/docker"
+  - export DOCKER_CONFIG="$BK_SCRATCH/docker"
+  - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_JOB_TOKEN" | base64 | tr -d '\n')\"}}}" > "$DOCKER_CONFIG/config.json"
+  - chmod 600 "$DOCKER_CONFIG/config.json"
+  - export BUILDKITD_FLAGS="--oci-worker-no-process-sandbox --root $BK_SCRATCH/state"
 
 # --- publish: mirror main -> public-alpha (GitLab + GitHub), scheduled only -
 sync:public-alpha:
@@ -90,30 +120,48 @@ test:unit:
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes: [src/**/*, package.json, package-lock.json]
 
-# --- build: static SvelteKit bundle -> nginx image --------------------------
+# --- build: static SvelteKit bundle -> nginx image — MR gate (build, NO push) -
 # Heavy build (npm ci + vite build, 6GB heap). Runs when the app, deps, or the
 # image recipe change — not on doc-only commits.
 build:web:
   stage: build
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
+  image: { name: "$BUILDKIT_IMAGE", entrypoint: [""] }
   tags: [yard-midbuild]
   timeout: 1h
-  before_script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_JOB_TOKEN" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  before_script: *buildkit-before
   script:
     - >
-      /kaniko/executor --context "$CI_PROJECT_DIR"
-      --dockerfile Dockerfile
-      --build-arg APP_BUILD_HASH="$CI_COMMIT_SHORT_SHA"
-      --cache=true --cache-repo "$CI_REGISTRY_IMAGE/cache"
-      --destination "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
-      --destination "$CI_REGISTRY_IMAGE:latest"
+      buildctl-daemonless.sh build
+      --frontend dockerfile.v0
+      --local context="$CI_PROJECT_DIR"
+      --local dockerfile="$CI_PROJECT_DIR"
+      --opt build-arg:APP_BUILD_HASH="$CI_COMMIT_SHORT_SHA"
+      --import-cache "type=registry,ref=${CI_REGISTRY_IMAGE}/cache"
+      --export-cache "type=registry,ref=${CI_REGISTRY_IMAGE}/cache,mode=max"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
+
+# --- publish: build + push :sha / :latest (main only) ---
+publish:web:
+  stage: publish
+  image: { name: "$BUILDKIT_IMAGE", entrypoint: [""] }
+  tags: [yard-midbuild]
+  timeout: 1h
+  before_script: *buildkit-before
+  script:
+    - export TAGS="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA},${CI_REGISTRY_IMAGE}:latest"
+    - 'export OUT="type=image,\"name=${TAGS}\",push=true"'
+    - >
+      buildctl-daemonless.sh build
+      --frontend dockerfile.v0
+      --local context="$CI_PROJECT_DIR"
+      --local dockerfile="$CI_PROJECT_DIR"
+      --opt build-arg:APP_BUILD_HASH="$CI_COMMIT_SHORT_SHA"
+      --import-cache "type=registry,ref=${CI_REGISTRY_IMAGE}/cache"
+      --export-cache "type=registry,ref=${CI_REGISTRY_IMAGE}/cache,mode=max"
+      --output "$OUT"
+  rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
 
@@ -178,11 +226,18 @@ e2e:cypress:
   image: cypress/browsers:node-22.21.0-chrome-141.0.7390.107-1-ff-144.0-edge-141.0.3537.92-1
   tags: [yard-midbuild]
   timeout: 45m
+  # Still allow_failure: true -- the curl and cross-project fetch gaps below are
+  # fixed, but this job's before_script installs whatever python3 the base image
+  # ships (Debian trixie -> 3.13), while self.ai's own api/Dockerfile is still on
+  # 3.11 and requirements-api.txt's unstructured==0.15.9 has no 3.13-compatible
+  # release -- the exact same wall self.ai#60 (move the API stack off 3.11) hit.
+  # Flip this back to false once #60 lands (or this job pins a matching Python
+  # itself, but that just moves the same mismatch, not fixes it).
   allow_failure: true
   variables:
     NODE_OPTIONS: --max-old-space-size=6144
     CYPRESS_CACHE_FOLDER: "$CI_PROJECT_DIR/.cache/Cypress"
-    SELFAI_PROJECT_PATH: "selfshipyard%2Fselfai%2Fself.ai"
+    SELFAI_PROJECT_PATH: "selfshipyard/selfai/self.ai"
     SELFAI_REF: main
     SELFAI_API_DIR: "$CI_PROJECT_DIR/.selfai-api"
     HOST: "0.0.0.0"
@@ -196,23 +251,30 @@ e2e:cypress:
     ANONYMIZED_TELEMETRY: "false"
   before_script:
     # cypress/browsers ships node+chrome+ff+edge+Xvfb (debian:13-slim base)
-    # but no Python — add just enough to run self.ai's API. python3-venv:
-    # Debian's system python is externally-managed (PEP 668); a venv avoids
-    # --break-system-packages entirely.
-    - apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip jq ca-certificates && rm -rf /var/lib/apt/lists/*
+    # but no Python, git, or curl — add just enough to run self.ai's API and
+    # fetch its api/ tree below. python3-venv: Debian's system python is
+    # externally-managed (PEP 668); a venv avoids --break-system-packages
+    # entirely. git: step 1 below clones self.ai cross-project via job token
+    # (see the note there for why it's git, not the repository-archive API).
+    # curl: also used later to poll the API's own /health once it's up.
+    - apt-get update && apt-get install -y --no-install-recommends git curl python3 python3-venv python3-pip jq ca-certificates && rm -rf /var/lib/apt/lists/*
     - npm ci
   script:
-    # 1. Fetch self.ai's api/ tree only (no submodules, no full git history)
-    #    via GitLab's archive-by-path endpoint, authenticated with this job's
-    #    own CI_JOB_TOKEN.
+    # 1. Fetch self.ai's api/ tree only via a sparse, blobless, shallow clone
+    #    authenticated with this job's own CI_JOB_TOKEN. NOT GitLab's
+    #    repository-archive REST endpoint (`repository/archive.tar.gz`) --
+    #    that endpoint is not in the set CI/CD job tokens can reach
+    #    cross-project (confirmed against a real 404 even with self.chat
+    #    correctly added to self.ai's job-token allowlist); `git clone` IS a
+    #    supported cross-project job-token operation, so it replaces the
+    #    REST call entirely rather than working around the 404.
     - >
-      curl --fail --location --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
-      "${CI_API_V4_URL}/projects/${SELFAI_PROJECT_PATH}/repository/archive.tar.gz?sha=${SELFAI_REF}&path=api"
-      -o /tmp/selfai-api.tar.gz
+      git clone --depth 1 --branch "$SELFAI_REF" --filter=blob:none --sparse
+      "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${SELFAI_PROJECT_PATH}.git"
+      /tmp/selfai-clone
+    - (cd /tmp/selfai-clone && git sparse-checkout set api)
     - mkdir -p "$SELFAI_API_DIR"
-      # archive.tar.gz --path=api wraps the tree in <project>-<ref>-<sha>/api/... ;
-      # strip both so requirements-api.txt/selfai_ui/ land at $SELFAI_API_DIR/.
-    - tar xzf /tmp/selfai-api.tar.gz -C "$SELFAI_API_DIR" --strip-components=2
+    - cp -r /tmp/selfai-clone/api/. "$SELFAI_API_DIR"/
 
     # 2. Install the API-tier deps into a venv.
     - python3 -m venv /tmp/selfai-venv

@@ -9,6 +9,9 @@
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+
 	import ChevronDown from '../../icons/ChevronDown.svelte';
 	import ChevronRight from '../../icons/ChevronRight.svelte';
 	import Collapsible from '../../common/Collapsible.svelte';
@@ -31,6 +34,7 @@
 	} from '$lib/apis/chats';
 	import ChatItem from './ChatItem.svelte';
 	import FolderMenu from './Folders/FolderMenu.svelte';
+	import FolderConfigModal from './Folders/FolderConfigModal.svelte';
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 
 	export let open = false;
@@ -231,6 +235,7 @@
 	});
 
 	let showDeleteConfirm = false;
+	let showConfigModal = false;
 
 	const deleteHandler = async () => {
 		const res = await deleteFolderById(localStorage.token, folderId).catch((error) => {
@@ -307,6 +312,31 @@
 		}, 100);
 	};
 
+	const newChatInFolderHandler = async () => {
+		// Start a new chat with this folder as the active context, carried as a
+		// `folder_id` URL param (same idiom the new-chat flow already uses for
+		// `model`/`tools`/`q`). The chat is placed into (CS/R1) and, in Phase 2,
+		// seeded from (CS/R2) this folder at creation time.
+		open = true;
+		// Confirmed live (twice) that resolve('/(app)?folder_id=...') -- query
+		// string embedded in the same argument as the bare route group, no page
+		// segment in between -- fails to resolve at all and leaks the literal
+		// "(app)" into the URL instead of the real home path. resolve('/(app)')
+		// alone is the proven-working pattern used one file up
+		// (Sidebar.svelte/Groups.svelte); the query must be appended outside it.
+		// resolve() IS called below, just not inline in the goto() argument,
+		// which is the only shape svelte/no-navigation-without-resolve accepts
+		// -- that inline shape is exactly what's confirmed broken here.
+		const basePath = resolve('/(app)');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		await goto(`${basePath}?folder_id=${encodeURIComponent(folderId)}`);
+
+		const newChatButton = document.getElementById('new-chat-button');
+		setTimeout(() => {
+			newChatButton?.click();
+		}, 0);
+	};
+
 	const exportHandler = async () => {
 		const chats = await getChatsByFolderId(localStorage.token, folderId).catch((error) => {
 			toast.error(error);
@@ -323,6 +353,18 @@
 		saveAs(blob, `folder-${folders[folderId].name}-export-${Date.now()}.json`);
 	};
 </script>
+
+<FolderConfigModal
+	bind:show={showConfigModal}
+	folder={folders[folderId]}
+	on:save={(e) => {
+		// The backend returns the full updated folder (POST /{id}/update, FC/R4).
+		// Merge it into the local store so re-opening Configure in the same
+		// session reflects what was just saved, instead of the stale
+		// pre-save snapshot (FC/R3 requires this, not just after a reload).
+		folders[folderId] = { ...folders[folderId], ...e.detail };
+	}}
+/>
 
 <DeleteConfirmDialog
 	bind:show={showDeleteConfirm}
@@ -427,6 +469,12 @@
 					}}
 				>
 					<FolderMenu
+						on:newChat={() => {
+							newChatInFolderHandler();
+						}}
+						on:configure={() => {
+							showConfigModal = true;
+						}}
 						on:rename={() => {
 							editHandler();
 						}}

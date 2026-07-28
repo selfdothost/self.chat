@@ -12,6 +12,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
+	import { config } from '$lib/stores';
 
 	const dispatch = createEventDispatcher();
 
@@ -190,11 +191,10 @@ class Tools:
 			bind:this={formElement}
 			class=" flex flex-col max-h-[100dvh] h-full"
 			on:submit|preventDefault={() => {
-				if (edit) {
-					submitHandler();
-				} else {
-					showConfirm = true;
-				}
+				// Always confirm before running unsandboxed code, on both create
+				// and edit -- editing an existing tool's code is exactly when a
+				// dangerous payload could be introduced, not just at creation.
+				showConfirm = true;
 			}}
 		>
 			<div class="flex flex-col flex-1 overflow-auto h-0">
@@ -298,7 +298,11 @@ class Tools:
 					<div class="flex-1 pr-3">
 						<div class="text-xs text-gray-500 line-clamp-2">
 							<span class=" font-semibold dark:text-gray-200">{$i18n.t('Warning:')}</span>
-							{$i18n.t('Tools are a function calling system with arbitrary code execution')} <br />—
+							{$i18n.t('Tools are a function calling system with arbitrary code execution')}
+							{#if !$config?.features?.enable_piston_execution}
+								{$i18n.t('(no sandbox is active on this instance)')}
+							{/if}
+							<br />—
 							<span class=" font-medium dark:text-gray-400"
 								>{$i18n.t(`don't install random tools from sources you don't trust.`)}</span
 							>
@@ -325,13 +329,23 @@ class Tools:
 >
 	<div class="text-sm text-gray-500">
 		<div class=" bg-yellow-500/20 text-yellow-700 dark:text-yellow-200 rounded-lg px-4 py-3">
-			<div>{$i18n.t('Please carefully review the following warnings:')}</div>
+			<div class="font-semibold">
+				{$i18n.t('This could be dangerous. Please use caution.')}
+			</div>
+			<div class="mt-1">{$i18n.t('Please carefully review the following warnings:')}</div>
 
 			<ul class=" mt-1 list-disc pl-4 text-xs">
 				<li>
 					{$i18n.t('Tools have a function calling system that allows arbitrary code execution.')}
 				</li>
 				<li>{$i18n.t('Do not install tools from sources you do not fully trust.')}</li>
+				{#if !$config?.features?.enable_piston_execution}
+					<li>
+						{$i18n.t(
+							'No sandboxed execution backend (Piston) is configured on this instance -- this code will run directly in the server process with no isolation.'
+						)}
+					</li>
+				{/if}
 			</ul>
 		</div>
 

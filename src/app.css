@@ -22,6 +22,34 @@
 	font-display: swap;
 }
 
+/*
+ * The gray ramp itself doesn't change between light/dark/her -- Tailwind's
+ * `dark:` variant picks *which* shade a component uses, not what the shades
+ * resolve to. So one unconditional :root block covers all themes; oled-dark
+ * is the sole exception (deeper blacks for true-black OLED panels) and it
+ * already overrides these four via inline style.setProperty in app.html's
+ * FOUC-avoidance script, which wins over this block on specificity alone.
+ * self.crew#141: mods inherit these into shadow DOM for free once declared.
+ * Keep any future retune here in sync with tailwind.config.js's fallbacks,
+ * since a mod's own CSS fallback is a frozen copy of these.
+ */
+:root {
+	--color-white: #fff;
+	--color-black: #000;
+	--color-gray-50: #f9f9f9;
+	--color-gray-100: #ececec;
+	--color-gray-200: #e3e3e3;
+	--color-gray-300: #cdcdcd;
+	--color-gray-400: #b4b4b4;
+	--color-gray-500: #9b9b9b;
+	--color-gray-600: #676767;
+	--color-gray-700: #4e4e4e;
+	--color-gray-800: #333;
+	--color-gray-850: #262626;
+	--color-gray-900: #171717;
+	--color-gray-950: #0d0d0d;
+}
+
 html {
 	word-break: break-word;
 }

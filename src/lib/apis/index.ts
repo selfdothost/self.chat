@@ -1119,6 +1119,11 @@ export interface ModelMeta {
 	actionIds?: string[];
 	active_loras?: { file: string; scale: number }[];
 	suggestion_prompts?: { content: string }[] | null;
+	// Optional per-model audio overrides. `tts_voice` picks the self-hosted TTS
+	// voice this model speaks with (overriding the default at chat-time synth);
+	// `stt_model` is reserved for a future per-model transcription-model override
+	// (not wired yet — self-transcribe is single-active-model).
+	audio?: { tts_voice?: string; stt_model?: string };
 	// Knowledge entries come in a few legacy/current shapes (raw collection
 	// refs vs. collection-name arrays) that get normalized on read — genuinely
 	// heterogeneous, not a single fixed shape.

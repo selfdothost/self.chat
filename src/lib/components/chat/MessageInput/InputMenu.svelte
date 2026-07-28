@@ -14,6 +14,7 @@
 	import DocumentArrowUpSolid from '$lib/components/icons/DocumentArrowUpSolid.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import GlobeAltSolid from '$lib/components/icons/GlobeAltSolid.svelte';
+	import Cog6Solid from '$lib/components/icons/Cog6Solid.svelte';
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
 	import CameraSolid from '$lib/components/icons/CameraSolid.svelte';
 
@@ -26,6 +27,12 @@
 	export let selectedToolIds: string[] = [];
 
 	export let webSearchEnabled: boolean;
+	export let deepResearchEnabled: boolean = false;
+	export let webCrawlEnabled: boolean = false;
+	/** The knowledge base crawled pages are saved into. '' means unconfigured. */
+	export let webCrawlKbId: string = '';
+	/** Opens the Configure modal (owned by the parent, so it survives this dropdown closing). */
+	export let onConfigureWebCrawl: AnyFn = () => {};
 	export let onClose: AnyFn;
 
 	let tools = {};
@@ -69,7 +76,7 @@
 
 	<div slot="content">
 		<DropdownMenuContent
-			class="w-full max-w-[200px] rounded-xl px-1 py-1  border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
+			class="w-full max-w-[275px] rounded-xl px-1 py-1  border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
 			sideOffset={15}
 			alignOffset={-8}
 			side="top"
@@ -128,11 +135,80 @@
 				>
 					<div class="flex-1 flex items-center gap-2">
 						<GlobeAltSolid />
-						<div class=" line-clamp-1">{$i18n.t('Web Search')}</div>
+						<div class="text-left line-clamp-1">{$i18n.t('Web Search')}</div>
 					</div>
 
 					<Switch state={webSearchEnabled} />
 				</button>
+
+				<hr class="border-black/5 dark:border-white/5 my-1" />
+			{/if}
+
+			{#if $config?.features?.enable_deep_research}
+				<button
+					class="flex w-full justify-between gap-2 items-center px-3 py-2 text-sm font-medium cursor-pointer rounded-xl"
+					on:click={() => {
+						deepResearchEnabled = !deepResearchEnabled;
+					}}
+				>
+					<div class="flex-1 flex items-center gap-2">
+						<GlobeAltSolid />
+						<div class="text-left line-clamp-1">{$i18n.t('Deep Research')}</div>
+					</div>
+
+					<Switch state={deepResearchEnabled} />
+				</button>
+
+				<hr class="border-black/5 dark:border-white/5 my-1" />
+			{/if}
+
+			{#if $config?.features?.enable_web_crawl}
+				<div
+					class="flex w-full justify-between gap-2 items-center px-3 py-2 text-sm font-medium rounded-xl"
+				>
+					<button
+						class="flex-1 flex items-center gap-2 cursor-pointer min-w-0"
+						on:click={() => {
+							// Enabling without a destination is not a valid state, so the
+							// modal opens instead of the switch flipping. If the user picks
+							// nothing, the parent leaves this off.
+							if (!webCrawlEnabled && !webCrawlKbId) {
+								onConfigureWebCrawl();
+							} else {
+								webCrawlEnabled = !webCrawlEnabled;
+							}
+						}}
+					>
+						<GlobeAltSolid />
+						<div class="text-left line-clamp-1">{$i18n.t('Web Crawl')}</div>
+					</button>
+
+					<button
+						class="shrink-0 p-1 rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+						title={$i18n.t('Configure Web Crawl')}
+						aria-label={$i18n.t('Configure Web Crawl')}
+						on:click|stopPropagation={() => onConfigureWebCrawl()}
+					>
+						<Cog6Solid className="size-3.5" />
+					</button>
+
+					<!-- Switch is a real bits-ui control, not decoration: it renders its
+					     own button and handles its own click. Wrapping it in another
+					     button would nest buttons and double-fire, so drive it by its
+					     `change` event instead. -->
+					<Switch
+						state={webCrawlEnabled}
+						on:change={(e) => {
+							if (e.detail && !webCrawlKbId) {
+								// Turning on with no destination: open the modal and leave the
+								// toggle off. The modal's outcome decides.
+								onConfigureWebCrawl();
+							} else {
+								webCrawlEnabled = e.detail;
+							}
+						}}
+					/>
+				</div>
 
 				<hr class="border-black/5 dark:border-white/5 my-1" />
 			{/if}

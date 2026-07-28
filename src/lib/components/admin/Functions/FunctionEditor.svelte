@@ -12,6 +12,7 @@
 	import Badge from '$lib/components/common/Badge.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
+	import { config } from '$lib/stores';
 
 	let formElement = null;
 	let showConfirm = false;
@@ -148,11 +149,10 @@ class Filter:
 			bind:this={formElement}
 			class=" flex flex-col max-h-[100dvh] h-full"
 			on:submit|preventDefault={() => {
-				if (edit) {
-					submitHandler();
-				} else {
-					showConfirm = true;
-				}
+				// Always confirm before running unsandboxed code, on both create
+				// and edit -- editing an existing function's code is exactly when a
+				// dangerous payload could be introduced, not just at creation.
+				showConfirm = true;
 			}}
 		>
 			<div class="flex flex-col flex-1 overflow-auto h-0 rounded-lg">
@@ -244,7 +244,11 @@ class Filter:
 					<div class="flex-1 pr-3">
 						<div class="text-xs text-gray-500 line-clamp-2">
 							<span class=" font-semibold dark:text-gray-200">{$i18n.t('Warning:')}</span>
-							{$i18n.t('Functions allow arbitrary code execution')} <br />—
+							{$i18n.t('Functions allow arbitrary code execution')}
+							{#if !$config?.features?.enable_piston_execution}
+								{$i18n.t('(no sandbox is active on this instance)')}
+							{/if}
+							<br />—
 							<span class=" font-medium dark:text-gray-400"
 								>{$i18n.t(`don't install random functions from sources you don't trust.`)}</span
 							>
@@ -271,11 +275,21 @@ class Filter:
 >
 	<div class="text-sm text-gray-500">
 		<div class=" bg-yellow-500/20 text-yellow-700 dark:text-yellow-200 rounded-lg px-4 py-3">
-			<div>{$i18n.t('Please carefully review the following warnings:')}</div>
+			<div class="font-semibold">
+				{$i18n.t('This could be dangerous. Please use caution.')}
+			</div>
+			<div class="mt-1">{$i18n.t('Please carefully review the following warnings:')}</div>
 
 			<ul class=" mt-1 list-disc pl-4 text-xs">
 				<li>{$i18n.t('Functions allow arbitrary code execution.')}</li>
 				<li>{$i18n.t('Do not install functions from sources you do not fully trust.')}</li>
+				{#if !$config?.features?.enable_piston_execution}
+					<li>
+						{$i18n.t(
+							'No sandboxed execution backend (Piston) is configured on this instance -- this code will run directly in the server process with no isolation.'
+						)}
+					</li>
+				{/if}
 			</ul>
 		</div>
 

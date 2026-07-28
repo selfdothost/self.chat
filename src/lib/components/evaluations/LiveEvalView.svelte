@@ -21,6 +21,11 @@
 	// ── Shared state ─────────────────────────────────────────────────
 	let status: 'loading' | 'streaming' | 'done' | 'error' = 'loading';
 	let errorMessage = '';
+	// The real reason getCodeTestDetails() came back empty, captured instead of
+	// swallowed (self.ai#65) — a `failed`-status job should say why grading
+	// never completed, not the same "not synced yet, try again" copy a
+	// still-running job would show.
+	let codeDetailsError: string | null = null;
 	let stopStream: (() => void) | null = null;
 
 	// ── language-eval / generic events path ────────────────────────────────
@@ -199,6 +204,7 @@
 	async function loadCodeDetails() {
 		status = 'loading';
 		codeFallback = false;
+		codeDetailsError = null;
 		loadCodeScores();
 		try {
 			const data = await getCodeTestDetails(localStorage.token, resultId);
@@ -207,8 +213,10 @@
 				status = 'done';
 				return;
 			}
-		} catch {
-			// graded detail unavailable — try raw events below
+		} catch (error) {
+			// graded detail unavailable — try raw events below, but keep the real
+			// reason in case nothing else turns up either
+			codeDetailsError = typeof error === 'string' ? error : String(error);
 		}
 		// Fallback: raw streamed events. Works for the Schedule path (real job id)
 		// and for non-admins; a synthesized run-only job has no events endpoint,
@@ -483,6 +491,24 @@
 					<div class="mt-3 text-sm">
 						{status === 'streaming' ? $i18n.t('Waiting for first task...') : $i18n.t('Loading events...')}
 					</div>
+				</div>
+			{:else if codeTasks.length === 0 && status === 'done' && job.status === 'failed'}
+				<!-- self.ai#65: a genuinely failed job never has results coming --
+				     say so, with the real reason, instead of "try again in a
+				     moment" copy that implies it might still finish. -->
+				<div class="flex flex-col items-center justify-center py-12 text-center gap-2">
+					<div class="text-sm text-red-600 dark:text-red-400">
+						{$i18n.t('This evaluation run failed.')}
+					</div>
+					<div class="text-xs text-gray-400 dark:text-gray-500 max-w-sm">
+						{codeDetailsError ?? $i18n.t('Grading did not complete and no results were produced.')}
+					</div>
+					<button
+						class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
+						on:click={loadCodeDetails}
+					>
+						{$i18n.t('Retry')}
+					</button>
 				</div>
 			{:else if codeTasks.length === 0 && status === 'done'}
 				<div class="flex flex-col items-center justify-center py-12 text-center gap-2">

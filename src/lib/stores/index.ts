@@ -7,6 +7,7 @@
 export * from './auth';
 export * from './backend';
 export * from './chat';
+export * from './mods';
 export * from './models';
 export * from './settings';
 export * from './socket';

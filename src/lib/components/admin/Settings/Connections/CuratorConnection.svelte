@@ -24,7 +24,7 @@
 </script>
 
 <AddConnectionModal
-	curator
+	type="curator"
 	edit
 	bind:show={showConfigModal}
 	connection={{

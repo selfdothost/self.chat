@@ -198,6 +198,65 @@ export const updateFolderParentIdById = async (token: string, id: string, parent
 	return res;
 };
 
+type FolderPreset = {
+	// FolderForm.name is required by the backend (it's the same rename endpoint,
+	// extended to also accept preset fields) -- a preset-only save must resubmit
+	// the folder's current, unchanged name.
+	name: string;
+	default_model_id: string | null;
+	tool_ids: string[];
+	knowledge_ids: string[];
+};
+
+// Persist a folder's RAG preset (default model, tools, knowledge) through the
+// existing folder-update endpoint (self.ai MR!138 extended POST /{id}/update to
+// also accept these three fields -- there is no separate preset endpoint). All
+// three preset fields are sent together on every save so an emptied field is an
+// explicit clear, not a merge-on-omit (FC/R4, FC/R5). The backend validates every
+// reference atomically and rejects the whole write with a single generic error;
+// the caller surfaces exactly that outcome and performs no per-field client-side
+// validation.
+export const updateFolderPresetById = async (
+	token: string,
+	id: string,
+	preset: FolderPreset
+) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}/update`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({
+			name: preset.name,
+			default_model_id: preset.default_model_id,
+			tool_ids: preset.tool_ids,
+			knowledge_ids: preset.knowledge_ids
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.then((json) => {
+			return json;
+		})
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 type FolderItems = {
 	chat_ids: string[];
 	file_ids: string[];

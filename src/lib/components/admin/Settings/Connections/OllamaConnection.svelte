@@ -31,7 +31,7 @@
 </script>
 
 <AddConnectionModal
-	ollama
+	type="ollama"
 	edit
 	bind:show={showConfigModal}
 	connection={{

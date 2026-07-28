@@ -13,6 +13,7 @@ export const CODE_EVAL_API_BASE_URL = `${WEBUI_BASE_URL}/code-eval`;
 export const LLAMOLOTL_API_BASE_URL = `${WEBUI_BASE_URL}/llamolotl`;
 export const OLLAMA_API_BASE_URL = `${WEBUI_BASE_URL}/ollama`;
 export const OPENAI_API_BASE_URL = `${WEBUI_BASE_URL}/openai`;
+export const ANTHROPIC_API_BASE_URL = `${WEBUI_BASE_URL}/anthropic`;
 export const AUDIO_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1/audio`;
 export const IMAGES_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1/images`;
 export const RETRIEVAL_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1/retrieval`;

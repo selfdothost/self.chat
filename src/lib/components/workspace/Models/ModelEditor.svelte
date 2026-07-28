@@ -17,6 +17,7 @@
 	import { getTools } from '$lib/apis/tools';
 	import { getFunctions } from '$lib/apis/functions';
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
+	import { getSelectableVoices } from '$lib/apis/audio';
 	import { getAvailableLlamolotlLoras } from '$lib/apis/llamolotl';
 	import type { AvailableLora } from '$lib/apis/llamolotl';
 	import AccessControl from '../common/AccessControl.svelte';
@@ -92,6 +93,13 @@
 	let availableLoras: AvailableLora[] = [];
 	let selectedLoras: { file: string; scale: number }[] = [];
 	let lorasLoading = false;
+
+	// Per-model TTS voice: the admin-enabled ("selectable") self-hosted voices,
+	// and the one this model speaks with ('' = use the default, no override).
+	// selectableVoices stays empty on deployments without self-hosted TTS, which
+	// hides the picker entirely.
+	let selectableVoices: Array<{ id: string; name?: string; language?: string | null }> = [];
+	let selectedVoice = '';
 
 	// Fetch available LoRAs when a llamolotl base model is selected
 	const fetchLorasForModel = async (base_model_id: string | null) => {
@@ -204,6 +212,17 @@
 			}
 		}
 
+		// Per-model TTS voice override. Keep any reserved sibling keys (e.g. a
+		// future stt_model) but drop the whole `audio` bag when nothing is set.
+		if (selectedVoice) {
+			info.meta.audio = { ...(info.meta.audio ?? {}), tts_voice: selectedVoice };
+		} else if (info.meta.audio) {
+			delete info.meta.audio.tts_voice;
+			if (Object.keys(info.meta.audio).length === 0) {
+				delete info.meta.audio;
+			}
+		}
+
 		info.params.stop = params.stop ? params.stop.split(',').filter((s) => s.trim()) : null;
 		Object.keys(info.params).forEach((key) => {
 			if (info.params[key] === '' || info.params[key] === null) {
@@ -220,6 +239,10 @@
 		await tools.set(await getTools(localStorage.token));
 		await functions.set(await getFunctions(localStorage.token));
 		await knowledgeCollections.set(await getKnowledgeBases(localStorage.token));
+
+		// Admin-enabled self-hosted voices for the per-model voice picker. Empty on
+		// deployments without self-hosted TTS -> the picker stays hidden.
+		selectableVoices = await getSelectableVoices(localStorage.token);
 
 		// Scroll to top 'workspace-container' element
 		const workspaceContainer = document.getElementById('workspace-container');
@@ -259,6 +282,7 @@
 			filterIds = model?.meta?.filterIds ?? [];
 			actionIds = model?.meta?.actionIds ?? [];
 			selectedLoras = model?.meta?.active_loras ?? [];
+			selectedVoice = model?.meta?.audio?.tts_voice ?? '';
 
 			// Fetch available LoRAs if editing a model with a llamolotl base
 			if (model.base_model_id) {
@@ -528,6 +552,29 @@
 									>
 									{#each $models.filter((m) => (model ? m.id !== model.id : true) && !m?.preset && m?.owned_by !== 'arena') as model (model.id)}
 										<option value={model.id} class=" text-gray-900">{model.name}</option>
+									{/each}
+								</select>
+							</div>
+						</div>
+					{/if}
+
+					{#if selectableVoices.length > 0}
+						<div class="my-1">
+							<div class=" text-sm font-semibold mb-1">{$i18n.t('Voice')}</div>
+							<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+								{$i18n.t('The voice this model speaks with when read aloud, overriding the default.')}
+							</div>
+
+							<div>
+								<select
+									class="text-sm w-full bg-transparent outline-none"
+									bind:value={selectedVoice}
+								>
+									<option value="" class=" text-gray-900">{$i18n.t('Default')}</option>
+									{#each selectableVoices as v (v.id)}
+										<option value={v.id} class=" text-gray-900"
+											>{v.name || v.id}{v.language ? ` (${v.language})` : ''}</option
+										>
 									{/each}
 								</select>
 							</div>

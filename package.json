@@ -56,7 +56,7 @@
 		"@codemirror/lang-python": "^6.1.6",
 		"@codemirror/language-data": "^6.5.1",
 		"@codemirror/theme-one-dark": "^6.1.2",
-		"@huggingface/transformers": "^3.0.0",
+		"@huggingface/transformers": "^4.2.0",
 		"@sveltejs/svelte-virtual-list": "^3.0.1",
 		"@tiptap/core": "^3.27.3",
 		"@tiptap/extension-code-block-lowlight": "^3.27.3",
