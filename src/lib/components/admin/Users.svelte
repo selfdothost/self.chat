@@ -13,18 +13,15 @@
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
-	let users = [];
+	let users = $state([]);
 
-	let selectedTab = 'overview';
+	let selectedTab = $state('overview');
 
-	$: if (selectedTab) {
-		getUsersHandler();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const getUsersHandler = async () => {
 		users = await getUsers(localStorage.token);
 	};
@@ -47,6 +44,11 @@
 			});
 		}
 	});
+	$effect(() => {
+		if (selectedTab) {
+			getUsersHandler();
+		}
+	});
 </script>
 
 <div class="flex flex-col lg:flex-row w-full h-full pb-2 lg:space-x-4">
@@ -59,7 +61,7 @@
 			'overview'
 				? ''
 				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => {
+			onclick={() => {
 				selectedTab = 'overview';
 			}}
 		>
@@ -83,7 +85,7 @@
 			'groups'
 				? ''
 				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => {
+			onclick={() => {
 				selectedTab = 'groups';
 			}}
 		>

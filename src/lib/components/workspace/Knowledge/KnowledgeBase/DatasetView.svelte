@@ -6,24 +6,28 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let knowledge: {
+	interface Props {
+		knowledge: {
 		id: string;
 		description?: string;
 		meta?: { curated?: boolean };
 	};
-	export let hfPath: string = '';
+		hfPath?: string;
+	}
 
-	let loading = true;
+	let { knowledge, hfPath = '' }: Props = $props();
+
+	let loading = $state(true);
 	// Only the fields this view reads from the HF dataset-info response —
 	// the actual response carries much more of the HF datasets-server schema.
 	let info: {
 		description?: string;
 		format?: { type?: string };
 		task_categories?: string[];
-	} | null = null;
+	} | null = $state(null);
 	// Row shape is whatever columns the dataset happens to have — genuinely
 	// per-dataset, rendered generically via cell() below.
-	let preview: { columns: string[]; rows: Record<string, unknown>[] } = { columns: [], rows: [] };
+	let preview: { columns: string[]; rows: Record<string, unknown>[] } = $state({ columns: [], rows: [] });
 
 	const FORMAT_LABELS: Record<string, string> = {
 		alpaca: 'Alpaca (instruction / output)',
@@ -40,7 +44,7 @@
 
 	// Curated datasets (curator output) have no hf_path, so meta.curated marks
 	// them; sample their own local JSONL instead of HuggingFace.
-	$: isCurated = knowledge?.meta?.curated ?? false;
+	let isCurated = $derived(knowledge?.meta?.curated ?? false);
 
 	onMount(async () => {
 		if (hfPath) {
@@ -62,12 +66,12 @@
 
 	// Prefer the KB's stored description; fall back to the HF-pulled one so even
 	// datasets added before auto-fill still show a real description.
-	$: description =
-		knowledge?.description && knowledge.description.trim()
+	let description =
+		$derived(knowledge?.description && knowledge.description.trim()
 			? knowledge.description
-			: (info?.description ?? '');
-	$: format = info?.format?.type ?? '';
-	$: tags = info?.task_categories ?? [];
+			: (info?.description ?? ''));
+	let format = $derived(info?.format?.type ?? '');
+	let tags = $derived(info?.task_categories ?? []);
 </script>
 
 <div class="w-full h-full overflow-auto px-1 py-2">

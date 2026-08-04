@@ -10,25 +10,38 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
-	export let edit = false;
 
-	/** The five selectable kinds, each carrying the fields IT presents. */
-	export let types: AudioConnectionType[] = [];
-	/** Existing connection when editing; null when adding. */
-	export let connection: AudioConnection | null = null;
+	
+	
 
-	export let onSubmit: AnyFn = () => {};
-	export let onDelete: AnyFn = () => {};
+	interface Props {
+		show?: boolean;
+		edit?: boolean;
+		/** The five selectable kinds, each carrying the fields IT presents. */
+		types?: AudioConnectionType[];
+		/** Existing connection when editing; null when adding. */
+		connection?: AudioConnection | null;
+		onSubmit?: AnyFn;
+		onDelete?: AnyFn;
+	}
+
+	let {
+		show = $bindable(false),
+		edit = false,
+		types = [],
+		connection = null,
+		onSubmit = () => {},
+		onDelete = () => {}
+	}: Props = $props();
 
 	// R1: nothing type-specific is editable until a type has been chosen, so this
 	// starts null on an add and the field form simply isn't rendered yet.
-	let selectedType: string | null = null;
-	let fieldValues: Record<string, string> = {};
+	let selectedType: string | null = $state(null);
+	let fieldValues: Record<string, string> = $state({});
 
-	$: chosen = types.find((t) => t.type === selectedType) ?? null;
+	let chosen = $derived(types.find((t) => t.type === selectedType) ?? null);
 
-	let seededFor: string | null = null;
+	let seededFor: string | null = $state(null);
 	const seed = () => {
 		const key = `${edit}:${connection?.id ?? 'new'}`;
 		if (seededFor === key) return;
@@ -52,9 +65,11 @@
 	// Re-seed whenever the modal opens so a reopened dialog never shows stale state.
 	// Declared after `seed` so the reactive statement references an initialized
 	// binding (eslint no-useless-assignment).
-	$: if (show) {
-		seed();
-	}
+	$effect(() => {
+		if (show) {
+			seed();
+		}
+	});
 
 	// R3: choosing (or re-choosing) a type re-scopes the form to that type's
 	// fields, so a draft can never carry a field belonging to another type.
@@ -97,7 +112,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 					seededFor = null;
 				}}
@@ -114,7 +129,7 @@
 		<div class="flex flex-col w-full px-4 pb-4 dark:text-gray-200">
 			<form
 				class="flex flex-col w-full"
-				on:submit={(e) => {
+				onsubmit={(e) => {
 					e.preventDefault();
 					submitHandler();
 				}}
@@ -128,7 +143,7 @@
 								<button
 									type="button"
 									class="w-full text-left px-3 py-2 rounded-lg text-sm bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition"
-									on:click={() => chooseType(t.type)}
+									onclick={() => chooseType(t.type)}
 								>
 									<div class="font-medium">{t.label}</div>
 									<div class="text-xs text-gray-500">
@@ -150,7 +165,7 @@
 								<button
 									type="button"
 									class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-									on:click={() => {
+									onclick={() => {
 										selectedType = null;
 										fieldValues = {};
 									}}
@@ -195,7 +210,7 @@
 							<button
 								class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-gray-900 dark:text-white bg-white text-gray-800 hover:bg-gray-100 transition rounded-full"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									onDelete();
 									show = false;
 									seededFor = null;

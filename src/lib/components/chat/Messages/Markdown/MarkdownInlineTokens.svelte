@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MarkdownInlineTokens from './MarkdownInlineTokens.svelte';
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -24,9 +25,13 @@
 	import KatexRenderer from './KatexRenderer.svelte';
 	import Source from './Source.svelte';
 
-	export let id: string;
-	export let tokens: Token[];
-	export let onSourceClick: AnyFn = () => {};
+	interface Props {
+		id: string;
+		tokens: Token[];
+		onSourceClick?: AnyFn;
+	}
+
+	let { id, tokens, onSourceClick = () => {} }: Props = $props();
 </script>
 
 <!-- marked Token union has no stable identity field and raw text can repeat (e.g. duplicate words/formatting); tokens are only ever rendered in the fixed order marked produced, never reordered/filtered, so index is fine -->
@@ -48,7 +53,7 @@
 				title={$i18n.t('Embedded file preview')}
 				width="100%"
 				frameborder="0"
-				on:load={resizeIframeToContent}
+				onload={resizeIframeToContent}
 			></iframe>
 		{:else if token.text.includes(`<source_id`)}
 			<Source {token} onClick={onSourceClick} />
@@ -58,7 +63,7 @@
 	{:else if token.type === 'link'}
 		{#if token.tokens}
 			<a href={sanitizeHref(token.href)} target="_blank" rel="nofollow external" title={token.title}>
-				<svelte:self id={`${id}-a`} tokens={token.tokens} {onSourceClick} />
+				<MarkdownInlineTokens id={`${id}-a`} tokens={token.tokens} {onSourceClick} />
 			</a>
 		{:else}
 			<a href={sanitizeHref(token.href)} target="_blank" rel="nofollow external" title={token.title}>{token.text}</a>
@@ -67,18 +72,18 @@
 		<Image src={token.href} alt={token.text} />
 	{:else if token.type === 'strong'}
 		<strong>
-			<svelte:self id={`${id}-strong`} tokens={token.tokens} {onSourceClick} />
+			<MarkdownInlineTokens id={`${id}-strong`} tokens={token.tokens} {onSourceClick} />
 		</strong>
 	{:else if token.type === 'em'}
 		<em>
-			<svelte:self id={`${id}-em`} tokens={token.tokens} {onSourceClick} />
+			<MarkdownInlineTokens id={`${id}-em`} tokens={token.tokens} {onSourceClick} />
 		</em>
 	{:else if token.type === 'codespan'}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<code
 			class="codespan cursor-pointer"
-			on:click={() => {
+			onclick={() => {
 				copyToClipboard(unescapeHtml(token.text));
 				toast.success($i18n.t('Copied to clipboard'));
 			}}>{unescapeHtml(token.text)}</code
@@ -87,7 +92,7 @@
 		<br />
 	{:else if token.type === 'del'}
 		<del>
-			<svelte:self id={`${id}-del`} tokens={token.tokens} {onSourceClick} />
+			<MarkdownInlineTokens id={`${id}-del`} tokens={token.tokens} {onSourceClick} />
 		</del>
 	{:else if token.type === 'inlineKatex'}
 		{#if token.text}
@@ -99,7 +104,7 @@
 			title={token.fileId}
 			width="100%"
 			frameborder="0"
-			on:load={resizeIframeToContent}
+			onload={resizeIframeToContent}
 		></iframe>
 	{:else if token.type === 'text'}
 		{token.raw}

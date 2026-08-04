@@ -3,18 +3,23 @@
 	import type { Writable } from 'svelte/store';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import { getContext, createEventDispatcher } from 'svelte';
-
-	const dispatch = createEventDispatcher();
+	import { getContext } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let admin = false;
 
 	// Spread/bound two-way against several callers' own params bags -- typed
 	// loosely on purpose (see ModelParams in $lib/apis), not a fixed shape.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let params: Record<string, any> = {
+	
+	interface Props {
+		admin?: boolean;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		params?: Record<string, any>;
+		onChange?: AnyFn;
+	}
+
+	let { admin = false, onChange = () => {}, params = $bindable({
 		// Advanced
 		stream_response: null, // Set stream responses for this model individually
 		seed: null,
@@ -38,11 +43,13 @@
 		num_thread: null,
 		num_gpu: null,
 		template: null
-	};
+	}) }: Props = $props();
 
-	$: if (params) {
-		dispatch('change', params);
-	}
+	$effect(() => {
+		if (params) {
+			onChange(params);
+		}
+	});
 </script>
 
 <div class=" space-y-1 text-xs pb-safe-bottom">
@@ -60,7 +67,7 @@
 				</div>
 				<button
 					class="p-1 px-3 text-xs flex rounded transition"
-					on:click={() => {
+					onclick={() => {
 						params.stream_response =
 							(params?.stream_response ?? null) === null
 								? true
@@ -96,9 +103,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.seed = (params?.seed ?? null) === null ? 0 : null;
 					}}
 				>
@@ -115,7 +122,7 @@
 			<div class="flex mt-0.5 space-x-2">
 				<div class=" flex-1">
 					<input
-						class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none"
+						class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 						type="number"
 						placeholder={$i18n.t('Enter Seed')}
 						bind:value={params.seed}
@@ -141,9 +148,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.stop = (params?.stop ?? null) === null ? '' : null;
 					}}
 				>
@@ -160,7 +167,7 @@
 			<div class="flex mt-0.5 space-x-2">
 				<div class=" flex-1">
 					<input
-						class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none"
+						class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 						type="text"
 						placeholder={$i18n.t('Enter stop sequence')}
 						bind:value={params.stop}
@@ -184,9 +191,9 @@
 					{$i18n.t('Temperature')}
 				</div>
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.temperature = (params?.temperature ?? null) === null ? 0.8 : null;
 					}}
 				>
@@ -239,9 +246,9 @@
 					{$i18n.t('Mirostat')}
 				</div>
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.mirostat = (params?.mirostat ?? null) === null ? 0 : null;
 					}}
 				>
@@ -294,9 +301,9 @@
 					{$i18n.t('Mirostat Eta')}
 				</div>
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.mirostat_eta = (params?.mirostat_eta ?? null) === null ? 0.1 : null;
 					}}
 				>
@@ -350,9 +357,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.mirostat_tau = (params?.mirostat_tau ?? null) === null ? 5.0 : null;
 					}}
 				>
@@ -405,9 +412,9 @@
 					{$i18n.t('Top K')}
 				</div>
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.top_k = (params?.top_k ?? null) === null ? 40 : null;
 					}}
 				>
@@ -461,9 +468,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.top_p = (params?.top_p ?? null) === null ? 0.9 : null;
 					}}
 				>
@@ -516,9 +523,9 @@
 					{$i18n.t('Min P')}
 				</div>
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.min_p = (params?.min_p ?? null) === null ? 0.0 : null;
 					}}
 				>
@@ -572,9 +579,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.frequency_penalty = (params?.frequency_penalty ?? null) === null ? 1.1 : null;
 					}}
 				>
@@ -628,9 +635,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.repeat_last_n = (params?.repeat_last_n ?? null) === null ? 64 : null;
 					}}
 				>
@@ -684,9 +691,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.tfs_z = (params?.tfs_z ?? null) === null ? 1 : null;
 					}}
 				>
@@ -740,9 +747,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.num_ctx = (params?.num_ctx ?? null) === null ? 2048 : null;
 					}}
 				>
@@ -795,9 +802,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.num_batch = (params?.num_batch ?? null) === null ? 512 : null;
 					}}
 				>
@@ -850,9 +857,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.num_keep = (params?.num_keep ?? null) === null ? 24 : null;
 					}}
 				>
@@ -905,9 +912,9 @@
 				</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						params.max_tokens = (params?.max_tokens ?? null) === null ? 128 : null;
 					}}
 				>
@@ -960,9 +967,9 @@
 						{$i18n.t('use_mmap (Ollama)')}
 					</div>
 					<button
-						class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+						class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 						type="button"
-						on:click={() => {
+						onclick={() => {
 							params.use_mmap = (params?.use_mmap ?? null) === null ? true : null;
 						}}
 					>
@@ -1001,9 +1008,9 @@
 					</div>
 
 					<button
-						class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+						class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 						type="button"
-						on:click={() => {
+						onclick={() => {
 							params.use_mlock = (params?.use_mlock ?? null) === null ? true : null;
 						}}
 					>
@@ -1043,9 +1050,9 @@
 					</div>
 
 					<button
-						class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+						class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 						type="button"
-						on:click={() => {
+						onclick={() => {
 							params.num_thread = (params?.num_thread ?? null) === null ? 2 : null;
 						}}
 					>
@@ -1099,9 +1106,9 @@
 					</div>
 
 					<button
-						class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+						class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 						type="button"
-						on:click={() => {
+						onclick={() => {
 							params.num_gpu = (params?.num_gpu ?? null) === null ? 0 : null;
 						}}
 					>
@@ -1146,7 +1153,7 @@
 				<div class=" self-center text-xs font-medium">{$i18n.t('Template')}</div>
 
 				<button
-					class="p-1 px-3 text-xs flex rounded transition flex-shrink-0 outline-none"
+					class="p-1 px-3 text-xs flex rounded transition shrink-0 outline-hidden"
 					type="button"
 					on:click={() => {
 						params.template = (params?.template ?? null) === null ? '' : null;
@@ -1164,7 +1171,7 @@
 				<div class="flex mt-0.5 space-x-2">
 					<div class=" flex-1">
 						<textarea
-							class="px-3 py-1.5 text-sm w-full bg-transparent border dark:border-gray-600 outline-none rounded-lg -mb-1"
+							class="px-3 py-1.5 text-sm w-full bg-transparent border dark:border-gray-600 outline-hidden rounded-lg -mb-1"
 							placeholder={$i18n.t('Write your model template content here')}
 							rows="4"
 							bind:value={params.template}

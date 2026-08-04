@@ -34,20 +34,34 @@
 	import ReactionPicker from './Message/ReactionPicker.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
 
-	export let message;
-	export let showUserProfile = true;
-	export let thread = false;
 
-	export let onDelete: AnyFn = () => {};
-	export let onEdit: AnyFn = () => {};
-	export let onThread: AnyFn = () => {};
-	export let onReaction: AnyFn = () => {};
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		message: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		showUserProfile?: boolean;
+		thread?: boolean;
+		onDelete?: AnyFn;
+		onEdit?: AnyFn;
+		onThread?: AnyFn;
+		onReaction?: AnyFn;
+	}
 
-	let showButtons = false;
+	let {
+		message,
+		showUserProfile = true,
+		thread = false,
+		onDelete = () => {},
+		onEdit = () => {},
+		onThread = () => {},
+		onReaction = () => {}
+	}: Props = $props();
 
-	let edit = false;
-	let editedContent = null;
-	let showDeleteConfirmDialog = false;
+	let showButtons = $state(false);
+
+	let edit = $state(false);
+	let editedContent = $state(null);
+	let showDeleteConfirmDialog = $state(false);
 
 	const formatDate = (inputDate) => {
 		const date = dayjs(inputDate);
@@ -96,7 +110,7 @@
 						<Tooltip content={$i18n.t('Add Reaction')}>
 							<button
 								class="hover:bg-gray-100 dark:hover:bg-gray-800 transition rounded-lg p-1"
-								on:click={() => {
+								onclick={() => {
 									showButtons = true;
 								}}
 							>
@@ -109,7 +123,7 @@
 						<Tooltip content={$i18n.t('Reply in Thread')}>
 							<button
 								class="hover:bg-gray-100 dark:hover:bg-gray-800 transition rounded-lg p-1"
-								on:click={() => {
+								onclick={() => {
 									onThread(message.id);
 								}}
 							>
@@ -122,7 +136,7 @@
 						<Tooltip content={$i18n.t('Edit')}>
 							<button
 								class="hover:bg-gray-100 dark:hover:bg-gray-800 transition rounded-lg p-1"
-								on:click={() => {
+								onclick={() => {
 									edit = true;
 									editedContent = message.content;
 								}}
@@ -134,7 +148,7 @@
 						<Tooltip content={$i18n.t('Delete')}>
 							<button
 								class="hover:bg-gray-100 dark:hover:bg-gray-800 transition rounded-lg p-1"
-								on:click={() => (showDeleteConfirmDialog = true)}
+								onclick={() => (showDeleteConfirmDialog = true)}
 							>
 								<GarbageBin />
 							</button>
@@ -150,7 +164,7 @@
 			dir={$settings.chatDirection === 'RTL' ? 'rtl' : 'ltr'}
 		>
 			<div
-				class={`flex-shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'} w-9`}
+				class={`shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'} w-9`}
 			>
 				{#if showUserProfile}
 					<ProfilePreview user={message.user}>
@@ -165,7 +179,7 @@
 
 					{#if message.created_at}
 						<div
-							class="mt-1.5 flex flex-shrink-0 items-center text-xs self-center invisible group-hover:visible text-gray-500 font-medium first-letter:capitalize"
+							class="mt-1.5 flex shrink-0 items-center text-xs self-center invisible group-hover:visible text-gray-500 font-medium first-letter:capitalize"
 						>
 							<Tooltip
 								content={dayjs(message.created_at / 1000000).format('dddd, DD MMMM YYYY HH:mm')}
@@ -222,7 +236,7 @@
 				{#if edit}
 					<div class="py-2">
 						<Textarea
-							className=" bg-transparent outline-none w-full resize-none"
+							className=" bg-transparent outline-hidden w-full resize-none"
 							bind:value={editedContent}
 							onKeydown={(e) => {
 								if (e.key === 'Escape') {
@@ -242,7 +256,7 @@
 								<button
 									id="close-edit-message-button"
 									class="px-4 py-2 bg-white dark:bg-gray-900 hover:bg-gray-100 text-gray-800 dark:text-gray-100 transition rounded-3xl"
-									on:click={() => {
+									onclick={() => {
 										edit = false;
 										editedContent = null;
 									}}
@@ -253,7 +267,7 @@
 								<button
 									id="confirm-edit-message-button"
 									class=" px-4 py-2 bg-gray-900 dark:bg-white hover:bg-gray-850 text-gray-100 dark:text-gray-800 transition rounded-3xl"
-									on:click={async () => {
+									onclick={async () => {
 										onEdit(editedContent);
 										edit = false;
 										editedContent = null;
@@ -285,7 +299,7 @@
 											)
 												? ' bg-blue-300/10 outline outline-blue-500/50 outline-1'
 												: 'bg-gray-300/10 dark:bg-gray-500/10 hover:outline hover:outline-gray-700/30 dark:hover:outline-gray-300/30 hover:outline-1'}"
-											on:click={() => {
+											onclick={() => {
 												onReaction(reaction.name);
 											}}
 										>
@@ -334,7 +348,7 @@
 						<div class="flex items-center gap-1.5 -mt-0.5 mb-1.5">
 							<button
 								class="flex items-center text-xs py-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition"
-								on:click={() => {
+								onclick={() => {
 									onThread(message.id);
 								}}
 							>

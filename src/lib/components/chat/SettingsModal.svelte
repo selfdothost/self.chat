@@ -22,7 +22,11 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
+	interface Props {
+		show?: boolean;
+	}
+
+	let { show = $bindable(false) }: Props = $props();
 
 	interface SettingsTab {
 		id: string;
@@ -283,8 +287,8 @@
 		}
 	];
 
-	let search = '';
-	let visibleTabs = searchData.map((tab) => tab.id);
+	let search = $state('');
+	let visibleTabs = $state(searchData.map((tab) => tab.id));
 	let searchDebounceTimeout;
 
 	const searchSettings = (query: string): string[] => {
@@ -319,7 +323,7 @@
 		return await _getModels(localStorage.token);
 	};
 
-	let selectedTab = 'general';
+	let selectedTab = $state('general');
 
 	// Function to handle sideways scrolling
 	const scrollHandler = (event) => {
@@ -346,11 +350,13 @@
 		}
 	};
 
-	$: if (show) {
-		addScrollListener();
-	} else {
-		removeScrollListener();
-	}
+	$effect(() => {
+		if (show) {
+			addScrollListener();
+		} else {
+			removeScrollListener();
+		}
+	});
 </script>
 
 <Modal size="xl" bind:show>
@@ -359,7 +365,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Settings')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -386,9 +392,9 @@
 						<Search className="size-3.5" />
 					</div>
 					<input
-						class="w-full py-1.5 text-sm bg-transparent dark:text-gray-300 outline-none"
+						class="w-full py-1.5 text-sm bg-transparent dark:text-gray-300 outline-hidden"
 						bind:value={search}
-						on:input={searchDebounceHandler}
+						oninput={searchDebounceHandler}
 						placeholder={$i18n.t('Search')}
 					/>
 				</div>
@@ -401,7 +407,7 @@
 								'general'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'general';
 								}}
 							>
@@ -427,7 +433,7 @@
 								'interface'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'interface';
 								}}
 							>
@@ -453,7 +459,7 @@
 								'personalization'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'personalization';
 								}}
 							>
@@ -468,7 +474,7 @@
 								'audio'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'audio';
 								}}
 							>
@@ -495,7 +501,7 @@
 								'chats'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'chats';
 								}}
 							>
@@ -521,7 +527,7 @@
 								'account'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'account';
 								}}
 							>
@@ -547,7 +553,7 @@
 								'about'
 									? ''
 									: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-								on:click={() => {
+								onclick={() => {
 									selectedTab = 'about';
 								}}
 							>
@@ -574,7 +580,7 @@
 									'admin'
 										? ''
 										: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-									on:click={async () => {
+									onclick={async () => {
 										await goto(resolve('/(app)/admin/settings'));
 										show = false;
 									}}
@@ -609,28 +615,28 @@
 					<General
 						{getModels}
 						{saveSettings}
-						on:save={() => {
+						onSave={() => {
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>
 				{:else if selectedTab === 'interface'}
 					<Interface
 						{saveSettings}
-						on:save={() => {
+						onSave={() => {
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>
 				{:else if selectedTab === 'personalization'}
 					<Personalization
 						{saveSettings}
-						on:save={() => {
+						onSave={() => {
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>
 				{:else if selectedTab === 'audio'}
 					<Audio
 						{saveSettings}
-						on:save={() => {
+						onSave={() => {
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>

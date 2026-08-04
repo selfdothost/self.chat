@@ -4,9 +4,9 @@
 
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ArenaModelModal from './ArenaModelModal.svelte';
-	export let model;
+	let { model } = $props();
 
-	let showModel = false;
+	let showModel = $state(false);
 </script>
 
 <ArenaModelModal
@@ -33,7 +33,7 @@
 
 				<div class="w-full flex flex-col">
 					<div class="flex items-center gap-1">
-						<div class="flex-shrink-0 line-clamp-1">
+						<div class="shrink-0 line-clamp-1">
 							{model.name}
 						</div>
 					</div>
@@ -51,7 +51,7 @@
 			<button
 				class="self-center w-fit text-sm p-1.5 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 				type="button"
-				on:click={() => {
+				onclick={() => {
 					showModel = true;
 				}}
 			>

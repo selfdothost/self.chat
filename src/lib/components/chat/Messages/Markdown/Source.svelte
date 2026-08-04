@@ -1,9 +1,14 @@
 <script lang="ts">
 	import type { AnyFn } from '$lib/types';
-	export let token;
-	export let onClick: AnyFn = () => {};
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		token: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onClick?: AnyFn;
+	}
 
-	let id = '';
+	let { token, onClick = () => {} }: Props = $props();
+
 	function extractDataAttribute(input) {
 		// Use a regular expression to extract the value of the `data` attribute
 		const match = input.match(/data="([^"]*)"/);
@@ -11,12 +16,12 @@
 		return match ? match[1] : null;
 	}
 
-	$: id = extractDataAttribute(token.text);
+	let id = $derived(extractDataAttribute(token.text));
 </script>
 
 <button
 	class="text-xs font-medium w-fit translate-y-[2px] px-2 py-0.5 dark:bg-white/5 dark:text-white/60 dark:hover:text-white bg-gray-50 text-black/60 hover:text-black transition rounded-lg"
-	on:click={() => {
+	onclick={() => {
 		onClick(id);
 	}}
 >

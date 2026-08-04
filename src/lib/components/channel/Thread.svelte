@@ -12,22 +12,25 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	export let threadId = null;
-	export let channel = null;
 
-	export let onClose = () => {};
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		threadId?: any;
+		channel?: any;
+		onClose?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
 
-	let messages = null;
-	let top = false;
+	let { threadId = null, channel = null, onClose = () => {} }: Props = $props();
 
-	let typingUsers = [];
+	let messages = $state(null);
+	let top = $state(false);
+
+	let typingUsers = $state([]);
 	let typingUsersTimeout = {};
 
-	let messagesContainerElement = null;
+	let messagesContainerElement = $state(null);
 
-	$: if (threadId) {
-		initHandler();
-	}
 
 	const scrollToBottom = () => {
 		messagesContainerElement.scrollTop = messagesContainerElement.scrollHeight;
@@ -36,7 +39,7 @@
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const initHandler = async () => {
 		messages = null;
 		top = false;
@@ -158,6 +161,11 @@
 	onDestroy(() => {
 		$socket?.off('channel-events', channelEventHandler);
 	});
+	$effect(() => {
+		if (threadId) {
+			initHandler();
+		}
+	});
 </script>
 
 {#if channel}
@@ -168,7 +176,7 @@
 			<div>
 				<button
 					class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 p-2"
-					on:click={() => {
+					onclick={() => {
 						onClose();
 					}}
 				>

@@ -1,14 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	export let imageUrls = [
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		imageUrls?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		duration?: number;
+	}
+
+	let { imageUrls = [
 		'/assets/images/adam.jpg',
 		'/assets/images/galaxy.jpg',
 		'/assets/images/earth.jpg',
 		'/assets/images/space.jpg'
-	];
-	export let duration = 5000;
-	let selectedImageIdx = 0;
+	], duration = 5000 }: Props = $props();
+	let selectedImageIdx = $state(0);
 
 	onMount(() => {
 		setInterval(() => {

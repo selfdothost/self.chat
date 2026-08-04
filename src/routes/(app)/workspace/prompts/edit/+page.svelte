@@ -10,11 +10,11 @@
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { getPromptByCommand, getPrompts, updatePromptByCommand } from '$lib/apis/prompts';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	import PromptEditor from '$lib/components/workspace/Prompts/PromptEditor.svelte';
 
-	let prompt = null;
+	let prompt = $state(null);
 	const onSubmit = async (_prompt) => {
 		console.log(_prompt);
 		const prompt = await updatePromptByCommand(localStorage.token, _prompt).catch((error) => {
@@ -30,7 +30,7 @@
 	};
 
 	onMount(async () => {
-		const command = $page.url.searchParams.get('command');
+		const command = page.url.searchParams.get('command');
 		if (command) {
 			const _prompt = await getPromptByCommand(
 				localStorage.token,

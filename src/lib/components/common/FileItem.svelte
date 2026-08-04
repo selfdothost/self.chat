@@ -1,32 +1,56 @@
 <script lang="ts">
+	import { stopPropagation } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
-	import { createEventDispatcher, getContext } from 'svelte';
+	import { getContext } from 'svelte';
 	import { formatFileSize } from '$lib/utils';
+	import type { AnyFn } from '$lib/types';
 
 	import FileItemModal from './FileItemModal.svelte';
 	import Spinner from './Spinner.svelte';
 	import Tooltip from './Tooltip.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let className = 'w-60';
-	export let colorClassName = 'bg-white dark:bg-gray-850 border border-gray-50 dark:border-white/5';
-	export let url: string | null = null;
 
-	export let dismissible = false;
-	export let loading = false;
 
-	export let item = null;
-	export let edit = false;
-	export let small = false;
 
-	export let name: string;
-	export let type: string;
-	export let size: number;
+	interface Props {
+		className?: string;
+		colorClassName?: string;
+		url?: string | null;
+		dismissible?: boolean;
+		loading?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		item?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		edit?: boolean;
+		small?: boolean;
+		name: string;
+		type: string;
+		size: number;
+		onClick?: AnyFn;
+		onDismiss?: AnyFn;
+	}
 
-	let showModal = false;
+	let {
+		className = 'w-60',
+		colorClassName = 'bg-white dark:bg-gray-850 border border-gray-50 dark:border-white/5',
+		url = null,
+		dismissible = false,
+		loading = false,
+		item = $bindable(null),
+		edit = false,
+		small = false,
+		name,
+		type,
+		size,
+		onClick = () => {},
+		onDismiss = () => {}
+	}: Props = $props();
+
+	let showModal = $state(false);
 
 	const openHandler = async () => {
 		if (item?.file?.data?.content) {
@@ -41,7 +65,7 @@
 			}
 		}
 
-		dispatch('click');
+		onClick();
 	};
 </script>
 
@@ -55,8 +79,8 @@
 	class="relative group p-1.5 {className} flex items-center gap-1 {colorClassName} {small
 		? 'rounded-xl'
 		: 'rounded-2xl'} text-left"
-	on:click={openHandler}
-	on:keydown={(e) => {
+	onclick={openHandler}
+	onkeydown={(e) => {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			openHandler();
@@ -129,9 +153,9 @@
 			<button
 				class=" bg-gray-400 text-white border border-white rounded-full group-hover:visible invisible transition"
 				type="button"
-				on:click|stopPropagation={() => {
-					dispatch('dismiss');
-				}}
+				onclick={stopPropagation(() => {
+					onDismiss();
+				})}
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -19,14 +21,18 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: AnyFn;
+	interface Props {
+		saveHandler: AnyFn;
+	}
 
-	let adminConfig = null;
-	let webhookUrl = '';
+	let { saveHandler }: Props = $props();
+
+	let adminConfig = $state(null);
+	let webhookUrl = $state('');
 
 	// LDAP
-	let ENABLE_LDAP = false;
-	let LDAP_SERVER = {
+	let ENABLE_LDAP = $state(false);
+	let LDAP_SERVER = $state({
 		label: '',
 		host: '',
 		port: '',
@@ -38,7 +44,7 @@
 		use_tls: false,
 		certificate_path: '',
 		ciphers: ''
-	};
+	});
 
 	const updateLdapServerHandler = async () => {
 		if (!ENABLE_LDAP) return;
@@ -84,9 +90,9 @@
 
 <form
 	class="flex flex-col h-full justify-between space-y-3 text-sm"
-	on:submit|preventDefault={async () => {
+	onsubmit={preventDefault(async () => {
 		updateHandler();
-	}}
+	})}
 >
 	<div class=" space-y-3 overflow-y-scroll scrollbar-hidden h-full">
 		{#if adminConfig !== null}
@@ -103,7 +109,7 @@
 					<div class=" self-center text-xs font-medium">{$i18n.t('Default User Role')}</div>
 					<div class="flex items-center relative">
 						<select
-							class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-none text-right"
+							class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-hidden text-right"
 							bind:value={adminConfig.DEFAULT_USER_ROLE}
 							placeholder="Select a role"
 						>
@@ -136,7 +142,7 @@
 							</div>
 
 							<input
-								class="w-full mt-1 rounded-lg text-sm dark:text-gray-300 bg-transparent outline-none"
+								class="w-full mt-1 rounded-lg text-sm dark:text-gray-300 bg-transparent outline-hidden"
 								type="text"
 								placeholder="e.g.) /api/v1/messages, /api/v1/channels"
 								bind:value={adminConfig.API_KEY_ALLOWED_ENDPOINTS}
@@ -187,7 +193,7 @@
 
 					<div class="flex mt-2 space-x-2">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="text"
 							placeholder="e.g.) &quot;http://localhost:3000&quot;"
 							bind:value={adminConfig.WEBUI_URL}
@@ -210,7 +216,7 @@
 
 					<div class="flex mt-2 space-x-2">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="text"
 							placeholder='e.g.) "30m","1h", "10d". '
 							bind:value={adminConfig.JWT_EXPIRES_IN}
@@ -234,7 +240,7 @@
 
 					<div class="flex mt-2 space-x-2">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="text"
 							placeholder="https://example.com/webhook"
 							bind:value={webhookUrl}
@@ -264,7 +270,7 @@
 					<div class="mt-1">
 						<Switch
 							bind:state={ENABLE_LDAP}
-							on:change={async () => {
+							onChange={async () => {
 								updateLdapConfig(localStorage.token, ENABLE_LDAP);
 							}}
 						/>
@@ -279,7 +285,7 @@
 									{$i18n.t('Label')}
 								</div>
 								<input
-									class="w-full bg-transparent outline-none py-0.5"
+									class="w-full bg-transparent outline-hidden py-0.5"
 									required
 									placeholder={$i18n.t('Enter server label')}
 									bind:value={LDAP_SERVER.label}
@@ -293,7 +299,7 @@
 									{$i18n.t('Host')}
 								</div>
 								<input
-									class="w-full bg-transparent outline-none py-0.5"
+									class="w-full bg-transparent outline-hidden py-0.5"
 									required
 									placeholder={$i18n.t('Enter server host')}
 									bind:value={LDAP_SERVER.host}
@@ -309,7 +315,7 @@
 									className="w-full"
 								>
 									<input
-										class="w-full bg-transparent outline-none py-0.5"
+										class="w-full bg-transparent outline-hidden py-0.5"
 										type="number"
 										placeholder={$i18n.t('Enter server port')}
 										bind:value={LDAP_SERVER.port}
@@ -327,7 +333,7 @@
 									placement="top-start"
 								>
 									<input
-										class="w-full bg-transparent outline-none py-0.5"
+										class="w-full bg-transparent outline-hidden py-0.5"
 										required
 										placeholder={$i18n.t('Enter Application DN')}
 										bind:value={LDAP_SERVER.app_dn}
@@ -356,7 +362,7 @@
 									placement="top-start"
 								>
 									<input
-										class="w-full bg-transparent outline-none py-0.5"
+										class="w-full bg-transparent outline-hidden py-0.5"
 										required
 										placeholder={$i18n.t('Example: sAMAccountName or uid or userPrincipalName')}
 										bind:value={LDAP_SERVER.attribute_for_username}
@@ -371,7 +377,7 @@
 								</div>
 								<Tooltip content={$i18n.t('The base to search for users')} placement="top-start">
 									<input
-										class="w-full bg-transparent outline-none py-0.5"
+										class="w-full bg-transparent outline-hidden py-0.5"
 										required
 										placeholder={$i18n.t('Example: ou=users,dc=foo,dc=example')}
 										bind:value={LDAP_SERVER.search_base}
@@ -385,7 +391,7 @@
 									{$i18n.t('Search Filters')}
 								</div>
 								<input
-									class="w-full bg-transparent outline-none py-0.5"
+									class="w-full bg-transparent outline-hidden py-0.5"
 									placeholder={$i18n.t('Example: (&(objectClass=inetOrgPerson)(uid=%s))')}
 									bind:value={LDAP_SERVER.search_filters}
 								/>
@@ -415,7 +421,7 @@
 											{$i18n.t('Certificate Path')}
 										</div>
 										<input
-											class="w-full bg-transparent outline-none py-0.5"
+											class="w-full bg-transparent outline-hidden py-0.5"
 											required
 											placeholder={$i18n.t('Enter certificate path')}
 											bind:value={LDAP_SERVER.certificate_path}
@@ -429,7 +435,7 @@
 										</div>
 										<Tooltip content={$i18n.t('Default to ALL')} placement="top-start">
 											<input
-												class="w-full bg-transparent outline-none py-0.5"
+												class="w-full bg-transparent outline-hidden py-0.5"
 												placeholder={$i18n.t('Example: ALL')}
 												bind:value={LDAP_SERVER.ciphers}
 											/>

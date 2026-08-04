@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
@@ -26,15 +28,19 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
+	interface Props {
+		show?: boolean;
+	}
 
-	let tab = 'tools';
-	let selectedId = '';
+	let { show = false }: Props = $props();
 
-	let loading = false;
+	let tab = $state('tools');
+	let selectedId = $state('');
 
-	let valvesSpec = null;
-	let valves = {};
+	let loading = $state(false);
+
+	let valvesSpec = $state(null);
+	let valves = $state({});
 
 	let debounceTimer;
 
@@ -110,22 +116,13 @@
 		}
 	};
 
-	$: if (tab) {
-		selectedId = '';
-	}
 
-	$: if (selectedId) {
-		getUserValves();
-	}
 
-	$: if (show) {
-		init();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const init = async () => {
 		loading = true;
 
@@ -138,22 +135,37 @@
 
 		loading = false;
 	};
+	$effect(() => {
+		if (tab) {
+			selectedId = '';
+		}
+	});
+	$effect(() => {
+		if (selectedId) {
+			getUserValves();
+		}
+	});
+	$effect(() => {
+		if (show) {
+			init();
+		}
+	});
 </script>
 
 {#if show && !loading}
 	<form
 		class="flex flex-col h-full justify-between space-y-3 text-sm"
-		on:submit|preventDefault={() => {
+		onsubmit={preventDefault(() => {
 			submitHandler();
 			dispatch('save');
-		}}
+		})}
 	>
 		<div class="flex flex-col">
 			<div class="space-y-1">
 				<div class="flex gap-2">
 					<div class="flex-1">
 						<select
-							class="  w-full rounded text-xs py-2 px-1 bg-transparent outline-none"
+							class="  w-full rounded text-xs py-2 px-1 bg-transparent outline-hidden"
 							bind:value={tab}
 							placeholder="Select"
 						>
@@ -166,9 +178,9 @@
 
 					<div class="flex-1">
 						<select
-							class="w-full rounded py-2 px-1 text-xs bg-transparent outline-none"
+							class="w-full rounded py-2 px-1 text-xs bg-transparent outline-hidden"
 							bind:value={selectedId}
-							on:change={async () => {
+							onchange={async () => {
 								await tick();
 							}}
 						>
@@ -202,7 +214,7 @@
 						<Valves
 							{valvesSpec}
 							bind:valves
-							on:change={() => {
+							onChange={() => {
 								debounceSubmitHandler();
 							}}
 						/>

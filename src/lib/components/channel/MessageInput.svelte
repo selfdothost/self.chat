@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -23,25 +25,39 @@
 	import { transcribeAudio } from '$lib/apis/audio';
 	import FilesOverlay from '../chat/MessageInput/FilesOverlay.svelte';
 
-	export let placeholder = $i18n.t('Send a Message');
 
-	export let id = null;
 
-	let draggedOver = false;
+	let draggedOver = $state(false);
 
-	let recording = false;
-	let content = '';
-	let files = [];
+	let recording = $state(false);
+	let content = $state('');
+	let files = $state([]);
 
-	let filesInputElement;
-	let inputFiles;
+	let filesInputElement: HTMLInputElement | undefined = $state();
+	let inputFiles: FileList | undefined = $state();
 
-	export let typingUsers = [];
 
-	export let onSubmit: AnyFn;
-	export let onChange: AnyFn;
-	export let scrollEnd = true;
-	export let scrollToBottom: AnyFn = () => {};
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		placeholder?: any;
+		id?: any;
+		typingUsers?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onSubmit: AnyFn;
+		onChange: AnyFn;
+		scrollEnd?: boolean;
+		scrollToBottom?: AnyFn;
+	}
+
+	let {
+		placeholder = $i18n.t('Send a Message'),
+		id = null,
+		typingUsers = [],
+		onSubmit,
+		onChange,
+		scrollEnd = $bindable(true),
+		scrollToBottom = () => {}
+	}: Props = $props();
 
 	const screenCaptureHandler = async () => {
 		try {
@@ -271,9 +287,11 @@
 		chatInputElement?.focus();
 	};
 
-	$: if (content) {
-		onChange();
-	}
+	$effect(() => {
+		if (content) {
+			onChange();
+		}
+	});
 
 	onMount(async () => {
 		window.setTimeout(() => {
@@ -313,7 +331,7 @@
 	type="file"
 	hidden
 	multiple
-	on:change={async () => {
+	onchange={async () => {
 		if (inputFiles && inputFiles.length > 0) {
 			inputFilesHandler(Array.from(inputFiles));
 		} else {
@@ -338,7 +356,7 @@
 						>
 							<button
 								class=" bg-white border border-gray-100 dark:border-none dark:bg-white/20 p-1.5 rounded-full pointer-events-auto"
-								on:click={() => {
+								onclick={() => {
 									scrollEnd = true;
 									scrollToBottom();
 								}}
@@ -379,14 +397,14 @@
 			{#if recording}
 				<VoiceRecording
 					bind:recording
-					on:cancel={async () => {
+					onCancel={async () => {
 						recording = false;
 
 						await tick();
 						document.getElementById(`chat-input-${id}`)?.focus();
 					}}
-					on:confirm={async (e) => {
-						const { text } = e.detail;
+					onConfirm={async (detail) => {
+						const { text } = detail;
 						content = `${content}${text} `;
 						recording = false;
 
@@ -397,9 +415,9 @@
 			{:else}
 				<form
 					class="w-full flex gap-1.5"
-					on:submit|preventDefault={() => {
+					onsubmit={preventDefault(() => {
 						submitHandler();
-					}}
+					})}
 				>
 					<div
 						class="flex-1 flex flex-col relative w-full rounded-3xl px-1 bg-gray-600/5 dark:bg-gray-400/5 dark:text-gray-100"
@@ -421,7 +439,7 @@
 												<button
 													class=" bg-gray-400 text-white border border-white rounded-full group-hover:visible invisible transition"
 													type="button"
-													on:click={() => {
+													onclick={() => {
 														files.splice(fileIdx, 1);
 														files = files;
 													}}
@@ -448,11 +466,11 @@
 											loading={file.status === 'uploading'}
 											dismissible={true}
 											edit={true}
-											on:dismiss={() => {
+											onDismiss={() => {
 												files.splice(fileIdx, 1);
 												files = files;
 											}}
-											on:click={() => {
+											onClick={() => {
 												console.log(file);
 											}}
 										/>
@@ -470,7 +488,7 @@
 									}}
 								>
 									<button
-										class="bg-transparent hover:bg-white/80 text-gray-800 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-2 outline-none focus:outline-none"
+										class="bg-transparent hover:bg-white/80 text-gray-800 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-2 outline-hidden focus:outline-hidden"
 										type="button"
 										aria-label="More"
 									>
@@ -489,7 +507,7 @@
 							</div>
 
 							<div
-								class="scrollbar-hidden text-left bg-transparent dark:text-gray-100 outline-none w-full py-2.5 px-1 rounded-xl resize-none h-fit max-h-80 overflow-auto"
+								class="scrollbar-hidden text-left bg-transparent dark:text-gray-100 outline-hidden w-full py-2.5 px-1 rounded-xl resize-none h-fit max-h-80 overflow-auto"
 							>
 								<RichTextInput
 									bind:value={content}
@@ -504,11 +522,10 @@
 										)}
 									{placeholder}
 									largeTextAsFile={$settings?.largeTextAsFile ?? false}
-									on:keydown={async (e) => {
-										// RichTextInput forwards its ProseMirror keydown handler's real
-										// KeyboardEvent as e.detail.event (see RichTextInput.svelte); the
-										// outer `e` itself is just the CustomEvent wrapper.
-										const event: KeyboardEvent = e.detail.event;
+									onKeydown={async (detail) => {
+										// RichTextInput passes its ProseMirror keydown handler's real
+										// KeyboardEvent as detail.event (see RichTextInput.svelte).
+										const event: KeyboardEvent = detail.event;
 										if (
 											!$mobile ||
 											!(
@@ -534,9 +551,9 @@
 											console.log('Escape');
 										}
 									}}
-									on:paste={async (e) => {
-										// See keydown handler above -- real ClipboardEvent lives on e.detail.event.
-										const event: ClipboardEvent = e.detail.event;
+									onPaste={async (detail) => {
+										// See keydown handler above -- real ClipboardEvent lives on detail.event.
+										const event: ClipboardEvent = detail.event;
 										console.log(event);
 									}}
 								/>
@@ -549,7 +566,7 @@
 											id="voice-input-button"
 											class=" text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 mr-0.5 self-center"
 											type="button"
-											on:click={async () => {
+											onclick={async () => {
 												try {
 													let stream = await navigator.mediaDevices
 														.getUserMedia({ audio: true })

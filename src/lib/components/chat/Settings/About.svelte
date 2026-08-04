@@ -10,7 +10,7 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let ollamaVersion = '';
+	let ollamaVersion = $state('');
 
 	onMount(async () => {
 		ollamaVersion = await getOllamaVersion(localStorage.token).catch((_error) => {
@@ -38,7 +38,7 @@
 
 					<button
 						class=" underline flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-500"
-						on:click={() => {
+						onclick={() => {
 							showChangelog.set(true);
 						}}
 					>
@@ -70,14 +70,11 @@
 		</div>
 
 		<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-			{#if !$WEBUI_NAME.includes('Self.AI UI')}
-				<span class=" text-gray-500 dark:text-gray-300 font-medium">{$WEBUI_NAME}</span> -
-			{/if}
-			{$i18n.t('Created by')}
+			<span class=" text-gray-500 dark:text-gray-300 font-medium">{$WEBUI_NAME}</span> - part of the
 			<a
 				class=" text-gray-500 dark:text-gray-300 font-medium"
-				href="https://github.com/tjbck"
-				target="_blank">Timothy J. Baek</a
+				href="https://github.com/selfdothost/self.chat"
+				target="_blank">self.ai project</a
 			>
 		</div>
 	</div>

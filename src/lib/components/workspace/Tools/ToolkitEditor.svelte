@@ -1,5 +1,7 @@
 <script>
-	import { getContext, createEventDispatcher, tick } from 'svelte';
+	import { preventDefault } from 'svelte/legacy';
+
+	import { getContext, tick } from 'svelte';
 
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
@@ -14,43 +16,51 @@
 	import AccessControlModal from '../common/AccessControlModal.svelte';
 	import { config } from '$lib/stores';
 
-	const dispatch = createEventDispatcher();
+	let formElement = $state(null);
 
-	let formElement = null;
+	let showConfirm = $state(false);
+	let showAccessControlModal = $state(false);
 
-	let showConfirm = false;
-	let showAccessControlModal = false;
 
-	export let edit = false;
-	export let clone = false;
+	/**
+	 * @typedef {Object} Props
+	 * @property {boolean} [edit]
+	 * @property {boolean} [clone]
+	 * @property {string} [id]
+	 * @property {string} [name]
+	 * @property {any} [meta]
+	 * @property {string} [content]
+	 * @property {any} [accessControl]
+	 * @property {import('$lib/types').AnyFn} [onSave]
+	 */
 
-	export let id = '';
-	export let name = '';
-	export let meta = {
+	/** @type {Props} */
+	let {
+		edit = false,
+		clone = false,
+		id = $bindable(''),
+		name = $bindable(''),
+		meta = $bindable({
 		description: ''
-	};
-	export let content = '';
-	export let accessControl = null;
+	}),
+		content = $bindable(''),
+		accessControl = $bindable(null),
+		onSave = () => {}
+	} = $props();
 
-	let _content = '';
+	let _content = $state('');
 
-	$: if (content) {
-		updateContent();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const updateContent = () => {
 		_content = content;
 	};
 
-	$: if (name && !edit && !clone) {
-		id = name.replace(/\s+/g, '_').toLowerCase();
-	}
 
-	let codeEditor;
+	let codeEditor = $state();
 	let boilerplate = `import os
 import requests
 from datetime import datetime
@@ -154,7 +164,7 @@ class Tools:
 `;
 
 	const saveHandler = async () => {
-		dispatch('save', {
+		onSave({
 			id,
 			name,
 			meta,
@@ -181,6 +191,16 @@ class Tools:
 			}
 		}
 	};
+	$effect(() => {
+		if (content) {
+			updateContent();
+		}
+	});
+	$effect(() => {
+		if (name && !edit && !clone) {
+			id = name.replace(/\s+/g, '_').toLowerCase();
+		}
+	});
 </script>
 
 <AccessControlModal bind:show={showAccessControlModal} bind:accessControl />
@@ -190,21 +210,21 @@ class Tools:
 		<form
 			bind:this={formElement}
 			class=" flex flex-col max-h-[100dvh] h-full"
-			on:submit|preventDefault={() => {
+			onsubmit={preventDefault(() => {
 				// Always confirm before running unsandboxed code, on both create
 				// and edit -- editing an existing tool's code is exactly when a
 				// dangerous payload could be introduced, not just at creation.
 				showConfirm = true;
-			}}
+			})}
 		>
 			<div class="flex flex-col flex-1 overflow-auto h-0">
 				<div class="w-full mb-2 flex flex-col gap-0.5">
 					<div class="flex w-full items-center">
-						<div class=" flex-shrink-0 mr-2">
+						<div class=" shrink-0 mr-2">
 							<Tooltip content={$i18n.t('Back')}>
 								<button
 									class="w-full text-left text-sm py-1.5 px-1 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
-									on:click={() => {
+									onclick={() => {
 										goto(resolve('/(app)/workspace/tools'));
 									}}
 									type="button"
@@ -217,7 +237,7 @@ class Tools:
 						<div class="flex-1">
 							<Tooltip content={$i18n.t('e.g. My Tools')} placement="top-start">
 								<input
-									class="w-full text-2xl font-semibold bg-transparent outline-none"
+									class="w-full text-2xl font-semibold bg-transparent outline-hidden"
 									type="text"
 									placeholder={$i18n.t('Tool Name')}
 									bind:value={name}
@@ -226,17 +246,17 @@ class Tools:
 							</Tooltip>
 						</div>
 
-						<div class="self-center flex-shrink-0">
+						<div class="self-center shrink-0">
 							<button
 								class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									showAccessControlModal = true;
 								}}
 							>
 								<LockClosed strokeWidth="2.5" className="size-3.5" />
 
-								<div class="text-sm font-medium flex-shrink-0">
+								<div class="text-sm font-medium shrink-0">
 									{$i18n.t('Access')}
 								</div>
 							</button>
@@ -245,13 +265,13 @@ class Tools:
 
 					<div class=" flex gap-2 px-1 items-center">
 						{#if edit}
-							<div class="text-sm text-gray-500 flex-shrink-0">
+							<div class="text-sm text-gray-500 shrink-0">
 								{id}
 							</div>
 						{:else}
 							<Tooltip className="w-full" content={$i18n.t('e.g. my_tools')} placement="top-start">
 								<input
-									class="w-full text-sm disabled:text-gray-500 bg-transparent outline-none"
+									class="w-full text-sm disabled:text-gray-500 bg-transparent outline-hidden"
 									type="text"
 									placeholder={$i18n.t('Tool ID')}
 									bind:value={id}
@@ -267,7 +287,7 @@ class Tools:
 							placement="top-start"
 						>
 							<input
-								class="w-full text-sm bg-transparent outline-none"
+								class="w-full text-sm bg-transparent outline-hidden"
 								type="text"
 								placeholder={$i18n.t('Tool Description')}
 								bind:value={meta.description}
@@ -283,10 +303,10 @@ class Tools:
 						value={content}
 						{boilerplate}
 						lang="python"
-						on:change={(e) => {
-							_content = e.detail.value;
+						onChange={(detail) => {
+							_content = detail.value;
 						}}
-						on:save={() => {
+						onSave={() => {
 							if (formElement) {
 								formElement.requestSubmit();
 							}
@@ -323,7 +343,7 @@ class Tools:
 
 <ConfirmDialog
 	bind:show={showConfirm}
-	on:confirm={() => {
+	onConfirm={() => {
 		submitHandler();
 	}}
 >

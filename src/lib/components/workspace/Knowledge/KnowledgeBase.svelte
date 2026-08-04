@@ -48,22 +48,9 @@
 	import FileViewModal from './KnowledgeBase/FileViewModal.svelte';
 	import { queueCuratorJob } from '$lib/apis/curator';
 
-	let activeTab: 'files' | 'pipeline' = 'files';
+	let activeTab: 'files' | 'pipeline' = $state('files');
 
-	// The curation pipeline canvas is backed by self.curator; hide it unless the
-	// server reports curator is wired up. Falling back to the Files tab keeps a
-	// curator-less deploy (e.g. the standalone alpha image) from landing on a
-	// pipeline tab that has no backend.
-	// Dataset KBs (added via Add Dataset) carry a HuggingFace path but hold no
-	// uploaded files — the files/pipeline tabs would just show an empty uploader,
-	// so render a dataset-specific view (HF description + format + row preview).
-	$: isDataset = knowledge?.meta?.dataset ?? false;
-	$: datasetHfPath = knowledge?.data?.hf_path ?? knowledge?.meta?.hf_path ?? '';
 
-	$: curatorEnabled = $config?.features?.enable_curator ?? false;
-	$: if (!curatorEnabled && activeTab === 'pipeline') {
-		activeTab = 'files';
-	}
 
 	type Knowledge = {
 		id: string;
@@ -87,78 +74,51 @@
 		files: Record<string, any>[];
 	};
 
-	let id = null;
-	let knowledge: Knowledge | null = null;
-	let query = '';
+	let id = $state(null);
+	let knowledge: Knowledge | null = $state(null);
+	let query = $state('');
 
-	let showAddTextContentModal = false;
-	let showSyncConfirmModal = false;
-	let showAccessControlModal = false;
-	let showAddWebUrlModal = false;
-	let showAddWebCrawlModal = false;
-	let webLoaderEngine = '';
-	let crawlLoading = false;
+	let showAddTextContentModal = $state(false);
+	let showSyncConfirmModal = $state(false);
+	let showAccessControlModal = $state(false);
+	let showAddWebUrlModal = $state(false);
+	let showAddWebCrawlModal = $state(false);
+	let webLoaderEngine = $state('');
+	let crawlLoading = $state(false);
 	let crawlJobId: string | null = null;
 	let crawlUrl = '';
-	let crawlProgress: { completed: number; total: number; savedCount?: number } | null = null;
+	let crawlProgress: { completed: number; total: number; savedCount?: number } | null = $state(null);
 	let crawlPollTimer: ReturnType<typeof setTimeout> | null = null;
 	let crawlTempItemId: string | null = null;
 	let lastProcessedPageIndex = 0;
-	let crawlLogs: string[] = [];
+	let crawlLogs: string[] = $state([]);
 
 	let pipelineCreatedAt = null;
-	let pipelineName = 'Untitled';
-	let showPipelineModal = false;
-	let pipelineNodes = [];
-	let pipelineConnections = [];
-	let pipelineModalMode: 'save' | 'load' = 'save';
-	let pendingRun = false;
+	let pipelineName = $state('Untitled');
+	let showPipelineModal = $state(false);
+	let pipelineNodes = $state([]);
+	let pipelineConnections = $state([]);
+	let pipelineModalMode: 'save' | 'load' = $state('save');
+	let pendingRun = $state(false);
 
 
-	$: pipelineConfigs = (knowledge?.files ?? [])
-		.filter(f => (f.name ?? f.meta?.name)?.endsWith(`_pipeline.json`))
-		.map(f => {
-			const raw = f.name ?? f.meta?.name ?? '';
-			const base = raw.length > 37 && raw[36] === '-' ? raw.substring(37) : raw;
-			const suffix = `_${knowledge.name}_pipeline.json`;
-			return { id: f.id, name: base.endsWith(suffix) ? base.slice(0, -suffix.length) : base };
-		});
 
-	let inputFiles = null;
+	let inputFiles = $state(null);
 
-	let filteredItems = [];
-	$: if (knowledge && knowledge.files) {
-		fuse = new Fuse(knowledge.files, {
-			keys: ['meta.name', 'meta.description']
-		});
-	}
+	let filteredItems = $state([]);
 
-	$: if (fuse) {
-		filteredItems = query
-			? fuse.search(query).map((e) => {
-					return e.item;
-				})
-			: (knowledge?.files ?? []);
-	}
 
-	let selectedFile = null;
-	let selectedFileId = null;
+	let selectedFile = $state(null);
+	let selectedFileId = $state(null);
 
-	$: if (selectedFileId) {
-		const file = (knowledge?.files ?? []).find((file) => file.id === selectedFileId);
-		if (file) {
-			file.data = file.data ?? { content: '' };
-			selectedFile = file;
-		} else {
-			selectedFile = null;
-		}
-	} else {
-		selectedFile = null;
-	}
 
-	let fuse;
+	 
+	// shape `knowledge.files` currently is, not a fixed item type.
+	/* eslint-disable @typescript-eslint/no-explicit-any */
+	let fuse: Fuse<any> | undefined = $state();
+	/* eslint-enable @typescript-eslint/no-explicit-any */
 	let debounceTimeout = null;
-	let dragged = false;
+	let dragged = $state(false);
 
 	const createFileFromText = (name, content) => {
 		const blob = new Blob([content], { type: 'text/plain' });
@@ -973,6 +933,58 @@
 		dropZone?.removeEventListener('drop', onDrop);
 		dropZone?.removeEventListener('dragleave', onDragLeave);
 	});
+	// The curation pipeline canvas is backed by self.curator; hide it unless the
+	// server reports curator is wired up. Falling back to the Files tab keeps a
+	// curator-less deploy (e.g. the standalone alpha image) from landing on a
+	// pipeline tab that has no backend.
+	// Dataset KBs (added via Add Dataset) carry a HuggingFace path but hold no
+	// uploaded files — the files/pipeline tabs would just show an empty uploader,
+	// so render a dataset-specific view (HF description + format + row preview).
+	let isDataset = $derived(knowledge?.meta?.dataset ?? false);
+	let datasetHfPath = $derived(knowledge?.data?.hf_path ?? knowledge?.meta?.hf_path ?? '');
+	let curatorEnabled = $derived($config?.features?.enable_curator ?? false);
+	$effect(() => {
+		if (!curatorEnabled && activeTab === 'pipeline') {
+			activeTab = 'files';
+		}
+	});
+	let pipelineConfigs = $derived((knowledge?.files ?? [])
+		.filter(f => (f.name ?? f.meta?.name)?.endsWith(`_pipeline.json`))
+		.map(f => {
+			const raw = f.name ?? f.meta?.name ?? '';
+			const base = raw.length > 37 && raw[36] === '-' ? raw.substring(37) : raw;
+			const suffix = `_${knowledge.name}_pipeline.json`;
+			return { id: f.id, name: base.endsWith(suffix) ? base.slice(0, -suffix.length) : base };
+		}));
+	$effect(() => {
+		if (knowledge && knowledge.files) {
+			fuse = new Fuse(knowledge.files, {
+				keys: ['meta.name', 'meta.description']
+			});
+		}
+	});
+	$effect(() => {
+		if (fuse) {
+			filteredItems = query
+				? fuse.search(query).map((e) => {
+						return e.item;
+					})
+				: (knowledge?.files ?? []);
+		}
+	});
+	$effect(() => {
+		if (selectedFileId) {
+			const file = (knowledge?.files ?? []).find((file) => file.id === selectedFileId);
+			if (file) {
+				file.data = file.data ?? { content: '' };
+				selectedFile = file;
+			} else {
+				selectedFile = null;
+			}
+		} else {
+			selectedFile = null;
+		}
+	});
 </script>
 
 {#if dragged}
@@ -1003,23 +1015,23 @@
 	message={$i18n.t(
 		'This will reset the knowledge base and sync all files. Do you wish to continue?'
 	)}
-	on:confirm={() => {
+	onConfirm={() => {
 		syncDirectoryHandler();
 	}}
 />
 
 <AddTextContentModal
 	bind:show={showAddTextContentModal}
-	on:submit={(e) => {
-		const file = createFileFromText(e.detail.name, e.detail.content);
+	onSubmit={(detail) => {
+		const file = createFileFromText(detail.name, detail.content);
 		uploadFileHandler(file);
 	}}
 />
 
 <AddWebUrlModal
 	bind:show={showAddWebUrlModal}
-	on:submit={(e) => {
-		submitScrapeURLHandler(e.detail.url);
+	onSubmit={(detail) => {
+		submitScrapeURLHandler(detail.url);
 	}}
 />
 
@@ -1040,10 +1052,10 @@
 	showBatchSizeInput={true}
 	{crawlProgress}
 	{crawlLogs}
-	on:submit={(e) => {
-		submitCrawlURLHandler(e.detail.url, e.detail.limit, e.detail.maxDepth, e.detail.crawlDelay, e.detail.max403s ?? 5, e.detail.includePaths, e.detail.excludePaths, e.detail.regexOnFullUrl, e.detail.crawlEntireDomain, e.detail.batchSize ?? 10);
+	onSubmit={(detail) => {
+		submitCrawlURLHandler(detail.url, detail.limit, detail.maxDepth, detail.crawlDelay, detail.max403s ?? 5, detail.includePaths, detail.excludePaths, detail.regexOnFullUrl, detail.crawlEntireDomain, detail.batchSize ?? 10);
 	}}
-	on:cancel={() => {
+	onCancel={() => {
 		cancelCrawlHandler();
 	}}
 />
@@ -1053,11 +1065,11 @@
 	title="Set the name of the pipeline"
 	mode={pipelineModalMode}
 	{pipelineConfigs}
-	on:confirm={(e) => {
+	onConfirm={(detail) => {
 		if (pipelineModalMode === 'load') {
-			loadPipelineHandler(e.detail.fileId)
+			loadPipelineHandler(detail.fileId)
 		} else if (pipelineModalMode === 'save'){
-			pipelineName = e.detail.name;
+			pipelineName = detail.name;
 			savePipelineHandler();
 		}
 	}}
@@ -1070,7 +1082,7 @@
 	type="file"
 	multiple
 	hidden
-	on:change={async () => {
+	onchange={async () => {
 		if (inputFiles && inputFiles.length > 0) {
 			for (const file of inputFiles) {
 				await uploadFileHandler(file);
@@ -1104,26 +1116,26 @@
 						<div class="w-full">
 							<input
 								type="text"
-								class="text-left w-full font-semibold text-2xl font-primary bg-transparent outline-none"
+								class="text-left w-full font-semibold text-2xl font-primary bg-transparent outline-hidden"
 								bind:value={knowledge.name}
 								placeholder="Knowledge Name"
-								on:input={() => {
+								oninput={() => {
 									changeDebounceHandler();
 								}}
 							/>
 						</div>
 
-						<div class="self-center flex-shrink-0">
+						<div class="self-center shrink-0">
 							<button
 								class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									showAccessControlModal = true;
 								}}
 							>
 								<LockClosed strokeWidth="2.5" className="size-3.5" />
 
-								<div class="text-sm font-medium flex-shrink-0">
+								<div class="text-sm font-medium shrink-0">
 									{$i18n.t('Access')}
 								</div>
 							</button>
@@ -1133,10 +1145,10 @@
 					<div class="flex w-full px-1">
 						<input
 							type="text"
-							class="text-left text-xs w-full text-gray-500 bg-transparent outline-none"
+							class="text-left text-xs w-full text-gray-500 bg-transparent outline-hidden"
 							bind:value={knowledge.description}
 							placeholder="Knowledge Description"
-							on:input={() => {
+							oninput={() => {
 								changeDebounceHandler();
 							}}
 						/>
@@ -1149,7 +1161,7 @@
 				{#if activeTab === 'files' && selectedFile}
 				<button
 					class="px-3 py-1 text-sm font-medium rounded-lg flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-					on:click={() => {
+					onclick={() => {
 						selectedFileId = null;
 					}}
 				>
@@ -1162,7 +1174,7 @@
 				<div class="ml-auto flex items-center gap-1">
 					<button
 						class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
-						on:click={() => {
+						onclick={() => {
 							updateFileContentHandler();
 						}}
 					>
@@ -1174,7 +1186,7 @@
 					class="px-3 py-1 text-sm font-medium rounded-lg transition {activeTab === 'files'
 						? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 						: 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850'}"
-					on:click={() => {
+					onclick={() => {
 						activeTab = 'files';
 					}}
 				>
@@ -1185,7 +1197,7 @@
 					class="px-3 py-1 text-sm font-medium rounded-lg transition {activeTab === 'pipeline'
 						? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 						: 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850'}"
-					on:click={() => {
+					onclick={() => {
 						activeTab = 'pipeline';
 					}}
 				>
@@ -1200,7 +1212,7 @@
 				<div class="ml-auto flex items-center gap-1">
 					<button
 						class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
-						on:click={() => {
+						onclick={() => {
 							pipelineModalMode = 'load'
 							showPipelineModal = true;
 						}}
@@ -1209,7 +1221,7 @@
 					</button>
 					<button
 						class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
-						on:click={() => {
+						onclick={() => {
 							if (pipelineName !== 'Untitled') {
 								savePipelineHandler();
 							} else {
@@ -1223,7 +1235,7 @@
 					</button>
 					<button
 						class="bg-violet-600 hover:bg-violet-700 text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
-						on:click={scheduleHandler}
+						onclick={scheduleHandler}
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3">
 							<path fill-rule="evenodd" d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2V1.75ZM4.5 7a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1h-7Zm0 2.5a.5.5 0 0 0 0 1h4a.5.5 0 0 0 0-1h-4Z" clip-rule="evenodd" />
@@ -1264,7 +1276,7 @@
 							</svg>
 						</div>
 						<input
-							class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
+							class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
 							bind:value={query}
 							placeholder={$i18n.t('Search Collection')}
 						/>
@@ -1272,14 +1284,14 @@
 						<div>
 							<AddContentMenu
 								{webLoaderEngine}
-								on:upload={(e) => {
-									if (e.detail.type === 'directory') {
+								onUpload={(detail) => {
+									if (detail.type === 'directory') {
 										uploadDirectoryHandler();
-									} else if (e.detail.type === 'text') {
+									} else if (detail.type === 'text') {
 										showAddTextContentModal = true;
-									} else if (e.detail.type === 'scrape'){
+									} else if (detail.type === 'scrape'){
 										scrapeURLHandler();
-									} else if (e.detail.type === 'crawl') {
+									} else if (detail.type === 'crawl') {
 										crawlLogs = [];
 										crawlProgress = null;
 										showAddWebCrawlModal = true;
@@ -1287,7 +1299,7 @@
 										document.getElementById('files-input').click();
 									}
 								}}
-								on:sync={(_e) => {
+								onSync={() => {
 									showSyncConfirmModal = true;
 								}}
 							/>
@@ -1306,16 +1318,16 @@
 					<div class="flex-1 w-full h-full max-h-full overflow-y-auto scrollbar-hidden rounded-2xl border border-gray-50 dark:border-gray-850">
 						<Files
 							files={filteredItems}
-							on:open={(e) => {
-								if (e.detail === null && crawlLogs.length > 0) {
+							onOpen={(detail) => {
+								if (detail === null && crawlLogs.length > 0) {
 									showAddWebCrawlModal = true;
 								} else {
-									selectedFileId = e.detail;
+									selectedFileId = detail;
 								}
 							}}
-							on:delete={(e) => {
+							onDelete={(detail) => {
 								selectedFileId = null;
-								deleteFileHandler(e.detail);
+								deleteFileHandler(detail);
 							}}
 						/>
 					</div>

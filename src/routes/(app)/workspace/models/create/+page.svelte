@@ -50,7 +50,7 @@
 		}
 	};
 
-	let model = null;
+	let model = $state(null);
 
 	onMount(async () => {
 		window.addEventListener('message', async (event) => {

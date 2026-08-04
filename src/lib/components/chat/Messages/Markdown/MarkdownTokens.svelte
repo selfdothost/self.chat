@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MarkdownTokens from './MarkdownTokens.svelte';
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -28,12 +29,22 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let id: string;
-	export let tokens: Token[];
-	export let top = true;
 
-	export let save = false;
-	export let onSourceClick: AnyFn = () => {};
+	interface Props {
+		id: string;
+		tokens: Token[];
+		top?: boolean;
+		save?: boolean;
+		onSourceClick?: AnyFn;
+	}
+
+	let {
+		id,
+		tokens,
+		top = true,
+		save = false,
+		onSourceClick = () => {}
+	}: Props = $props();
 
 	const headerComponent = (depth: number) => {
 		return 'h' + depth;
@@ -120,11 +131,11 @@
 							{#each token.header as header, headerIdx (headerIdx)}
 								<th
 									scope="col"
-									class="!px-3 !py-1.5 cursor-pointer border border-gray-50 dark:border-gray-850"
+									class="px-3! py-1.5! cursor-pointer border border-gray-50 dark:border-gray-850"
 									style={token.align[headerIdx] ? '' : `text-align: ${token.align[headerIdx]}`}
 								>
 									<div class="flex flex-col gap-1.5 text-left">
-										<div class="flex-shrink-0 break-normal">
+										<div class="shrink-0 break-normal">
 											<MarkdownInlineTokens
 												id={`${id}-${tokenIdx}-header-${headerIdx}`}
 												tokens={header.tokens}
@@ -142,7 +153,7 @@
 							<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs">
 								{#each row ?? [] as cell, cellIdx (cellIdx)}
 									<td
-										class="!px-3 !py-1.5 text-gray-900 dark:text-white w-max border border-gray-50 dark:border-gray-850"
+										class="px-3! py-1.5! text-gray-900 dark:text-white w-max border border-gray-50 dark:border-gray-850"
 										style={token.align[cellIdx] ? '' : `text-align: ${token.align[cellIdx]}`}
 									>
 										<div class="flex flex-col break-normal">
@@ -164,7 +175,7 @@
 				<Tooltip content={$i18n.t('Export to CSV')}>
 					<button
 						class="p-1 rounded-lg bg-transparent transition"
-						on:click={(e) => {
+						onclick={(e) => {
 							e.stopPropagation();
 							exportTableToCSVHandler(token, tokenIdx);
 						}}
@@ -176,7 +187,7 @@
 		</div>
 	{:else if token.type === 'blockquote'}
 		<blockquote>
-			<svelte:self id={`${id}-${tokenIdx}`} tokens={token.tokens} />
+			<MarkdownTokens id={`${id}-${tokenIdx}`} tokens={token.tokens} />
 		</blockquote>
 	{:else if token.type === 'list'}
 		{#if token.ordered}
@@ -184,7 +195,7 @@
 				<!-- marked list items are anonymous tokens with no id; index is fine, order comes straight from parsed markdown and is never reordered -->
 				{#each token.items as item, itemIdx (itemIdx)}
 					<li>
-						<svelte:self
+						<MarkdownTokens
 							id={`${id}-${tokenIdx}-${itemIdx}`}
 							tokens={item.tokens}
 							top={token.loose}
@@ -197,7 +208,7 @@
 				<!-- marked list items are anonymous tokens with no id; index is fine, order comes straight from parsed markdown and is never reordered -->
 				{#each token.items as item, itemIdx (itemIdx)}
 					<li>
-						<svelte:self
+						<MarkdownTokens
 							id={`${id}-${tokenIdx}-${itemIdx}`}
 							tokens={item.tokens}
 							top={token.loose}
@@ -208,9 +219,11 @@
 		{/if}
 	{:else if token.type === 'details'}
 		<Collapsible title={token.summary} className="w-fit space-y-1">
-			<div class=" mb-1.5" slot="content">
-				<svelte:self id={`${id}-${tokenIdx}-d`} tokens={marked.lexer(token.text)} />
-			</div>
+			{#snippet content()}
+																		<div class=" mb-1.5" >
+					<MarkdownTokens id={`${id}-${tokenIdx}-d`} tokens={marked.lexer(token.text)} />
+				</div>
+																	{/snippet}
 		</Collapsible>
 	{:else if token.type === 'html'}
 		{@const html = DOMPurify.sanitize(token.text)}
@@ -227,7 +240,7 @@
 				title={$i18n.t('Embedded file preview')}
 				width="100%"
 				frameborder="0"
-				on:load={resizeIframeToContent}
+				onload={resizeIframeToContent}
 			></iframe>
 		{:else}
 			{token.text}
@@ -238,7 +251,7 @@
 			title={token.fileId}
 			width="100%"
 			frameborder="0"
-			on:load={resizeIframeToContent}
+			onload={resizeIframeToContent}
 		></iframe>
 	{:else if token.type === 'paragraph'}
 		<p>
@@ -281,7 +294,7 @@
 			/>
 		{/if}
 	{:else if token.type === 'space'}
-		<div class="my-2" />
+		<div class="my-2"></div>
 	{:else}
 		{console.log('Unknown token', token)}
 	{/if}

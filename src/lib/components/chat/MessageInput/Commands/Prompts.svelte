@@ -8,21 +8,30 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let files;
 
-	export let prompt = '';
-	export let command = '';
-
-	let selectedPromptIdx = 0;
-	let filteredPrompts = [];
-
-	$: filteredPrompts = $prompts
-		.filter((p) => p.command.toLowerCase().includes(command.toLowerCase()))
-		.sort((a, b) => a.title.localeCompare(b.title));
-
-	$: if (command) {
-		selectedPromptIdx = 0;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		files: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		prompt?: string;
+		command?: string;
 	}
+
+	// eslint-disable-next-line no-useless-assignment -- $bindable() defaults are reassigned once the parent's real value is observed
+	let { files = $bindable(), prompt = $bindable(''), command = '' }: Props = $props();
+
+	let selectedPromptIdx = $state(0);
+	let filteredPrompts = $derived(
+		$prompts
+			.filter((p) => p.command.toLowerCase().includes(command.toLowerCase()))
+			.sort((a, b) => a.title.localeCompare(b.title))
+	);
+
+	$effect(() => {
+		if (command) {
+			selectedPromptIdx = 0;
+		}
+	});
 
 	export const selectUp = () => {
 		selectedPromptIdx = Math.max(0, selectedPromptIdx - 1);
@@ -144,13 +153,13 @@
 								? '  bg-gray-50 dark:bg-gray-850 selected-command-option-button'
 								: ''}"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								confirmPrompt(prompt);
 							}}
-							on:mousemove={() => {
+							onmousemove={() => {
 								selectedPromptIdx = promptIdx;
 							}}
-							on:focus={() => {}}
+							onfocus={() => {}}
 						>
 							<div class=" font-medium text-black dark:text-gray-100">
 								{prompt.command}

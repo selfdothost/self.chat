@@ -3,7 +3,11 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let config: Record<string, unknown> = {};
+	interface Props {
+		config?: Record<string, unknown>;
+	}
+
+	let { config = {} }: Props = $props();
 
 	const ALL_EXTENSIONS = [
 		{ ext: '.txt', label: 'TXT' },
@@ -24,7 +28,7 @@
 		{ ext: '.pdf', label: 'PDF' },
 	];
 
-	$: selectedExtensions = (config.extensions as string[]) ?? ['.txt', '.md'];
+	let selectedExtensions = $derived((config.extensions as string[]) ?? ['.txt', '.md']);
 
 	function toggleExtension(ext: string) {
 		const current = [...selectedExtensions];
@@ -57,7 +61,7 @@
 				class:text-gray-400={!selectedExtensions.includes(ext)}
 				class:border-gray-200={!selectedExtensions.includes(ext)}
 				class:dark:border-gray-700={!selectedExtensions.includes(ext)}
-				on:click={() => toggleExtension(ext)}
+				onclick={() => toggleExtension(ext)}
 			>
 				{label}
 			</button>
@@ -68,8 +72,8 @@
 		<input
 			type="text"
 			value={config.text_field ?? 'text'}
-			on:input={(e) => dispatch('configchange', { ...config, text_field: e.currentTarget.value })}
-			class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-none"
+			oninput={(e) => dispatch('configchange', { ...config, text_field: e.currentTarget.value })}
+			class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-hidden"
 			placeholder="text"
 		/>
 	</div>

@@ -23,33 +23,21 @@
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ConfigureModelsModal from './Models/ConfigureModelsModal.svelte';
 
-	let importFiles;
-	let modelsImportInputElement: HTMLInputElement;
+	let importFiles: FileList | undefined = $state();
+	let modelsImportInputElement: HTMLInputElement = $state();
 
-	let models = null;
+	let models = $state(null);
 
 	let workspaceModels = null;
 	let baseModels = null;
 
-	let filteredModels = [];
-	let selectedModelId = null;
+	let filteredModels = $state([]);
+	let selectedModelId = $state(null);
 
-	let showConfigModal = false;
+	let showConfigModal = $state(false);
 
-	$: if (models) {
-		filteredModels = models
-			.filter((m) => searchValue === '' || m.name.toLowerCase().includes(searchValue.toLowerCase()))
-			.sort((a, b) => {
-				// // Check if either model is inactive and push them to the bottom
-				// if ((a.is_active ?? true) !== (b.is_active ?? true)) {
-				// 	return (b.is_active ?? true) - (a.is_active ?? true);
-				// }
-				// If both models' active states are the same, sort alphabetically
-				return a.name.localeCompare(b.name);
-			});
-	}
 
-	let searchValue = '';
+	let searchValue = $state('');
 
 	const downloadModels = async (models) => {
 		let blob = new Blob([JSON.stringify(models)], {
@@ -131,6 +119,20 @@
 	onMount(async () => {
 		init();
 	});
+	$effect(() => {
+		if (models) {
+			filteredModels = models
+				.filter((m) => searchValue === '' || m.name.toLowerCase().includes(searchValue.toLowerCase()))
+				.sort((a, b) => {
+					// // Check if either model is inactive and push them to the bottom
+					// if ((a.is_active ?? true) !== (b.is_active ?? true)) {
+					// 	return (b.is_active ?? true) - (a.is_active ?? true);
+					// }
+					// If both models' active states are the same, sort alphabetically
+					return a.name.localeCompare(b.name);
+				});
+		}
+	});
 </script>
 
 <ConfigureModelsModal bind:show={showConfigModal} initHandler={init} />
@@ -141,7 +143,7 @@
 			<div class="flex justify-between items-center">
 				<div class="flex items-center md:self-center text-xl font-medium px-0.5">
 					{$i18n.t('Models')}
-					<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+					<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 					<span class="text-lg font-medium text-gray-500 dark:text-gray-300"
 						>{filteredModels.length}</span
 					>
@@ -152,7 +154,7 @@
 						<button
 							class=" px-2.5 py-1 rounded-full flex gap-1 items-center"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								showConfigModal = true;
 							}}
 						>
@@ -168,7 +170,7 @@
 						<Search className="size-3.5" />
 					</div>
 					<input
-						class=" w-full text-sm py-1 rounded-r-xl outline-none bg-transparent"
+						class=" w-full text-sm py-1 rounded-r-xl outline-hidden bg-transparent"
 						bind:value={searchValue}
 						placeholder={$i18n.t('Search Models')}
 					/>
@@ -186,7 +188,7 @@
 						<button
 							class=" flex flex-1 text-left space-x-3.5 cursor-pointer w-full"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								selectedModelId = model.id;
 							}}
 						>
@@ -237,7 +239,7 @@
 							<button
 								class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									selectedModelId = model.id;
 								}}
 							>
@@ -263,7 +265,7 @@
 								>
 									<Switch
 										bind:state={model.is_active}
-										on:change={async () => {
+										onChange={async () => {
 											toggleModelHandler(model);
 										}}
 									/>
@@ -291,7 +293,7 @@
 						type="file"
 						accept=".json"
 						hidden
-						on:change={() => {
+						onchange={() => {
 							console.log(importFiles);
 
 							let reader = new FileReader();
@@ -323,7 +325,7 @@
 
 					<button
 						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 transition"
-						on:click={() => {
+						onclick={() => {
 							modelsImportInputElement.click();
 						}}
 					>
@@ -349,7 +351,7 @@
 
 					<button
 						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 transition"
-						on:click={async () => {
+						onclick={async () => {
 							downloadModels(models);
 						}}
 					>

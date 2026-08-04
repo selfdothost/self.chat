@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import { addTagById, deleteTagById, getAllTags, getTagsById, updateChatById } from '$lib/apis/chats';
 	import { tags as _tags } from '$lib/stores';
 	import { createEventDispatcher, onMount } from 'svelte';
@@ -8,8 +8,12 @@
 	import Tags from '../common/Tags.svelte';
 	import { toast } from 'svelte-sonner';
 
-	export let chatId = '';
-	let tags = [];
+	interface Props {
+		chatId?: string;
+	}
+
+	let { chatId = '' }: Props = $props();
+	let tags = $state([]);
 
 	const getTags = async () => {
 		return await getTagsById(localStorage.token, chatId).catch(async (_error) => {

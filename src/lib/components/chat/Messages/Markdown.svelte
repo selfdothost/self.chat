@@ -11,16 +11,29 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let id;
-	export let content;
-	/** @type {any} */
-	export let model = null;
-	export let save = false;
+	
 
-	export let sourceIds = [];
-	export let onSourceClick = () => {};
+	/**
+	 * @typedef {Object} Props
+	 * @property {any} id
+	 * @property {any} content
+	 * @property {any} [model]
+	 * @property {boolean} [save]
+	 * @property {any} [sourceIds]
+	 * @property {any} [onSourceClick]
+	 */
 
-	let tokens = [];
+	/** @type {Props} */
+	let {
+		id,
+		content,
+		model = null,
+		save = false,
+		sourceIds = [],
+		onSourceClick = () => {}
+	} = $props();
+
+	let tokens = $state([]);
 
 	const options = {
 		throwOnError: false
@@ -29,13 +42,15 @@
 	marked.use(markedKatexExtension(options));
 	marked.use(markedExtension(options));
 
-	$: (async () => {
-		if (content) {
-			tokens = marked.lexer(
-				replaceTokens(processResponseContent(content), sourceIds, model?.name, $user?.name)
-			);
-		}
-	})();
+	$effect(() => {
+		(async () => {
+			if (content) {
+				tokens = marked.lexer(
+					replaceTokens(processResponseContent(content), sourceIds, model?.name, $user?.name)
+				);
+			}
+		})();
+	});
 </script>
 
 {#key id}

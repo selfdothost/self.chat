@@ -3,9 +3,8 @@
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { getLanguages } from '$lib/i18n';
-	const dispatch = createEventDispatcher();
 
 	import { settings, theme, user } from '$lib/stores';
 
@@ -13,19 +12,26 @@
 
 	import AdvancedParams from './Advanced/AdvancedParams.svelte';
 
-	export let saveSettings: AnyFn;
-	export let getModels: AnyFn;
+	interface Props {
+		saveSettings: AnyFn;
+		getModels: AnyFn;
+		onSave?: AnyFn;
+	}
+
+	// getModels accepted (part of the public props contract) but not read
+	// internally by this component.
+	let { saveSettings, onSave = () => {} }: Props = $props();
 
 	// General
 	let themes = ['dark', 'light', 'rose-pine dark', 'rose-pine-dawn light', 'oled-dark'];
-	let selectedTheme = 'system';
+	let selectedTheme = $state('system');
 
-	let languages: Awaited<ReturnType<typeof getLanguages>> = [];
-	let lang = $i18n.language;
-	let notificationEnabled = false;
-	let system = '';
+	let languages: Awaited<ReturnType<typeof getLanguages>> = $state([]);
+	let lang = $state($i18n.language);
+	let notificationEnabled = $state(false);
+	let system = $state('');
 
-	let showAdvanced = false;
+	let showAdvanced = $state(false);
 
 	const toggleNotification = async () => {
 		const permission = await Notification.requestPermission();
@@ -43,10 +49,10 @@
 	};
 
 	// Advanced
-	let requestFormat = '';
-	let keepAlive: string | null = null;
+	let requestFormat = $state('');
+	let keepAlive: string | null = $state(null);
 
-	let params = {
+	let params = $state({
 		// Advanced
 		stream_response: null,
 		seed: null,
@@ -70,7 +76,7 @@
 		num_thread: null,
 		num_gpu: null,
 		template: null
-	};
+	});
 
 	const toggleRequestFormat = async () => {
 		if (requestFormat === '') {
@@ -172,10 +178,10 @@
 				<div class=" self-center text-xs font-medium">{$i18n.t('Theme')}</div>
 				<div class="flex items-center relative">
 					<select
-						class=" dark:bg-gray-900 w-fit pr-8 rounded py-2 px-2 text-xs bg-transparent outline-none text-right"
+						class=" dark:bg-gray-900 w-fit pr-8 rounded py-2 px-2 text-xs bg-transparent outline-hidden text-right"
 						bind:value={selectedTheme}
 						placeholder="Select a theme"
-						on:change={() => themeChangeHandler(selectedTheme)}
+						onchange={() => themeChangeHandler(selectedTheme)}
 					>
 						<option value="system">⚙️ {$i18n.t('System')}</option>
 						<option value="dark">🌑 {$i18n.t('Dark')}</option>
@@ -192,10 +198,10 @@
 				<div class=" self-center text-xs font-medium">{$i18n.t('Language')}</div>
 				<div class="flex items-center relative">
 					<select
-						class=" dark:bg-gray-900 w-fit pr-8 rounded py-2 px-2 text-xs bg-transparent outline-none text-right"
+						class=" dark:bg-gray-900 w-fit pr-8 rounded py-2 px-2 text-xs bg-transparent outline-hidden text-right"
 						bind:value={lang}
 						placeholder="Select a language"
-						on:change={(_e) => {
+						onchange={(_e) => {
 							$i18n.changeLanguage(lang);
 						}}
 					>
@@ -218,7 +224,7 @@
 
 					<button
 						class="p-1 px-3 text-xs flex rounded transition"
-						on:click={() => {
+						onclick={() => {
 							toggleNotification();
 						}}
 						type="button"
@@ -239,9 +245,9 @@
 			<div class=" my-2.5 text-sm font-medium">{$i18n.t('System Prompt')}</div>
 			<textarea
 				bind:value={system}
-				class="w-full rounded-lg p-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none resize-none"
+				class="w-full rounded-lg p-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden resize-none"
 				rows="4"
-			/>
+			></textarea>
 		</div>
 
 		<div class="mt-2 space-y-3 pr-1.5">
@@ -250,7 +256,7 @@
 				<button
 					class=" text-xs font-medium text-gray-500"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						showAdvanced = !showAdvanced;
 					}}>{showAdvanced ? $i18n.t('Hide') : $i18n.t('Show')}</button
 				>
@@ -267,7 +273,7 @@
 						<button
 							class="p-1 px-3 text-xs flex rounded transition"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								keepAlive = keepAlive === null ? '5m' : null;
 							}}
 						>
@@ -282,7 +288,7 @@
 					{#if keepAlive !== null}
 						<div class="flex mt-1 space-x-2">
 							<input
-								class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								type="text"
 								placeholder={$i18n.t("e.g. '30s','10m'. Valid time units are 's', 'm', 'h'.")}
 								bind:value={keepAlive}
@@ -297,7 +303,7 @@
 
 						<button
 							class="p-1 px-3 text-xs flex rounded transition"
-							on:click={() => {
+							onclick={() => {
 								toggleRequestFormat();
 							}}
 						>
@@ -326,7 +332,7 @@
 	<div class="flex justify-end pt-3 text-sm font-medium">
 		<button
 			class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
-			on:click={() => {
+			onclick={() => {
 				saveSettings({
 					system: system !== '' ? system : undefined,
 					params: {
@@ -359,7 +365,7 @@
 							: parseInt(keepAlive)
 						: undefined
 				});
-				dispatch('save');
+				onSave();
 			}}
 		>
 			{$i18n.t('Save')}

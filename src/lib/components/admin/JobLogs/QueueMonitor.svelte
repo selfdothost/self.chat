@@ -9,9 +9,9 @@
 
 	const POLL_INTERVAL_MS = 15_000;
 
-	let items: QueueItem[] = [];
-	let loading = true;
-	let actionInFlight: string | null = null; // item id being acted on
+	let items: QueueItem[] = $state([]);
+	let loading = $state(true);
+	let actionInFlight: string | null = $state(null); // item id being acted on
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 	async function load() {
@@ -99,9 +99,9 @@
 			curator: $i18n.t('Curation')
 		}[t] ?? t);
 
-	$: running = items.filter((i) => i.status === 'running');
-	$: queued = items.filter((i) => i.status === 'queued');
-	$: pending = items.filter((i) => i.status !== 'running' && i.status !== 'queued');
+	let running = $derived(items.filter((i) => i.status === 'running'));
+	let queued = $derived(items.filter((i) => i.status === 'queued'));
+	let pending = $derived(items.filter((i) => i.status !== 'running' && i.status !== 'queued'));
 </script>
 
 <div class="space-y-4">
@@ -115,7 +115,7 @@
 			type="button"
 			class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
 			title={$i18n.t('Refresh')}
-			on:click={load}
+			onclick={load}
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
 				<path
@@ -152,6 +152,13 @@
 								{#if item.model_id}
 									<div class="text-xs text-gray-400 truncate">{item.model_id}</div>
 								{/if}
+								{#if item.status_detail}
+									<!-- Deliberately not truncated: the reason names the holder and what
+									     it said, which is the whole value of showing it (self.ai#88). -->
+									<div class="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+										{item.status_detail}
+									</div>
+								{/if}
 							</div>
 							<span class="text-[11px] text-gray-400 flex-none">{formatAge(item.created_at)}</span>
 						</div>
@@ -180,6 +187,13 @@
 								</div>
 								{#if item.model_id}
 									<div class="text-xs text-gray-400 truncate">{item.model_id}</div>
+								{/if}
+								{#if item.status_detail}
+									<!-- Deliberately not truncated: the reason names the holder and what
+									     it said, which is the whole value of showing it (self.ai#88). -->
+									<div class="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+										{item.status_detail}
+									</div>
 								{/if}
 							</div>
 							<span class="text-[11px] text-gray-400 flex-none">{formatAge(item.created_at)}</span>
@@ -213,6 +227,13 @@
 								{#if item.model_id}
 									<div class="text-xs text-gray-400 truncate">{item.model_id}</div>
 								{/if}
+								{#if item.status_detail}
+									<!-- Deliberately not truncated: the reason names the holder and what
+									     it said, which is the whole value of showing it (self.ai#88). -->
+									<div class="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+										{item.status_detail}
+									</div>
+								{/if}
 							</div>
 							<div class="flex items-center gap-1 flex-none">
 								<span class="text-[11px] text-gray-400 mr-1">{formatAge(item.created_at)}</span>
@@ -223,7 +244,7 @@
 										class="p-1 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 transition disabled:opacity-40"
 										title={$i18n.t('Promote to high priority')}
 										disabled={actionInFlight === item.id}
-										on:click={() => handlePromote(item)}
+										onclick={() => handlePromote(item)}
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
 											<path fill-rule="evenodd" d="M8 14a.75.75 0 0 1-.75-.75V4.56L4.03 7.78a.75.75 0 0 1-1.06-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8.75 4.56v8.69A.75.75 0 0 1 8 14Z" clip-rule="evenodd" />
@@ -237,7 +258,7 @@
 										class="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition disabled:opacity-40"
 										title={$i18n.t('Run now (bypass windows)')}
 										disabled={actionInFlight === item.id}
-										on:click={() => handleRunNow(item)}
+										onclick={() => handleRunNow(item)}
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
 											<path d="M3 3.732a1.5 1.5 0 0 1 2.305-1.265l6.706 4.267a1.5 1.5 0 0 1 0 2.531l-6.706 4.268A1.5 1.5 0 0 1 3 12.267V3.732Z" />

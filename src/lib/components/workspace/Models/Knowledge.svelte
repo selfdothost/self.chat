@@ -5,8 +5,10 @@
 	import Selector from './Knowledge/Selector.svelte';
 	import FileItem from '$lib/components/common/FileItem.svelte';
 
-	export let selectedKnowledge = [];
-	export let collections = [];
+	// collections accepted (part of the public props contract, keeps the
+	// inferred prop type intact for callers) but not read internally.
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let { selectedKnowledge = $bindable([]), collections = [] } = $props();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 </script>
@@ -50,7 +52,7 @@
 							: (file?.type ?? 'Collection')}
 						size={file?.size ?? 0}
 						dismissible
-						on:dismiss={(_e) => {
+						onDismiss={() => {
 							selectedKnowledge = selectedKnowledge.filter((_, idx) => idx !== fileIdx);
 						}}
 					/>
@@ -60,9 +62,7 @@
 
 		<div class="flex flex-wrap text-sm font-medium gap-1.5 mt-2">
 			<Selector
-				on:select={(e) => {
-					const item = e.detail;
-
+				onSelect={(item) => {
 					if (!selectedKnowledge.find((k) => k.id === item.id)) {
 						selectedKnowledge = [
 							...selectedKnowledge,

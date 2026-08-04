@@ -11,19 +11,28 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let connection: AudioConnection;
-	export let types: AudioConnectionType[] = [];
 
-	export let onSubmit: AnyFn = () => {};
-	export let onDelete: AnyFn = () => {};
+	interface Props {
+		connection: AudioConnection;
+		types?: AudioConnectionType[];
+		onSubmit?: AnyFn;
+		onDelete?: AnyFn;
+	}
 
-	let showConfigModal = false;
+	let {
+		connection,
+		types = [],
+		onSubmit = () => {},
+		onDelete = () => {}
+	}: Props = $props();
+
+	let showConfigModal = $state(false);
 
 	// The most identifying field value, for an at-a-glance summary line. Secret
 	// values arrive masked, so nothing sensitive is shown here.
-	$: summary = Object.entries(connection.fields ?? {})
+	let summary = $derived(Object.entries(connection.fields ?? {})
 		.map(([k, v]) => `${k}=${v}`)
-		.join('  ');
+		.join('  '));
 </script>
 
 <AudioConnectionModal
@@ -60,7 +69,7 @@
 	<Tooltip content={$i18n.t('Configure')}>
 		<button
 			class="self-center p-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition"
-			on:click={() => {
+			onclick={() => {
 				showConfigModal = true;
 			}}
 			type="button"

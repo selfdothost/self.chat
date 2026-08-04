@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
+	import type { AnyFn } from '$lib/types';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import RichTextInput from '$lib/components/common/RichTextInput.svelte';
@@ -13,12 +15,17 @@
 	import Mic from '$lib/components/icons/Mic.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import VoiceRecording from '$lib/components/chat/MessageInput/VoiceRecording.svelte';
-	export let show = false;
+	interface Props {
+		show?: boolean;
+		onSubmit?: AnyFn;
+	}
 
-	let name = 'Untitled';
-	let content = '';
+	let { show = $bindable(false), onSubmit = () => {} }: Props = $props();
 
-	let voiceInput = false;
+	let name = $state('Untitled');
+	let content = $state('');
+
+	let voiceInput = $state(false);
 </script>
 
 <Modal size="full" containerClassName="" className="h-full bg-white dark:bg-gray-900" bind:show>
@@ -26,7 +33,7 @@
 		<button
 			class="self-center dark:text-white"
 			type="button"
-			on:click={() => {
+			onclick={() => {
 				show = false;
 			}}
 		>
@@ -36,7 +43,7 @@
 	<div class="flex flex-col md:flex-row w-full h-full md:space-x-4 dark:text-gray-200">
 		<form
 			class="flex flex-col w-full h-full"
-			on:submit|preventDefault={() => {
+			onsubmit={preventDefault(() => {
 				if (name.trim() === '' || content.trim() === '') {
 					toast.error($i18n.t('Please fill in all fields.'));
 					name = name.trim();
@@ -44,21 +51,21 @@
 					return;
 				}
 
-				dispatch('submit', {
+				onSubmit({
 					name,
 					content
 				});
 				show = false;
 				name = '';
 				content = '';
-			}}
+			})}
 		>
 			<div class=" flex-1 w-full h-full flex justify-center overflow-auto px-5 py-4">
 				<div class=" max-w-3xl py-2 md:py-10 w-full flex flex-col gap-2">
-					<div class="flex-shrink-0 w-full flex justify-between items-center">
+					<div class="shrink-0 w-full flex justify-between items-center">
 						<div class="w-full">
 							<input
-								class="w-full text-3xl font-semibold bg-transparent outline-none"
+								class="w-full text-3xl font-semibold bg-transparent outline-hidden"
 								type="text"
 								bind:value={name}
 								placeholder={$i18n.t('Title')}
@@ -78,7 +85,7 @@
 			</div>
 
 			<div
-				class="flex flex-row items-center justify-end text-sm font-medium flex-shrink-0 mt-1 p-4 gap-1.5"
+				class="flex flex-row items-center justify-end text-sm font-medium shrink-0 mt-1 p-4 gap-1.5"
 			>
 				<div class="">
 					{#if voiceInput}
@@ -86,11 +93,11 @@
 							<VoiceRecording
 								bind:recording={voiceInput}
 								className="p-1"
-								on:cancel={() => {
+								onCancel={() => {
 									voiceInput = false;
 								}}
-								on:confirm={(e) => {
-									const { text } = e.detail;
+								onConfirm={(detail) => {
+									const { text } = detail;
 									content = `${content}${text} `;
 
 									voiceInput = false;
@@ -102,7 +109,7 @@
 							<button
 								class=" p-2 bg-gray-50 text-gray-700 dark:bg-gray-700 dark:text-white transition rounded-full"
 								type="button"
-								on:click={async () => {
+								onclick={async () => {
 									try {
 										let stream = await navigator.mediaDevices
 											.getUserMedia({ audio: true })
@@ -132,7 +139,7 @@
 					{/if}
 				</div>
 
-				<div class=" flex-shrink-0">
+				<div class=" shrink-0">
 					<Tooltip content={$i18n.t('Save')}>
 						<button
 							class=" px-3.5 py-2 bg-black text-white dark:bg-white dark:text-black transition rounded-full"

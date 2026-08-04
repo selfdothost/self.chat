@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { createBubbler, stopPropagation, self } from 'svelte/legacy';
+
+	const bubble = createBubbler();
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { onMount, onDestroy, getContext } from 'svelte';
@@ -23,19 +26,19 @@
 	const POLL_MS = 8000;
 	const getToken = () => localStorage.getItem('token') ?? '';
 
-	let loading = true;
-	let jobs: ScheduledJob[] = [];
+	let loading = $state(true);
+	let jobs: ScheduledJob[] = $state([]);
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
-	let actionInProgress: Record<string, boolean> = {};
+	let actionInProgress: Record<string, boolean> = $state({});
 
 	// Schedule dialog
-	let showScheduleDialog = false;
-	let scheduleTarget: { id: string; type: ScheduledJobType } | null = null;
-	let scheduleDatetime = '';
+	let showScheduleDialog = $state(false);
+	let scheduleTarget: { id: string; type: ScheduledJobType } | null = $state(null);
+	let scheduleDatetime = $state('');
 
 	// Filter
-	let filterType: 'all' | 'training' | 'eval' | 'curation' = 'all';
-	let filterStatus: 'all' | 'active' | 'scheduled' | 'completed' = 'active';
+	let filterType: 'all' | 'training' | 'eval' | 'curation' = $state('all');
+	let filterStatus: 'all' | 'active' | 'scheduled' | 'completed' = $state('active');
 
 	// Typed (not inline) so opt.v keeps its literal-union type instead of
 	// widening to `string` -- these feed filterType/filterStatus above.
@@ -53,7 +56,7 @@
 	];
 
 	// ── Derived ──────────────────────────────────────────────────────
-	$: filteredJobs = jobs.filter((j) => {
+	let filteredJobs = $derived(jobs.filter((j) => {
 		if (filterType !== 'all' && j.type !== filterType) return false;
 		if (filterStatus === 'active')
 			return ['pending', 'scheduled', 'queued', 'running'].includes(j.status);
@@ -61,9 +64,9 @@
 		if (filterStatus === 'completed')
 			return ['completed', 'failed', 'cancelled'].includes(j.status);
 		return true;
-	});
+	}));
 
-	$: sortedJobs = [...filteredJobs].sort((a, b) => {
+	let sortedJobs = $derived([...filteredJobs].sort((a, b) => {
 		// Scheduled jobs sorted by scheduled_for, others by created_at
 		const statusOrder: Record<string, number> = {
 			running: 0,
@@ -81,7 +84,7 @@
 			return (a.scheduled_for ?? 0) - (b.scheduled_for ?? 0);
 		}
 		return b.created_at - a.created_at;
-	});
+	}));
 
 	// ── Helpers ──────────────────────────────────────────────────────
 	const statusClasses = (status: string) => {
@@ -201,7 +204,7 @@
 <div class="mt-0.5 mb-2 gap-1 flex flex-col md:flex-row justify-between">
 	<div class="flex md:self-center text-lg font-medium px-0.5 shrink-0 items-center">
 		{$i18n.t('GPU Job Schedule')}
-		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 		<span class="text-sm font-normal text-gray-500">{jobs.length} {$i18n.t('jobs')}</span>
 	</div>
 </div>
@@ -214,7 +217,7 @@
 				class="px-3 py-1 text-xs font-medium transition {filterType === opt.v
 					? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 					: 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850'}"
-				on:click={() => { filterType = opt.v; }}
+				onclick={() => { filterType = opt.v; }}
 			>
 				{$i18n.t(opt.l)}
 			</button>
@@ -226,7 +229,7 @@
 				class="px-3 py-1 text-xs font-medium transition {filterStatus === opt.v
 					? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 					: 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850'}"
-				on:click={() => { filterStatus = opt.v; }}
+				onclick={() => { filterStatus = opt.v; }}
 			>
 				{$i18n.t(opt.l)}
 			</button>
@@ -291,13 +294,13 @@
 								{dayjs(job.created_at * 1000).fromNow()}
 							</Tooltip>
 						</td>
-						<td class="px-3 py-2 text-right" on:click|stopPropagation>
+						<td class="px-3 py-2 text-right" onclick={stopPropagation(bubble('click'))}>
 							<div class="flex items-center justify-end gap-1">
 								{#if job.status === 'pending'}
 									<Tooltip content={$i18n.t('Schedule')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => openScheduleDialog(job.id, job.type)}
+											onclick={() => openScheduleDialog(job.id, job.type)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-violet-500 hover:text-violet-600">
@@ -308,7 +311,7 @@
 									<Tooltip content={$i18n.t('Run Now')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => handleApproveNow(job)}
+											onclick={() => handleApproveNow(job)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-green-500 hover:text-green-600">
@@ -319,7 +322,7 @@
 									<Tooltip content={$i18n.t('Cancel')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => handleCancel(job)}
+											onclick={() => handleCancel(job)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-400 hover:text-red-500">
@@ -331,7 +334,7 @@
 									<Tooltip content={$i18n.t('Reschedule')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => openScheduleDialog(job.id, job.type, job.scheduled_for)}
+											onclick={() => openScheduleDialog(job.id, job.type, job.scheduled_for)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-violet-500 hover:text-violet-600">
@@ -342,7 +345,7 @@
 									<Tooltip content={$i18n.t('Unschedule')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => handleUnschedule(job)}
+											onclick={() => handleUnschedule(job)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-400 hover:text-gray-600">
@@ -353,7 +356,7 @@
 									<Tooltip content={$i18n.t('Run Now')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => handleApproveNow(job)}
+											onclick={() => handleApproveNow(job)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-green-500 hover:text-green-600">
@@ -365,7 +368,7 @@
 									<Tooltip content={$i18n.t('Cancel')}>
 										<button
 											class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition disabled:opacity-50"
-											on:click={() => handleCancel(job)}
+											onclick={() => handleCancel(job)}
 											disabled={!!actionInProgress[job.id]}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-400 hover:text-red-500">
@@ -392,11 +395,11 @@
 
 <!-- Schedule dialog -->
 {#if showScheduleDialog && scheduleTarget}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-		on:click|self={() => { showScheduleDialog = false; }}
+		onclick={self(() => { showScheduleDialog = false; })}
 	>
 		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl p-5 w-full max-w-sm mx-4">
 			<div class="text-base font-semibold mb-4">{$i18n.t('Schedule Job')}</div>
@@ -409,7 +412,7 @@
 						id="schedule-datetime"
 						type="datetime-local"
 						bind:value={scheduleDatetime}
-						class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-850 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800"
+						class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-850 dark:text-gray-100 outline-hidden border border-gray-200 dark:border-gray-800"
 					/>
 				</div>
 				{#if scheduleDatetime}
@@ -420,13 +423,13 @@
 				<div class="flex justify-end gap-2 pt-2">
 					<button
 						class="px-3 py-1.5 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-850 transition"
-						on:click={() => { showScheduleDialog = false; }}
+						onclick={() => { showScheduleDialog = false; }}
 					>
 						{$i18n.t('Cancel')}
 					</button>
 					<button
 						class="px-4 py-1.5 rounded-xl text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white transition"
-						on:click={confirmSchedule}
+						onclick={confirmSchedule}
 					>
 						{$i18n.t('Confirm')}
 					</button>

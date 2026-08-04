@@ -8,12 +8,18 @@
 	import Switch from './Switch.svelte';
 	import Tooltip from './Tooltip.svelte';
 
-	export let item;
-	export let show = false;
 
-	export let edit = false;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		item: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		show?: boolean;
+		edit?: boolean;
+	}
 
-	let enableFullContent = false;
+	let { item = $bindable(), show = $bindable(false), edit = false }: Props = $props();
+
+	let enableFullContent = $state(false);
 
 	onMount(() => {
 		console.log(item);
@@ -43,7 +49,7 @@
 
 				<div>
 					<button
-						on:click={() => {
+						onclick={() => {
 							show = false;
 						}}
 					>
@@ -88,8 +94,8 @@
 									{/if}
 									<Switch
 										bind:state={enableFullContent}
-										on:change={(e) => {
-											item.context = e.detail ? 'full' : undefined;
+										onChange={(checked) => {
+											item.context = checked ? 'full' : undefined;
 										}}
 									/>
 								</div>

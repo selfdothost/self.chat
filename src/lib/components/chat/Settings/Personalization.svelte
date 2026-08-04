@@ -1,22 +1,28 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import { settings } from '$lib/stores';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import ManageModal from './Personalization/ManageModal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	const dispatch = createEventDispatcher();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveSettings: AnyFn;
+	interface Props {
+		saveSettings: AnyFn;
+		onSave?: AnyFn;
+	}
 
-	let showManageModal = false;
+	let { saveSettings, onSave = () => {} }: Props = $props();
+
+	let showManageModal = $state(false);
 
 	// Addons
-	let enableMemory = false;
+	let enableMemory = $state(false);
 
 	onMount(async () => {
 		enableMemory = $settings?.memory ?? false;
@@ -27,9 +33,9 @@
 
 <form
 	class="flex flex-col h-full justify-between space-y-3 text-sm"
-	on:submit|preventDefault={() => {
-		dispatch('save');
-	}}
+	onsubmit={preventDefault(() => {
+		onSave();
+	})}
 >
 	<div class="py-1 overflow-y-scroll max-h-[28rem] lg:max-h-full">
 		<div>
@@ -49,7 +55,7 @@
 				<div class="">
 					<Switch
 						bind:state={enableMemory}
-						on:change={async () => {
+						onChange={async () => {
 							saveSettings({ memory: enableMemory });
 						}}
 					/>
@@ -78,7 +84,7 @@
 			<button
 				type="button"
 				class=" px-3.5 py-1.5 font-medium hover:bg-black/5 dark:hover:bg-white/5 outline outline-1 outline-gray-300 dark:outline-gray-800 rounded-3xl"
-				on:click={() => {
+				onclick={() => {
 					showManageModal = true;
 				}}
 			>

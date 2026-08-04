@@ -6,17 +6,21 @@
 
 	import { listCuratorJobs, getCuratorJobLogs, type CuratorJob } from '$lib/apis/curator';
 
-	export let pipelineName: string;
-	export let token: string;
+	interface Props {
+		pipelineName: string;
+		token: string;
+	}
+
+	let { pipelineName, token }: Props = $props();
 
 	const POLL_MS = 5000;
 	const MAX_JOBS = 10;
 
-	let expanded = false;
-	let jobs: CuratorJob[] = [];
-	let expandedJobId: string | null = null;
-	let logsByJobId: Record<string, string[]> = {};
-	let loadingLogs: Record<string, boolean> = {};
+	let expanded = $state(false);
+	let jobs: CuratorJob[] = $state([]);
+	let expandedJobId: string | null = $state(null);
+	let logsByJobId: Record<string, string[]> = $state({});
+	let loadingLogs: Record<string, boolean> = $state({});
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 	const statusClasses = (status: string) => {
@@ -87,18 +91,20 @@
 	});
 
 	// Re-refresh + restart poll when pipelineName changes
-	$: if (pipelineName && pipelineName !== 'Untitled') {
-		refresh().then(() => { if (hasActiveJobs()) startPolling(); });
-	}
+	$effect(() => {
+		if (pipelineName && pipelineName !== 'Untitled') {
+			refresh().then(() => { if (hasActiveJobs()) startPolling(); });
+		}
+	});
 </script>
 
 <div class="mt-2 border-t border-gray-100 dark:border-gray-800">
 	<!-- Collapsible header -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="flex items-center gap-1.5 px-1 py-1.5 cursor-pointer select-none text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
-		on:click={() => { expanded = !expanded; if (expanded) refresh(); }}
+		onclick={() => { expanded = !expanded; if (expanded) refresh(); }}
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
@@ -131,22 +137,22 @@
 				{#each jobs as job (job.job_id)}
 					<div class="rounded-lg border border-gray-100 dark:border-gray-800 mb-1.5 overflow-hidden">
 						<!-- Job row -->
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div
 							class="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-850 transition text-xs"
-							on:click={() => toggleExpand(job.job_id)}
+							onclick={() => toggleExpand(job.job_id)}
 						>
 							<span class="px-1.5 py-0.5 rounded text-[10px] font-medium {statusClasses(job.status)}">
 								{job.status}
 							</span>
 							<span class="flex-1 font-mono truncate text-gray-700 dark:text-gray-300">{job.name}</span>
-							<span class="text-gray-400 flex-shrink-0">{dayjs(job.created_at).fromNow()}</span>
+							<span class="text-gray-400 shrink-0">{dayjs(job.created_at).fromNow()}</span>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								viewBox="0 0 16 16"
 								fill="currentColor"
-								class="size-3 text-gray-400 flex-shrink-0 transition-transform {expandedJobId === job.job_id ? 'rotate-90' : ''}"
+								class="size-3 text-gray-400 shrink-0 transition-transform {expandedJobId === job.job_id ? 'rotate-90' : ''}"
 							>
 								<path fill-rule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L9.19 8 6.22 5.03a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
 							</svg>

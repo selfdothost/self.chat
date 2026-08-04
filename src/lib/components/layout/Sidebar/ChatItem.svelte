@@ -32,26 +32,35 @@
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Document from '$lib/components/icons/Document.svelte';
 
-	export let className = '';
 
-	export let id;
-	export let title;
 
-	export let selected = false;
-	export let shiftKey = false;
+	interface Props {
+		className?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		id: any;
+		title: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		selected?: boolean;
+		shiftKey?: boolean;
+	}
+
+	let {
+		className = '',
+		id,
+		title,
+		selected = false,
+		shiftKey = false
+	}: Props = $props();
 
 	let chat = null;
 
-	let mouseOver = false;
-	let draggable = false;
-	$: if (mouseOver) {
-		loadChat();
-	}
+	let mouseOver = $state(false);
+	let draggable = $state(false);
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const loadChat = async () => {
 		if (!chat) {
 			draggable = false;
@@ -60,10 +69,10 @@
 		}
 	};
 
-	let showShareChatModal = false;
-	let confirmEdit = false;
+	let showShareChatModal = $state(false);
+	let confirmEdit = $state(false);
 
-	let chatTitle = title;
+	let chatTitle = $state(title);
 
 	const editChatTitle = async (id, title) => {
 		if (title === '') {
@@ -129,11 +138,11 @@
 		node.focus();
 	};
 
-	let itemElement;
+	let itemElement: HTMLDivElement | undefined = $state();
 
-	let dragged = false;
-	let x = 0;
-	let y = 0;
+	let dragged = $state(false);
+	let x = $state(0);
+	let y = $state(0);
 
 	const dragImage = new Image();
 	dragImage.src =
@@ -191,7 +200,12 @@
 		}
 	});
 
-	let showDeleteConfirm = false;
+	let showDeleteConfirm = $state(false);
+	$effect(() => {
+		if (mouseOver) {
+			loadChat();
+		}
+	});
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={id} />
@@ -199,7 +213,7 @@
 <DeleteConfirmDialog
 	bind:show={showDeleteConfirm}
 	title={$i18n.t('Delete chat?')}
-	on:confirm={() => {
+	onConfirm={() => {
 		deleteChatHandler(id);
 	}}
 >
@@ -234,7 +248,7 @@
 			<input
 				use:focusEdit
 				bind:value={chatTitle}
-				class=" bg-transparent w-full outline-none mr-10"
+				class=" bg-transparent w-full outline-hidden mr-10"
 			/>
 		</div>
 	{:else}
@@ -246,24 +260,24 @@
 					? 'bg-gray-100 dark:bg-gray-950'
 					: ' group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis"
 			href={resolve('/(app)/c/[id]', { id })}
-			on:click={() => {
+			onclick={() => {
 				dispatch('select');
 
 				if ($mobile) {
 					showSidebar.set(false);
 				}
 			}}
-			on:dblclick={() => {
+			ondblclick={() => {
 				chatTitle = title;
 				confirmEdit = true;
 			}}
-			on:mouseenter={(_e) => {
+			onmouseenter={(_e) => {
 				mouseOver = true;
 			}}
-			on:mouseleave={(_e) => {
+			onmouseleave={(_e) => {
 				mouseOver = false;
 			}}
-			on:focus={(_e) => {}}
+			onfocus={(_e) => {}}
 			draggable="false"
 		>
 			<div class=" flex self-center flex-1 w-full">
@@ -274,7 +288,7 @@
 		</a>
 	{/if}
 
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="
         {id === $chatId || confirmEdit
@@ -284,13 +298,13 @@
 				: 'invisible group-hover:visible from-gray-100 dark:from-gray-950'}
             absolute {className === 'pr-2'
 			? 'right-[8px]'
-			: 'right-0'}  top-[4px] py-1 pr-0.5 mr-1.5 pl-5 bg-gradient-to-l from-80%
+			: 'right-0'}  top-[4px] py-1 pr-0.5 mr-1.5 pl-5 bg-linear-to-l from-80%
 
               to-transparent"
-		on:mouseenter={(_e) => {
+		onmouseenter={(_e) => {
 			mouseOver = true;
 		}}
-		on:mouseleave={(_e) => {
+		onmouseleave={(_e) => {
 			mouseOver = false;
 		}}
 	>
@@ -301,7 +315,7 @@
 				<Tooltip content={$i18n.t('Confirm')}>
 					<button
 						class=" self-center dark:hover:text-white transition"
-						on:click={() => {
+						onclick={() => {
 							editChatTitle(id, chatTitle);
 							confirmEdit = false;
 							chatTitle = '';
@@ -314,7 +328,7 @@
 				<Tooltip content={$i18n.t('Cancel')}>
 					<button
 						class=" self-center dark:hover:text-white transition"
-						on:click={() => {
+						onclick={() => {
 							confirmEdit = false;
 							chatTitle = '';
 						}}
@@ -328,7 +342,7 @@
 				<Tooltip content={$i18n.t('Archive')} className="flex items-center">
 					<button
 						class=" self-center dark:hover:text-white transition"
-						on:click={() => {
+						onclick={() => {
 							archiveChatHandler(id);
 						}}
 						type="button"
@@ -340,7 +354,7 @@
 				<Tooltip content={$i18n.t('Delete')}>
 					<button
 						class=" self-center dark:hover:text-white transition"
-						on:click={() => {
+						onclick={() => {
 							deleteChatHandler(id);
 						}}
 						type="button"
@@ -383,7 +397,7 @@
 					<button
 						aria-label="Chat Menu"
 						class=" self-center dark:hover:text-white transition"
-						on:click={() => {
+						onclick={() => {
 							dispatch('select');
 						}}
 					>
@@ -405,7 +419,7 @@
 					<button
 						id="delete-chat-button"
 						class="hidden"
-						on:click={() => {
+						onclick={() => {
 							showDeleteConfirm = true;
 						}}
 					>

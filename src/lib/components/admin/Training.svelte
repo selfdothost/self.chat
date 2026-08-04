@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+	const bubble = createBubbler();
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { getContext, onDestroy, onMount } from 'svelte';
@@ -28,25 +31,25 @@
 
 	const getToken = () => localStorage.getItem('token') ?? '';
 
-	let loading = true;
-	let refreshing = false;
-	let pageError = '';
+	let loading = $state(true);
+	let refreshing = $state(false);
+	let pageError = $state('');
 
-	let jobs: TrainingJob[] = [];
-	let selectedJobId = '';
-	let selectedJobLogs: string[] = [];
-	let outputs: TrainingOutput[] = [];
+	let jobs: TrainingJob[] = $state([]);
+	let selectedJobId = $state('');
+	let selectedJobLogs: string[] = $state([]);
+	let outputs: TrainingOutput[] = $state([]);
 
-	let actionInProgress: Record<string, boolean> = {};
+	let actionInProgress: Record<string, boolean> = $state({});
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-	let selectedTab = 'jobs';
+	let selectedTab = $state('jobs');
 
 	// ── Derived ──────────────────────────────────────────────────────────
-	$: selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
-	$: pendingCount = jobs.filter((j) => j.status === 'pending').length;
-	$: runningCount = jobs.filter((j) => j.status === 'running').length;
-	$: queuedCount = jobs.filter((j) => j.status === 'queued').length;
+	let selectedJob = $derived(jobs.find((j) => j.id === selectedJobId) ?? null);
+	let pendingCount = $derived(jobs.filter((j) => j.status === 'pending').length);
+	let runningCount = $derived(jobs.filter((j) => j.status === 'running').length);
+	let queuedCount = $derived(jobs.filter((j) => j.status === 'queued').length);
 
 	// ── Helpers ──────────────────────────────────────────────────────────
 	const formatDateTime = (ts: number | null | undefined) => {
@@ -218,7 +221,7 @@
 		>
 			<button
 				class="px-0.5 py-1 min-w-fit rounded-lg lg:flex-none flex text-right transition {selectedTab === 'jobs' ? '' : 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => (selectedTab = 'jobs')}
+				onclick={() => (selectedTab = 'jobs')}
 			>
 				<div class="self-center mr-2">
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
@@ -230,7 +233,7 @@
 
 			<button
 				class="px-0.5 py-1 min-w-fit rounded-lg lg:flex-none flex text-right transition {selectedTab === 'outputs' ? '' : 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => (selectedTab = 'outputs')}
+				onclick={() => (selectedTab = 'outputs')}
 			>
 				<div class="self-center mr-2">
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
@@ -250,7 +253,7 @@
 				<div class="mt-0.5 mb-2 gap-1 flex flex-col md:flex-row justify-between">
 					<div class="flex md:self-center text-lg font-medium px-0.5 shrink-0 items-center">
 						{$i18n.t('Training Jobs')}
-						<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+						<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 						<span class="text-sm font-normal text-gray-500">{jobs.length} {$i18n.t('jobs')}</span>
 
 						{#if pendingCount > 0}
@@ -272,7 +275,7 @@
 
 					<button
 						class="px-2 py-1.5 rounded-xl hover:bg-gray-700/10 dark:hover:bg-gray-100/10 dark:text-gray-300 transition text-sm flex items-center self-start"
-						on:click={() => refresh()}
+						onclick={() => refresh()}
 						disabled={refreshing}
 						aria-label={$i18n.t('Refresh')}
 					>
@@ -310,7 +313,7 @@
 								{#each jobs as job (job.id)}
 									<tr
 										class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 cursor-pointer {selectedJobId === job.id ? 'bg-gray-50 dark:bg-gray-850/50' : ''}"
-										on:click={() => selectJob(job.id)}
+										onclick={() => selectJob(job.id)}
 									>
 										<td class="px-3 py-2">
 											<span class="px-2 py-0.5 rounded-lg text-[11px] font-medium {statusClasses(job.status)}">
@@ -323,20 +326,20 @@
 										<td class="px-3 py-2 font-mono">{job.model_id}</td>
 										<td class="px-3 py-2">{job.user?.name ?? job.user_id}</td>
 										<td class="px-3 py-2 text-gray-500">{formatDateTime(job.created_at)}</td>
-										<td class="px-3 py-2 text-right" on:click|stopPropagation>
+										<td class="px-3 py-2 text-right" onclick={stopPropagation(bubble('click'))}>
 											<div class="flex items-center justify-end gap-1">
 												{#if actionInProgress[job.id]}
 													<Spinner className="size-3.5" />
 												{:else if job.status === 'pending'}
 													<Tooltip content={$i18n.t('Approve')}>
-														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleApprove(job.id)}>
+														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleApprove(job.id)}>
 															<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-green-500 hover:text-green-600">
 																<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
 															</svg>
 														</button>
 													</Tooltip>
 													<Tooltip content={$i18n.t('Reject')}>
-														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleReject(job.id)}>
+														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleReject(job.id)}>
 															<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-red-400 hover:text-red-500">
 																<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
 															</svg>
@@ -345,7 +348,7 @@
 												{:else if job.status === 'queued' || job.status === 'running'}
 													{#if job.llamolotl_job_id}
 														<Tooltip content={$i18n.t('Sync Status')}>
-															<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleSync(job.id)}>
+															<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleSync(job.id)}>
 																<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
 																	<path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H4.598a.75.75 0 00-.75.75v3.634a.75.75 0 001.5 0v-2.134l.228.228a7 7 0 0011.709-3.133.75.75 0 00-1.473-.278zM4.688 8.576a5.5 5.5 0 019.201-2.466l.312.311H11.77a.75.75 0 000 1.5h3.634a.75.75 0 00.75-.75V3.537a.75.75 0 00-1.5 0v2.134l-.228-.228A7 7 0 002.717 8.576a.75.75 0 001.473.278z" clip-rule="evenodd" />
 																</svg>
@@ -353,7 +356,7 @@
 														</Tooltip>
 													{/if}
 													<Tooltip content={$i18n.t('Cancel')}>
-														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleCancel(job.id)}>
+														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleCancel(job.id)}>
 															<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-500 hover:text-red-500">
 																<path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" clip-rule="evenodd" />
 															</svg>
@@ -361,7 +364,7 @@
 													</Tooltip>
 												{:else}
 													<Tooltip content={$i18n.t('Delete')}>
-														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleDelete(job.id)}>
+														<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleDelete(job.id)}>
 															<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-500 hover:text-red-500 transition">
 																<path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022 1.005 11.36A2.75 2.75 0 007.77 20h4.46a2.75 2.75 0 002.751-2.689l1.005-11.36.149.022a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 01.7.797l-.5 5.5a.75.75 0 01-1.494-.136l.5-5.5a.75.75 0 01.794-.66zm2.84 0a.75.75 0 01.794.66l.5 5.5a.75.75 0 01-1.494.137l-.5-5.5a.75.75 0 01.7-.798z" clip-rule="evenodd" />
 															</svg>
@@ -476,7 +479,7 @@
 				<!-- Outputs header -->
 				<div class="mt-0.5 mb-2 flex md:self-center text-lg font-medium px-0.5 items-center">
 					{$i18n.t('Training Outputs')}
-					<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+					<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 					<span class="text-sm font-normal text-gray-500">{outputs.length}</span>
 				</div>
 

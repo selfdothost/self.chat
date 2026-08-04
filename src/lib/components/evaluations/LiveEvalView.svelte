@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
-	import { onMount, onDestroy, getContext, createEventDispatcher } from 'svelte';
+	import { onMount, onDestroy, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -12,25 +12,30 @@
 		type EvalJob
 	} from '$lib/apis/evaluations/jobs';
 	import { getCodeTestDetails, getCodeTests } from '$lib/apis/evaluations/codetests';
+	import type { AnyFn } from '$lib/types';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let job: EvalJob;
+	interface Props {
+		job: EvalJob;
+		onBack?: AnyFn;
+	}
+
+	let { job, onBack = () => {} }: Props = $props();
 
 	// ── Shared state ─────────────────────────────────────────────────
-	let status: 'loading' | 'streaming' | 'done' | 'error' = 'loading';
-	let errorMessage = '';
+	let status: 'loading' | 'streaming' | 'done' | 'error' = $state('loading');
+	let errorMessage = $state('');
 	// The real reason getCodeTestDetails() came back empty, captured instead of
 	// swallowed (self.ai#65) — a `failed`-status job should say why grading
 	// never completed, not the same "not synced yet, try again" copy a
 	// still-running job would show.
-	let codeDetailsError: string | null = null;
+	let codeDetailsError: string | null = $state(null);
 	let stopStream: (() => void) | null = null;
 
 	// ── language-eval / generic events path ────────────────────────────────
-	let events: LiveEvalEvent[] = [];
-	let benchmarks: Record<string, number> = {};
+	let events: LiveEvalEvent[] = $state([]);
+	let benchmarks: Record<string, number> = $state({});
 
 	// Graded aggregate scores for a code-eval run: {task: {pass@1: 0.8}}, or
 	// occasionally a bare number when the harness reports one metric per task.
@@ -39,8 +44,8 @@
 	// Graded aggregate scores for a code-eval run (pass@1 per task), pulled from
 	// the code-eval results summary — the per-task detail list has pass/fail but
 	// not the harness's official aggregate.
-	let codeScores: Record<string, CodeScoreValue> = {};
-	let expandedIndex: number | null = null;
+	let codeScores: Record<string, CodeScoreValue> = $state({});
+	let expandedIndex: number | null = $state(null);
 
 	// ── code-eval graded (pass/fail) path ──────────────────────────────
 	type CodeTaskSample = {
@@ -58,13 +63,13 @@
 		reference_test: string;
 		samples: CodeTaskSample[];
 	};
-	let codeTasks: CodeTaskDetail[] = [];
-	let liveTotal = 0;
-	let expandedTask: string | null = null;
-	let filterStatus: 'all' | 'passed' | 'failed' = 'all';
+	let codeTasks: CodeTaskDetail[] = $state([]);
+	let liveTotal = $state(0);
+	let expandedTask: string | null = $state(null);
+	let filterStatus: 'all' | 'passed' | 'failed' = $state('all');
 	// When graded detail is unavailable (not synced yet / non-admin), fall back
 	// to rendering the raw streamed events instead of the pass/fail task list.
-	let codeFallback = false;
+	let codeFallback = $state(false);
 
 	// A task is ungraded until code-eval scores it; treat those as pending,
 	// not failed, so a still-running / not-yet-graded run doesn't read "all failed".
@@ -74,12 +79,12 @@
 	const isFailed = (t: CodeTaskDetail) => !isPending(t) && t.samples.some((s) => !s.passed);
 
 	// ── Shared UI refs ───────────────────────────────────────────────
-	let listEl: HTMLDivElement;
-	let autoScroll = true;
+	let listEl: HTMLDivElement = $state();
+	let autoScroll = $state(true);
 
 	// ── Derived ──────────────────────────────────────────────────────
-	$: isCode = job.eval_type === 'code-eval';
-	$: isRunning = job.status === 'running';
+	let isCode = $derived(job.eval_type === 'code-eval');
+	let isRunning = $derived(job.status === 'running');
 	// code-eval code-test results are keyed by the remote code-eval job id, which
 	// the backend stashes on the job meta as `code_eval_job_id` at dispatch. The
 	// admin Code Tests view synthesizes a job that carries the result id as
@@ -88,24 +93,24 @@
 	// isn't a result key) and degrading to the raw-events view.
 	// job.meta is `Record<string, unknown> | null`, but these dispatch keys are
 	// always strings when present (same contract as job.id).
-	$: resultId = (job.meta?.code_eval_job_id ?? job.meta?.code_job_id ?? job.id) as string;
+	let resultId = $derived((job.meta?.code_eval_job_id ?? job.meta?.code_job_id ?? job.id) as string);
 
-	$: totalTasks = events.length > 0 ? (events[events.length - 1].total ?? events.length) : 0;
-	$: hasBenchmarks = Object.keys(benchmarks).length > 0;
+	let totalTasks = $derived(events.length > 0 ? (events[events.length - 1].total ?? events.length) : 0);
+	let hasBenchmarks = $derived(Object.keys(benchmarks).length > 0);
 
 	// code-eval counts / filter
-	$: codeTotal = liveTotal || codeTasks.length;
-	$: passedCount = codeTasks.filter(isPassed).length;
-	$: failedCount = codeTasks.filter(isFailed).length;
-	$: pendingCount = codeTasks.filter(isPending).length;
-	$: filteredTasks = codeTasks.filter((t) => {
+	let codeTotal = $derived(liveTotal || codeTasks.length);
+	let passedCount = $derived(codeTasks.filter(isPassed).length);
+	let failedCount = $derived(codeTasks.filter(isFailed).length);
+	let pendingCount = $derived(codeTasks.filter(isPending).length);
+	let filteredTasks = $derived(codeTasks.filter((t) => {
 		if (filterStatus === 'all') return true;
 		if (filterStatus === 'passed') return isPassed(t);
 		return isFailed(t);
-	});
+	}));
 
 	// Title changes based on job state
-	$: title = isRunning ? $i18n.t('Live Evaluation') : $i18n.t('Evaluation Details');
+	let title = $derived(isRunning ? $i18n.t('Live Evaluation') : $i18n.t('Evaluation Details'));
 
 	// ── Helpers (events path) ────────────────────────────────────────
 	const getEventLabel = (event: LiveEvalEvent) =>
@@ -341,7 +346,7 @@
 	<div class="flex items-center gap-3 mb-3">
 		<button
 			class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition"
-			on:click={() => dispatch('back')}
+			onclick={() => onBack()}
 			title={$i18n.t('Back')}
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
@@ -391,7 +396,7 @@
 				class="px-2 py-0.5 rounded {filterStatus === 'all'
 					? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 					: 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}"
-				on:click={() => (filterStatus = 'all')}
+				onclick={() => (filterStatus = 'all')}
 			>
 				{$i18n.t('All')}
 			</button>
@@ -399,7 +404,7 @@
 				class="px-2 py-0.5 rounded {filterStatus === 'passed'
 					? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
 					: 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}"
-				on:click={() => (filterStatus = 'passed')}
+				onclick={() => (filterStatus = 'passed')}
 			>
 				{$i18n.t('Passed')}
 			</button>
@@ -407,7 +412,7 @@
 				class="px-2 py-0.5 rounded {filterStatus === 'failed'
 					? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
 					: 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}"
-				on:click={() => (filterStatus = 'failed')}
+				onclick={() => (filterStatus = 'failed')}
 			>
 				{$i18n.t('Failed')}
 			</button>
@@ -478,7 +483,7 @@
 		<div
 			bind:this={listEl}
 			class="flex-1 overflow-y-auto space-y-1 min-h-0"
-			on:scroll={() => {
+			onscroll={() => {
 				if (listEl) {
 					const atBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 50;
 					autoScroll = atBottom;
@@ -505,7 +510,7 @@
 					</div>
 					<button
 						class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
-						on:click={loadCodeDetails}
+						onclick={loadCodeDetails}
 					>
 						{$i18n.t('Retry')}
 					</button>
@@ -520,7 +525,7 @@
 					</div>
 					<button
 						class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
-						on:click={loadCodeDetails}
+						onclick={loadCodeDetails}
 					>
 						{$i18n.t('Retry')}
 					</button>
@@ -532,7 +537,7 @@
 				<div class="rounded border border-gray-100 dark:border-gray-800">
 					<button
 						class="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-850/50"
-						on:click={() => toggleTask(task.task_id)}
+						onclick={() => toggleTask(task.task_id)}
 					>
 						<div class="flex items-center gap-2 text-xs">
 							<span
@@ -626,7 +631,7 @@
 		<div
 			bind:this={listEl}
 			class="flex-1 overflow-y-auto space-y-2 min-h-0"
-			on:scroll={() => {
+			onscroll={() => {
 				if (listEl) {
 					const atBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 50;
 					autoScroll = atBottom;
@@ -653,7 +658,7 @@
 							? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10'
 							: 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'}
 						p-3"
-					on:click={() => toggleExpand(i)}
+					onclick={() => toggleExpand(i)}
 				>
 					<!-- Task header -->
 					<div class="flex items-center justify-between">
@@ -763,7 +768,7 @@
 					{$i18n.t('Grades still syncing')} &mdash; {pendingCount} {$i18n.t('pending')}
 					<button
 						class="px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
-						on:click={loadCodeDetails}
+						onclick={loadCodeDetails}
 					>
 						{$i18n.t('Refresh')}
 					</button>

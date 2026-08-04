@@ -17,39 +17,78 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let className = 'h-full flex pt-8';
 
-	export let chatId = '';
-	export let user = $_user;
 
-	export let prompt;
 	// A chat message node's remaining fields (content, model, done, etc.) vary
 	// by message type/role, so they're left as `any` rather than modeled here.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	type HistoryMessage = { id: string; parentId: string | null; childrenIds: string[]; [key: string]: any };
 	type History = { messages: Record<string, HistoryMessage>; currentId?: string | null };
-	export let history: History = { messages: {}, currentId: null };
-	export let selectedModels;
 
-	let messages = [];
+	let messages = $derived.by(() => {
+		if (history.currentId) {
+			let _messages = [];
 
-	export let sendPrompt: AnyFn;
-	export let continueResponse: AnyFn;
-	export let regenerateResponse: AnyFn;
-	export let mergeResponses: AnyFn;
+			let message = history.messages[history.currentId];
+			while (message && _messages.length <= messagesCount) {
+				_messages.unshift({ ...message });
+				message = message.parentId !== null ? history.messages[message.parentId] : null;
+			}
 
-	export let chatActionHandler: AnyFn;
-	export let showMessage: AnyFn = () => {};
-	export let submitMessage: AnyFn = () => {};
-	export let addMessages: AnyFn = () => {};
+			return _messages;
+		} else {
+			return [];
+		}
+	});
 
-	export let readOnly = false;
 
-	export let bottomPadding = false;
-	export let autoScroll;
 
-	let messagesCount = 20;
-	let messagesLoading = false;
+
+	interface Props {
+		className?: string;
+		chatId?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		user?: any;
+		prompt: any;
+		history?: History;
+		selectedModels: any;
+		sendPrompt: AnyFn;
+		continueResponse: AnyFn;
+		regenerateResponse: AnyFn;
+		mergeResponses: AnyFn;
+		chatActionHandler: AnyFn;
+		showMessage?: AnyFn;
+		submitMessage?: AnyFn;
+		addMessages?: AnyFn;
+		readOnly?: boolean;
+		bottomPadding?: boolean;
+		autoScroll: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
+
+	let {
+		className = 'h-full flex pt-8',
+		chatId = '',
+		user = $_user,
+		// eslint-disable-next-line no-useless-assignment -- $bindable() default is reassigned once the parent's real value is observed
+		prompt = $bindable(),
+		history = $bindable({ messages: {}, currentId: null }),
+		selectedModels,
+		sendPrompt,
+		continueResponse,
+		regenerateResponse,
+		mergeResponses,
+		chatActionHandler,
+		showMessage = () => {},
+		submitMessage = () => {},
+		addMessages = () => {},
+		readOnly = false,
+		bottomPadding = false,
+		autoScroll = $bindable()
+	}: Props = $props();
+
+	let messagesCount = $state(20);
+	let messagesLoading = $state(false);
 
 	const loadMoreMessages = async () => {
 		// scroll slightly down to disable continuous loading
@@ -64,26 +103,7 @@
 		messagesLoading = false;
 	};
 
-	$: if (history.currentId) {
-		let _messages = [];
 
-		let message = history.messages[history.currentId];
-		while (message && _messages.length <= messagesCount) {
-			_messages.unshift({ ...message });
-			message = message.parentId !== null ? history.messages[message.parentId] : null;
-		}
-
-		messages = _messages;
-	} else {
-		messages = [];
-	}
-
-	$: if (autoScroll && bottomPadding) {
-		(async () => {
-			await tick();
-			scrollToBottom();
-		})();
-	}
 
 	const scrollToBottom = () => {
 		const element = document.getElementById('messages-container');
@@ -339,6 +359,14 @@
 			}, 100);
 		}
 	};
+	$effect(() => {
+		if (autoScroll && bottomPadding) {
+			(async () => {
+				await tick();
+				scrollToBottom();
+			})();
+		}
+	});
 </script>
 
 <div class={className}>
@@ -380,7 +408,7 @@
 				<div class="w-full">
 					{#if messages.at(0)?.parentId !== null}
 						<Loader
-							on:visible={(_e) => {
+							onVisible={() => {
 								console.log('visible');
 								if (!messagesLoading) {
 									loadMoreMessages();
@@ -419,9 +447,9 @@
 						/>
 					{/each}
 				</div>
-				<div class="pb-12" />
+				<div class="pb-12"></div>
 				{#if bottomPadding}
-					<div class="  pb-6" />
+					<div class="  pb-6"></div>
 				{/if}
 			{/key}
 		</div>

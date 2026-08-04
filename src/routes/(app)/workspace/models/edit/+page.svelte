@@ -7,7 +7,7 @@
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { models } from '$lib/stores';
 
 	import { getModelById, updateModelById } from '$lib/apis/models';
@@ -15,10 +15,10 @@
 	import { getModels } from '$lib/apis';
 	import ModelEditor from '$lib/components/workspace/Models/ModelEditor.svelte';
 
-	let model = null;
+	let model = $state(null);
 
 	onMount(async () => {
-		const _id = $page.url.searchParams.get('id');
+		const _id = page.url.searchParams.get('id');
 		if (_id) {
 			model = await getModelById(localStorage.token, _id).catch((_e) => {
 				return null;

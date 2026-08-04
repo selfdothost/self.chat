@@ -1,20 +1,36 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 
-	export let id: string;
-	export let label: string;
-	export let x: number = 0;
-	export let y: number = 0;
-	export let type: 'source' | 'sink' | 'transform' = 'transform';
-	export let hasInput: boolean = type !== 'source';
-	export let hasOutput: boolean = type !== 'sink';
-	export let headerColor: string = 'bg-blue-500';
-	export let selected: boolean = false;
+	interface Props {
+		id: string;
+		label: string;
+		x?: number;
+		y?: number;
+		type?: 'source' | 'sink' | 'transform';
+		hasInput?: boolean;
+		hasOutput?: boolean;
+		headerColor?: string;
+		selected?: boolean;
+		children?: import('svelte').Snippet;
+	}
+
+	let {
+		id,
+		label,
+		x = $bindable(0),
+		y = $bindable(0),
+		type = 'transform',
+		hasInput = type !== 'source',
+		hasOutput = type !== 'sink',
+		headerColor = 'bg-blue-500',
+		selected = false,
+		children
+	}: Props = $props();
 
 	const dispatch = createEventDispatcher();
 
-	let nodeCollapsed = false;
-	let dragging = false;
+	let nodeCollapsed = $state(false);
+	let dragging = $state(false);
 	let dragOffsetX = 0;
 	let dragOffsetY = 0;
 
@@ -64,17 +80,17 @@
 	style="left: {x}px; top: {y}px; {nodeCollapsed ? '' : 'min-width: 200px; max-width: 280px;'}"
 	role="button"
 	tabindex="0"
-	on:pointerdown={onPointerDown}
-	on:pointermove={onPointerMove}
-	on:pointerup={onPointerUp}
-	on:click={handleClick}
-	on:keydown={(e) => {
+	onpointerdown={onPointerDown}
+	onpointermove={onPointerMove}
+	onpointerup={onPointerUp}
+	onclick={handleClick}
+	onkeydown={(e) => {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			dispatch('select', { id });
 		}
 	}}
-	on:contextmenu={handleContextMenu}
+	oncontextmenu={handleContextMenu}
 	class:cursor-grabbing={dragging}
 	class:cursor-grab={!dragging}
 	>
@@ -88,11 +104,11 @@
 		<div class="flex items-center gap-1.5 px-3 py-2 {headerColor} text-white text-xs font-semibold node-header"
 		>
 			{#if hasInput}
-				<div class="port port-input" data-node-id={id} data-port="input" />
+				<div class="port port-input" data-node-id={id} data-port="input"></div>
 			{/if}
 			<button
-				class="node-collapse-btn flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 transition"
-				on:click={toggleCollapse}
+				class="node-collapse-btn shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-white/20 transition"
+				onclick={toggleCollapse}
 				title={nodeCollapsed ? 'Expand' : 'Collapse'}
 			>
 				<svg
@@ -105,14 +121,14 @@
 			</button>
 			<span class="flex-1 truncate">{label}</span>
 			{#if hasOutput}
-				<div class="port port-output" data-node-id={id} data-port="output" />
+				<div class="port port-output" data-node-id={id} data-port="output"></div>
 			{/if}
 		</div>
 
 		<!-- Body (collapsible) -->
 		{#if !nodeCollapsed}
 			<div class="node-content px-3 py-2 text-xs cursor-default">
-				<slot />
+				{@render children?.()}
 			</div>
 		{/if}
 	</div>
@@ -125,7 +141,7 @@
 		border-radius: 50%;
 		border: 2px solid rgba(255, 255, 255, 0.8);
 		background: rgba(255, 255, 255, 0.3);
-		flex-shrink: 0;
+		shrink: 0;
 	}
 	.port-input {
 		margin-left: -8px;

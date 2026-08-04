@@ -17,27 +17,49 @@
 	import Skeleton from './Skeleton.svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let chatId;
-	export let history;
-	export let messageId;
 
-	export let isLastMessage;
-	export let readOnly = false;
 
-	export let updateChat: AnyFn;
-	export let editMessage: AnyFn;
-	export let saveMessage: AnyFn;
-	export let rateMessage: AnyFn;
-	export let actionMessage: AnyFn;
 
-	export let submitMessage: AnyFn;
-	export let continueResponse: AnyFn;
-	export let regenerateResponse: AnyFn;
-	export let mergeResponses: AnyFn;
 
-	export let addMessages: AnyFn;
 
-	export let triggerScroll: AnyFn;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		chatId: any;
+		history: any;
+		messageId: any;
+		isLastMessage: any;
+		readOnly?: boolean;
+		updateChat: AnyFn;
+		editMessage: AnyFn;
+		saveMessage: AnyFn;
+		rateMessage: AnyFn;
+		actionMessage: AnyFn;
+		submitMessage: AnyFn;
+		continueResponse: AnyFn;
+		regenerateResponse: AnyFn;
+		mergeResponses: AnyFn;
+		addMessages: AnyFn;
+		triggerScroll: AnyFn;
+	}
+
+	let {
+		chatId,
+		history = $bindable(),
+		messageId,
+		isLastMessage,
+		readOnly = false,
+		updateChat,
+		editMessage,
+		saveMessage,
+		rateMessage,
+		actionMessage,
+		submitMessage,
+		continueResponse,
+		regenerateResponse,
+		mergeResponses,
+		addMessages,
+		triggerScroll
+	}: Props = $props();
 
 	// Hardcoded `true` looks like a leftover from debugging — every sibling
 	// action icon in this file uses plain `invisible group-hover:visible`,
@@ -47,16 +69,22 @@
 	// eslint-disable-next-line no-constant-condition
 	const mergeButtonVisibilityClass = true ? 'visible' : 'invisible group-hover:visible';
 
-	let parentMessage;
-	let groupedMessageIds = {};
-	let groupedMessageIdsIdx = {};
+	 
+	// positionally throughout this component, not through one fixed interface (matches
+	// Message.svelte's own `history` typing).
+	let parentMessage: any = $state();
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	let groupedMessageIds = $state({});
+	let groupedMessageIdsIdx = $state({});
 
-	let message = JSON.parse(JSON.stringify(history.messages[messageId]));
-	$: if (history.messages) {
-		if (JSON.stringify(message) !== JSON.stringify(history.messages[messageId])) {
-			message = JSON.parse(JSON.stringify(history.messages[messageId]));
+	let message = $state(JSON.parse(JSON.stringify(history.messages[messageId])));
+	$effect(() => {
+		if (history.messages) {
+			if (JSON.stringify(message) !== JSON.stringify(history.messages[messageId])) {
+				message = JSON.parse(JSON.stringify(history.messages[messageId]));
+			}
 		}
-	}
+	});
 
 	const showPreviousMessage = async (modelIdx) => {
 		groupedMessageIdsIdx[modelIdx] = Math.max(0, groupedMessageIdsIdx[modelIdx] - 1);
@@ -217,8 +245,8 @@
 								}`} transition-all p-5 rounded-2xl"
 						role="button"
 						tabindex="0"
-						on:click={() => selectResponse(_messageId)}
-						on:keydown={(e) => {
+						onclick={() => selectResponse(_messageId)}
+						onkeydown={(e) => {
 							if (e.key !== 'Enter' && e.key !== ' ') return;
 							e.preventDefault();
 							selectResponse(_messageId);
@@ -293,13 +321,13 @@
 					</div>
 
 					{#if isLastMessage}
-						<div class=" flex-shrink-0 text-gray-600 dark:text-gray-500 mt-1">
+						<div class=" shrink-0 text-gray-600 dark:text-gray-500 mt-1">
 							<Tooltip content={$i18n.t('Merge Responses')} placement="bottom">
 								<button
 									type="button"
 									id="merge-response-button"
 									class="{mergeButtonVisibilityClass} p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
-									on:click={() => {
+									onclick={() => {
 										mergeResponsesHandler();
 									}}
 								>

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
@@ -14,11 +14,17 @@
 	import Models from './Commands/Models.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 
-	export let prompt = '';
-	export let files = [];
+	interface Props {
+		prompt?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		files?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
 
-	let loading = false;
-	let commandElement = null;
+	let { prompt = $bindable(''), files = $bindable([]) }: Props = $props();
+
+	let loading = $state(false);
+	let commandElement = $state(null);
 
 	export const selectUp = () => {
 		commandElement?.selectUp();
@@ -28,20 +34,17 @@
 		commandElement?.selectDown();
 	};
 
-	let command = '';
-	$: command = prompt?.split('\n').pop()?.split(' ')?.pop() ?? '';
+	let command = $derived(prompt?.split('\n').pop()?.split(' ')?.pop() ?? '');
 
-	let show;
-	$: show = ['/', '#', '@'].includes(command?.charAt(0)) || '\\#' === command.slice(0, 2);
+	let show = $derived(
+		['/', '#', '@'].includes(command?.charAt(0)) || '\\#' === command.slice(0, 2)
+	);
 
-	$: if (show) {
-		init();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const init = async () => {
 		loading = true;
 		await Promise.all([
@@ -54,6 +57,11 @@
 		]);
 		loading = false;
 	};
+	$effect(() => {
+		if (show) {
+			init();
+		}
+	});
 </script>
 
 {#if show}

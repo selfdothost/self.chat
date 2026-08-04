@@ -2,7 +2,8 @@
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { getSystemResources, getSystemProcesses } from '$lib/apis/system';
-	import { getLlamolotlModelStatus, unloadAllLlamolotlModels } from '$lib/apis/llamolotl';
+	import { getLlamolotlModelStatus } from '$lib/apis/llamolotl';
+	import { releaseAllVram } from '$lib/apis/vram';
 	import { modelLoadStatus, models } from '$lib/stores';
 	import Overview from './System/Overview.svelte';
 	import Processes from './System/Processes.svelte';
@@ -10,16 +11,16 @@
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
-	let selectedTab = 'overview';
-	let processesSortBy = 'cpu_percent';
-	let prevTab = selectedTab;
+	let selectedTab = $state('overview');
+	let processesSortBy = $state('cpu_percent');
+	let prevTab = $state(selectedTab);
 
-	let resources = null;
-	let processes = null;
-	let loading = true;
-	let unloadingAll = false;
+	let resources = $state(null);
+	let processes = $state(null);
+	let loading = $state(true);
+	let unloadingAll = $state(false);
 	let pollInterval = null;
-	let mounted = false;
+	let mounted = $state(false);
 
 	function switchToProcesses(sortBy) {
 		processesSortBy = sortBy;
@@ -62,16 +63,27 @@
 	async function handleUnloadAll() {
 		unloadingAll = true;
 		try {
-			const result = await unloadAllLlamolotlModels(localStorage.token);
-			const count = result?.unloaded?.length ?? 0;
-			if (count > 0) {
-				toast.success($i18n.t(`Unloaded ${count} model(s)`));
+			// System-wide GPU e-stop: force-unloads every GPU consumer (llamolotl
+			// LLM, self.speak TTS, self.sketch image gen), not just llamolotl.
+			const result = await releaseAllVram(localStorage.token);
+			const results = result?.results ?? [];
+			const failed = results.filter((r) => !r.ok);
+			if (results.length === 0) {
+				toast.info($i18n.t('No GPU consumers to unload'));
+			} else if (failed.length === 0) {
+				toast.success($i18n.t(`Unloaded all GPU models (${results.length} consumer(s))`));
 			} else {
-				toast.info($i18n.t('No models were loaded'));
+				toast.error(
+					$i18n.t(
+						`Unloaded ${results.length - failed.length}/${results.length} consumer(s); failed: ${failed
+							.map((r) => r.consumer_id)
+							.join(', ')}`
+					)
+				);
 			}
 			await fetchModelStatus();
 		} catch (err) {
-			toast.error(err?.toString() ?? 'Failed to unload models');
+			toast.error(err?.toString() ?? 'Failed to unload GPU models');
 		} finally {
 			unloadingAll = false;
 		}
@@ -103,18 +115,14 @@
 	});
 
 	// When tab changes after mount, fetch immediately and restart polling
-	$: if (mounted && selectedTab !== prevTab) {
-		// Read by this same comparison on the next invocation, once selectedTab
-		// changes again -- ESLint can't see reads across $: re-invocations.
-		// eslint-disable-next-line no-useless-assignment
-		prevTab = selectedTab;
-		poll();
-		startPolling();
-	}
+	$effect(() => {
+		if (mounted && selectedTab !== prevTab) {
+			prevTab = selectedTab;
+			poll();
+			startPolling();
+		}
+	});
 
-	$: hasLoadedModels = Object.values($modelLoadStatus).some(
-		(s) => s === 'loaded' || s === 'loading'
-	);
 </script>
 
 <div class="flex flex-col lg:flex-row w-full h-full pb-2 lg:space-x-4">
@@ -126,7 +134,7 @@
 			'overview'
 				? ''
 				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => {
+			onclick={() => {
 				selectedTab = 'overview';
 			}}
 		>
@@ -150,7 +158,7 @@
 			'processes'
 				? ''
 				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => {
+			onclick={() => {
 				selectedTab = 'processes';
 			}}
 		>
@@ -171,35 +179,38 @@
 			<div class="self-center">{$i18n.t('Processes')}</div>
 		</button>
 
-		{#if hasLoadedModels}
-			<div class="lg:mt-auto lg:pt-4 lg:border-t dark:border-gray-800">
-				<button
-					class="px-2 py-1.5 min-w-fit rounded-lg flex items-center gap-2 text-xs font-medium transition
-						text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20
-						disabled:opacity-50 disabled:cursor-not-allowed"
-					on:click={handleUnloadAll}
-					disabled={unloadingAll}
+		<!-- System-wide GPU e-stop. Always available to admins (this panel is
+		     admin-only): it force-unloads every GPU consumer — llamolotl, self.speak
+		     and self.sketch — not just llamolotl, so it is no longer gated on
+		     llamolotl having loaded models. -->
+		<div class="lg:mt-auto lg:pt-4 lg:border-t dark:border-gray-800">
+			<button
+				class="px-2 py-1.5 min-w-fit rounded-lg flex items-center gap-2 text-xs font-medium transition
+					text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20
+					disabled:opacity-50 disabled:cursor-not-allowed"
+				onclick={handleUnloadAll}
+				disabled={unloadingAll}
+				title={$i18n.t('Force-unload every GPU model system-wide (LLM, speech, image generation)')}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="w-4 h-4"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						class="w-4 h-4"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 10.5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75ZM2 10a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 2 10Z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-					{#if unloadingAll}
-						{$i18n.t('Unloading...')}
-					{:else}
-						{$i18n.t('Unload All Models')}
-					{/if}
-				</button>
-			</div>
-		{/if}
+					<path
+						fill-rule="evenodd"
+						d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 10.5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75ZM2 10a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 2 10Z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+				{#if unloadingAll}
+					{$i18n.t('Unloading...')}
+				{:else}
+					{$i18n.t('Unload All GPU Models')}
+				{/if}
+			</button>
+		</div>
 	</div>
 
 	<div class="flex-1 mt-3 lg:mt-0 overflow-y-scroll pr-1 scrollbar-hidden">

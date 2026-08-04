@@ -7,13 +7,13 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let items: BenchmarkConfig[] = [];
-	let loading = true;
+	let items: BenchmarkConfig[] = $state([]);
+	let loading = $state(true);
 
 	// Track per-row edit state: id → draft value
-	let edits: Record<string, { max_duration_minutes: number; notes: string }> = {};
-	let saving: Record<string, boolean> = {};
-	let errors: Record<string, string> = {};
+	let edits: Record<string, { max_duration_minutes: number; notes: string }> = $state({});
+	let saving: Record<string, boolean> = $state({});
+	let errors: Record<string, string> = $state({});
 
 	onMount(async () => {
 		try {
@@ -54,15 +54,15 @@
 	}
 
 	// Group by eval_type
-	$: grouped = items.reduce(
+	let grouped = $derived(items.reduce(
 		(acc, b) => {
 			(acc[b.eval_type] = acc[b.eval_type] ?? []).push(b);
 			return acc;
 		},
 		{} as Record<string, BenchmarkConfig[]>
-	);
+	));
 
-	$: evalTypes = Object.keys(grouped).sort();
+	let evalTypes = $derived(Object.keys(grouped).sort());
 
 	const typeLabel = (t: string) =>
 		({ 'language-eval': 'Language Eval', 'code-eval': 'Code Eval', curator: 'Curator' }[t] ?? t);
@@ -109,14 +109,14 @@
 											type="number"
 											min="1"
 											max="10080"
-											class="w-24 text-sm text-right border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-none focus:ring-1 focus:ring-blue-500"
+											class="w-24 text-sm text-right border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-hidden focus:ring-1 focus:ring-blue-500"
 											bind:value={edits[b.id].max_duration_minutes}
 										/>
 									</td>
 									<td class="px-4 py-2">
 										<input
 											type="text"
-											class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-none focus:ring-1 focus:ring-blue-500"
+											class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-hidden focus:ring-1 focus:ring-blue-500"
 											placeholder={$i18n.t('Optional note')}
 											bind:value={edits[b.id].notes}
 										/>
@@ -129,7 +129,7 @@
 												type="button"
 												class="text-xs px-2 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black hover:opacity-90 disabled:opacity-50"
 												disabled={saving[b.id]}
-												on:click={() => save(b)}
+												onclick={() => save(b)}
 											>
 												{saving[b.id] ? $i18n.t('…') : $i18n.t('Save')}
 											</button>

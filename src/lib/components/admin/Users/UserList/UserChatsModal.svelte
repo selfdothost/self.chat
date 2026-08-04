@@ -14,10 +14,16 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
-	export let user;
+	interface Props {
+		show?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		user: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
 
-	let chats = null;
+	let { show = $bindable(false), user }: Props = $props();
+
+	let chats = $state(null);
 
 	const deleteChatHandler = async (chatId) => {
 		await deleteChatById(localStorage.token, chatId).catch((error) => {
@@ -27,23 +33,20 @@
 		chats = await getChatListByUserId(localStorage.token, user.id);
 	};
 
-	// Assignments run inside an async IIFE/else branch triggered by this block;
-	// `chats` isn't part of the block's own condition (`show`), so setting it
-	// can't retrigger this reactive statement -- not an infinite loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (show) {
-		(async () => {
-			if (user.id) {
-				chats = await getChatListByUserId(localStorage.token, user.id);
-			}
-		})();
-	} else {
-		chats = null;
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+	$effect(() => {
+		if (show) {
+			(async () => {
+				if (user.id) {
+					chats = await getChatListByUserId(localStorage.token, user.id);
+				}
+			})();
+		} else {
+			chats = null;
+		}
+	});
 
-	let sortKey = 'updated_at'; // default sort key
-	let sortOrder = 'desc'; // default sort order
+	let sortKey = $state('updated_at'); // default sort key
+	let sortOrder = $state('desc'); // default sort order
 	function setSortKey(key) {
 		if (sortKey === key) {
 			sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
@@ -61,7 +64,7 @@
 		</div>
 		<button
 			class="self-center"
-			on:click={() => {
+			onclick={() => {
 				show = false;
 			}}
 		>
@@ -92,7 +95,7 @@
 										<th
 											scope="col"
 											class="px-3 py-2 cursor-pointer select-none"
-											on:click={() => setSortKey('title')}
+											onclick={() => setSortKey('title')}
 										>
 											{$i18n.t('Title')}
 											{#if sortKey === 'title'}
@@ -104,7 +107,7 @@
 										<th
 											scope="col"
 											class="px-3 py-2 hidden md:flex cursor-pointer select-none justify-end"
-											on:click={() => setSortKey('updated_at')}
+											onclick={() => setSortKey('updated_at')}
 										>
 											{$i18n.t('Updated at')}
 											{#if sortKey === 'updated_at'}
@@ -113,7 +116,7 @@
 												<span class="invisible">▲</span>
 											{/if}
 										</th>
-										<th scope="col" class="px-3 py-2 text-right" />
+										<th scope="col" class="px-3 py-2 text-right"></th>
 									</tr>
 								</thead>
 								<tbody>
@@ -145,7 +148,7 @@
 													<Tooltip content={$i18n.t('Delete Chat')}>
 														<button
 															class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-															on:click={async () => {
+															onclick={async () => {
 																deleteChatHandler(chat.id);
 															}}
 														>

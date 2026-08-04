@@ -5,10 +5,16 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let processData;
-	export let sortBy: string = 'cpu_percent';
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		processData: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		sortBy?: string;
+	}
 
-	let sortDirection = 'desc';
+	let { processData, sortBy = $bindable('cpu_percent') }: Props = $props();
+
+	let sortDirection = $state('desc');
 
 	function toggleSort(column) {
 		if (sortBy === column) {
@@ -19,9 +25,9 @@
 		}
 	}
 
-	$: isNumericSort = !['name', 'container'].includes(sortBy);
+	let isNumericSort = $derived(!['name', 'container'].includes(sortBy));
 
-	$: sortedProcesses = processData?.processes
+	let sortedProcesses = $derived(processData?.processes
 		? [...processData.processes].sort((a, b) => {
 				const aVal = a[sortBy] ?? (isNumericSort ? 0 : '');
 				const bVal = b[sortBy] ?? (isNumericSort ? 0 : '');
@@ -31,7 +37,7 @@
 				const cmp = String(aVal).localeCompare(String(bVal));
 				return sortDirection === 'desc' ? -cmp : cmp;
 			})
-		: [];
+		: []);
 
 	function formatMb(mb) {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
@@ -57,7 +63,7 @@
 					<th class="px-3 py-2">
 						<button
 							class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200 transition"
-							on:click={() => toggleSort(col.key)}
+							onclick={() => toggleSort(col.key)}
 						>
 							{$i18n.t(col.label)}
 							{#if sortBy === col.key}

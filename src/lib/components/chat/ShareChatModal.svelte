@@ -11,9 +11,8 @@
 	import Modal from '../common/Modal.svelte';
 	import Link from '../icons/Link.svelte';
 
-	export let chatId;
 
-	let chat = null;
+	let chat = $state(null);
 	let shareUrl = null;
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -26,7 +25,14 @@
 		return shareUrl;
 	};
 
-	export let show = false;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		chatId: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		show?: boolean;
+	}
+
+	let { chatId, show = $bindable(false) }: Props = $props();
 
 	const isDifferentChat = (_chat) => {
 		if (!chat) {
@@ -38,24 +44,21 @@
 		return chat.id !== _chat.id || chat.share_id !== _chat.share_id;
 	};
 
-	// Assignments run inside an async IIFE triggered by this block; `chat`
-	// isn't part of the block's own condition (`show`), so setting it can't
-	// retrigger this reactive statement -- not an infinite loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (show) {
-		(async () => {
-			if (chatId) {
-				const _chat = await getChatById(localStorage.token, chatId);
-				if (isDifferentChat(_chat)) {
-					chat = _chat;
+	$effect(() => {
+		if (show) {
+			(async () => {
+				if (chatId) {
+					const _chat = await getChatById(localStorage.token, chatId);
+					if (isDifferentChat(_chat)) {
+						chat = _chat;
+					}
+				} else {
+					chat = null;
+					console.log(chat);
 				}
-			} else {
-				chat = null;
-				console.log(chat);
-			}
-		})();
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+			})();
+		}
+	});
 </script>
 
 <Modal bind:show size="md">
@@ -64,7 +67,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Share Chat')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -92,7 +95,7 @@
 						{$i18n.t('Click here to')}
 						<button
 							class="underline"
-							on:click={async () => {
+							onclick={async () => {
 								const res = await deleteSharedChatById(localStorage.token, chatId);
 
 								if (res) {
@@ -116,7 +119,7 @@
 								class="self-center flex items-center gap-1 px-3.5 py-2 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
 								type="button"
 								id="copy-and-share-chat-button"
-								on:click={async () => {
+								onclick={async () => {
 									const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
 									if (isSafari) {

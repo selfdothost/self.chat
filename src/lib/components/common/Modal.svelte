@@ -4,13 +4,24 @@
 
 	import { flyAndScale } from '$lib/utils/transitions';
 
-	export let show = true;
-	export let size = 'md';
 
-	export let containerClassName = 'p-3';
-	export let className = 'bg-gray-50 dark:bg-gray-900 rounded-2xl';
+	interface Props {
+		show?: boolean;
+		size?: string;
+		containerClassName?: string;
+		className?: string;
+		children?: import('svelte').Snippet;
+	}
 
-	let modalElement = null;
+	let {
+		show = $bindable(true),
+		size = 'md',
+		containerClassName = 'p-3',
+		className = 'bg-gray-50 dark:bg-gray-900 rounded-2xl',
+		children
+	}: Props = $props();
+
+	let modalElement = $state(null);
 
 	const sizeToWidth = (size) => {
 		if (size === 'full') {
@@ -39,15 +50,17 @@
 		return modals.length && modals[modals.length - 1] === modalElement;
 	};
 
-	$: if (show && modalElement) {
-		document.body.appendChild(modalElement);
-		window.addEventListener('keydown', handleKeyDown);
-		document.body.style.overflow = 'hidden';
-	} else if (modalElement) {
-		window.removeEventListener('keydown', handleKeyDown);
-		document.body.removeChild(modalElement);
-		document.body.style.overflow = 'unset';
-	}
+	$effect(() => {
+		if (show && modalElement) {
+			document.body.appendChild(modalElement);
+			window.addEventListener('keydown', handleKeyDown);
+			document.body.style.overflow = 'hidden';
+		} else if (modalElement) {
+			window.removeEventListener('keydown', handleKeyDown);
+			document.body.removeChild(modalElement);
+			document.body.style.overflow = 'unset';
+		}
+	});
 
 	onDestroy(() => {
 		show = false;
@@ -58,12 +71,12 @@
 </script>
 
 {#if show}
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		bind:this={modalElement}
 		class="modal fixed top-0 right-0 left-0 bottom-0 bg-black/60 w-full h-screen max-h-[100dvh] {containerClassName} flex justify-center z-[9999] overflow-y-auto overscroll-contain"
 		in:fade={{ duration: 10 }}
-		on:mousedown={() => {
+		onmousedown={() => {
 			show = false;
 		}}
 	>
@@ -72,11 +85,11 @@
 				? 'mx-2'
 				: ''} shadow-3xl min-h-fit scrollbar-hidden {className}"
 			in:flyAndScale
-			on:mousedown={(e) => {
+			onmousedown={(e) => {
 				e.stopPropagation();
 			}}
 		>
-			<slot />
+			{@render children?.()}
 		</div>
 	</div>
 {/if}

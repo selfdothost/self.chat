@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -32,47 +34,20 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let transparentBackground = false;
 
-	export let onChange: AnyFn = () => {};
-	export let createMessagePair: AnyFn;
-	export let stopResponse: AnyFn;
 
-	export let autoScroll = false;
 
-	export let atSelectedModel: Model | undefined = undefined;
-	export let selectedModels: string[];
 
-	let selectedModelIds = [];
-	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
 
-	export let history;
 
-	export let prompt = '';
-	export let files = [];
 
-	export let selectedToolIds = [];
-	export let webSearchEnabled = false;
-	export let deepResearchEnabled = false;
-	export let webCrawlEnabled = false;
-	export let webCrawlKbId = '';
-
-	$: onChange({
-		prompt,
-		files,
-		selectedToolIds,
-		webSearchEnabled,
-		deepResearchEnabled,
-		webCrawlEnabled,
-		webCrawlKbId
-	});
 
 	// The Configure modal lives here, not in InputMenu: the dropdown closes when
 	// it opens, which would unmount a modal owned by the dropdown.
-	let showWebCrawlModal = false;
+	let showWebCrawlModal = $state(false);
 
-	const onWebCrawlSaved = (e: CustomEvent<{ kbId: string }>) => {
-		webCrawlKbId = e.detail.kbId;
+	const onWebCrawlSaved = (detail: { kbId: string }) => {
+		webCrawlKbId = detail.kbId;
 		// Choosing a destination IS the intent to use it, so enable without
 		// making the user go back and find the switch.
 		webCrawlEnabled = true;
@@ -84,22 +59,65 @@
 		webCrawlEnabled = false;
 	};
 
-	let loaded = false;
-	let recording = false;
+	let loaded = $state(false);
+	let recording = $state(false);
 
-	let chatInputElement;
+	let chatInputElement: RichTextInput | HTMLTextAreaElement | undefined = $state();
 
-	let filesInputElement;
-	let commandsElement;
+	let filesInputElement: HTMLInputElement | undefined = $state();
+	let commandsElement: Commands | undefined = $state();
 
-	let inputFiles;
-	let dragged = false;
+	let inputFiles: FileList | undefined = $state();
+	let dragged = $state(false);
 
-	export let placeholder = '';
+	interface Props {
+		transparentBackground?: boolean;
+		onChange?: AnyFn;
+		createMessagePair: AnyFn;
+		stopResponse: AnyFn;
+		autoScroll?: boolean;
+		atSelectedModel?: Model | undefined;
+		selectedModels: string[];
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		history: any;
+		prompt?: string;
+		files?: any;
+		selectedToolIds?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		webSearchEnabled?: boolean;
+		deepResearchEnabled?: boolean;
+		webCrawlEnabled?: boolean;
+		webCrawlKbId?: string;
+		placeholder?: string;
+	}
 
-	let visionCapableModels = [];
-	$: visionCapableModels = [...(atSelectedModel ? [atSelectedModel] : selectedModels)].filter(
-		(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
+	let {
+		transparentBackground = false,
+		onChange = () => {},
+		createMessagePair,
+		stopResponse,
+		autoScroll = $bindable(false),
+		atSelectedModel = $bindable(undefined),
+		selectedModels,
+		history,
+		prompt = $bindable(''),
+		files = $bindable([]),
+		selectedToolIds = $bindable([]),
+		webSearchEnabled = $bindable(false),
+		deepResearchEnabled = $bindable(false),
+		webCrawlEnabled = $bindable(false),
+		webCrawlKbId = $bindable(''),
+		placeholder = ''
+	}: Props = $props();
+
+	let selectedModelIds = $derived(
+		atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels
+	);
+
+	let visionCapableModels = $derived(
+		[...(atSelectedModel ? [atSelectedModel] : selectedModels)].filter(
+			(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
+		)
 	);
 
 	const scrollToBottom = () => {
@@ -355,13 +373,24 @@
 			dropzoneElement?.removeEventListener('dragleave', onDragLeave);
 		}
 	});
+	$effect(() => {
+		onChange({
+			prompt,
+			files,
+			selectedToolIds,
+			webSearchEnabled,
+			deepResearchEnabled,
+			webCrawlEnabled,
+			webCrawlKbId
+		});
+	});
 </script>
 
 <WebCrawlConfigModal
 	bind:show={showWebCrawlModal}
 	bind:kbId={webCrawlKbId}
-	on:save={onWebCrawlSaved}
-	on:cancel={onWebCrawlCancelled}
+	onSave={onWebCrawlSaved}
+	onCancel={onWebCrawlCancelled}
 />
 
 <FilesOverlay show={dragged} />
@@ -381,7 +410,7 @@
 						>
 							<button
 								class=" bg-white border border-gray-100 dark:border-none dark:bg-white/20 p-1.5 rounded-full pointer-events-auto"
-								on:click={() => {
+								onclick={() => {
 									autoScroll = true;
 									scrollToBottom();
 								}}
@@ -406,7 +435,7 @@
 				<div class="w-full relative">
 					{#if atSelectedModel !== undefined || selectedToolIds.length > 0 || webSearchEnabled || deepResearchEnabled || webCrawlEnabled}
 						<div
-							class="px-3 pb-0.5 pt-1.5 text-left w-full flex flex-col absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-gray-900 z-10"
+							class="px-3 pb-0.5 pt-1.5 text-left w-full flex flex-col absolute bottom-0 left-0 right-0 bg-linear-to-t from-white dark:from-gray-900 z-10"
 						>
 							{#if selectedToolIds.length > 0}
 								<div class="flex items-center justify-between w-full">
@@ -415,8 +444,8 @@
 											<span class="relative flex size-2">
 												<span
 													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"
-												/>
-												<span class="relative inline-flex rounded-full size-2 bg-yellow-500" />
+												></span>
+												<span class="relative inline-flex rounded-full size-2 bg-yellow-500"></span>
 											</span>
 										</div>
 										<div class=" translate-y-[0.5px] text-ellipsis line-clamp-1 flex">
@@ -425,7 +454,7 @@
 											}) as tool, toolIdx (toolIdx)}
 												<Tooltip
 													content={tool?.meta?.description ?? ''}
-													className=" {toolIdx !== 0 ? 'pl-0.5' : ''} flex-shrink-0"
+													className=" {toolIdx !== 0 ? 'pl-0.5' : ''} shrink-0"
 													placement="top"
 												>
 													{tool.name}
@@ -447,8 +476,8 @@
 											<span class="relative flex size-2">
 												<span
 													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
-												/>
-												<span class="relative inline-flex rounded-full size-2 bg-green-500" />
+												></span>
+												<span class="relative inline-flex rounded-full size-2 bg-green-500"></span>
 											</span>
 										</div>
 										<div class=" translate-y-[0.5px]">{$i18n.t('Search the web')}</div>
@@ -463,8 +492,8 @@
 											<span class="relative flex size-2">
 												<span
 													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"
-												/>
-												<span class="relative inline-flex rounded-full size-2 bg-sky-500" />
+												></span>
+												<span class="relative inline-flex rounded-full size-2 bg-sky-500"></span>
 											</span>
 										</div>
 										<div class=" translate-y-[0.5px]">{$i18n.t('Deep research the web')}</div>
@@ -479,8 +508,8 @@
 											<span class="relative flex size-2">
 												<span
 													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"
-												/>
-												<span class="relative inline-flex rounded-full size-2 bg-amber-500" />
+												></span>
+												<span class="relative inline-flex rounded-full size-2 bg-amber-500"></span>
 											</span>
 										</div>
 										<div class=" translate-y-[0.5px]">
@@ -510,7 +539,7 @@
 									<div>
 										<button
 											class="flex items-center dark:text-gray-500"
-											on:click={() => {
+											onclick={() => {
 												atSelectedModel = undefined;
 											}}
 										>
@@ -557,7 +586,7 @@
 						type="file"
 						hidden
 						multiple
-						on:change={async () => {
+						onchange={async () => {
 							if (inputFiles && inputFiles.length > 0) {
 								const _inputFiles = Array.from(inputFiles);
 								inputFilesHandler(_inputFiles);
@@ -572,14 +601,14 @@
 					{#if recording}
 						<VoiceRecording
 							bind:recording
-							on:cancel={async () => {
+							onCancel={async () => {
 								recording = false;
 
 								await tick();
 								document.getElementById('chat-input')?.focus();
 							}}
-							on:confirm={async (e) => {
-								const { text } = e.detail;
+							onConfirm={async (detail) => {
+								const { text } = detail;
 								prompt = `${prompt}${text} `;
 
 								recording = false;
@@ -595,10 +624,10 @@
 					{:else}
 						<form
 							class="w-full flex gap-1.5"
-							on:submit|preventDefault={() => {
+							onsubmit={preventDefault(() => {
 								// check if selectedModels support image input
 								dispatch('submit', prompt);
-							}}
+							})}
 						>
 							<div
 								class="flex-1 flex flex-col relative w-full rounded-3xl px-1 bg-gray-600/5 dark:bg-gray-400/5 dark:text-gray-100"
@@ -646,7 +675,7 @@
 														<button
 															class=" bg-gray-400 text-white border border-white rounded-full group-hover:visible invisible transition"
 															type="button"
-															on:click={() => {
+															onclick={() => {
 																files.splice(fileIdx, 1);
 																files = files;
 															}}
@@ -673,11 +702,11 @@
 													loading={file.status === 'uploading'}
 													dismissible={true}
 													edit={true}
-													on:dismiss={() => {
+													onDismiss={() => {
 														files.splice(fileIdx, 1);
 														files = files;
 													}}
-													on:click={() => {
+													onClick={() => {
 														console.log(file);
 													}}
 												/>
@@ -727,7 +756,7 @@
 											}}
 										>
 											<button
-												class="bg-transparent hover:bg-white/80 text-gray-800 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-2 outline-none focus:outline-none"
+												class="bg-transparent hover:bg-white/80 text-gray-800 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-2 outline-hidden focus:outline-hidden"
 												type="button"
 												aria-label="More"
 											>
@@ -747,7 +776,7 @@
 
 									{#if $settings?.richTextInput ?? true}
 										<div
-											class="scrollbar-hidden text-left bg-transparent dark:text-gray-100 outline-none w-full py-2.5 px-1 rounded-xl resize-none h-fit max-h-80 overflow-auto"
+											class="scrollbar-hidden text-left bg-transparent dark:text-gray-100 outline-hidden w-full py-2.5 px-1 rounded-xl resize-none h-fit max-h-80 overflow-auto"
 										>
 											<RichTextInput
 												bind:this={chatInputElement}
@@ -785,8 +814,8 @@
 													console.log(res);
 													return res;
 												}}
-												on:keydown={async (e: CustomEvent<{ event: KeyboardEvent }>) => {
-													const event = e.detail.event;
+												onKeydown={async (detail: { event: KeyboardEvent }) => {
+													const event = detail.event;
 
 													const isCtrlPressed = event.ctrlKey || event.metaKey; // metaKey is for Cmd key on Mac
 													const commandsContainerElement =
@@ -907,8 +936,8 @@
 														webCrawlEnabled = false;
 													}
 												}}
-												on:paste={async (e: CustomEvent<{ event: ClipboardEvent }>) => {
-													const event = e.detail.event;
+												onPaste={async (detail: { event: ClipboardEvent }) => {
+													const event = detail.event;
 													console.log(event);
 
 													const clipboardData = event.clipboardData || window.clipboardData;
@@ -954,10 +983,10 @@
 										<textarea
 											id="chat-input"
 											bind:this={chatInputElement}
-											class="scrollbar-hidden bg-transparent dark:text-gray-100 outline-none w-full py-3 px-1 rounded-xl resize-none h-[48px]"
+											class="scrollbar-hidden bg-transparent dark:text-gray-100 outline-hidden w-full py-3 px-1 rounded-xl resize-none h-[48px]"
 											placeholder={placeholder ? placeholder : $i18n.t('Send a Message')}
 											bind:value={prompt}
-											on:keypress={(e) => {
+											onkeypress={(e) => {
 												if (
 													!$mobile ||
 													!(
@@ -978,7 +1007,7 @@
 													}
 												}
 											}}
-											on:keydown={async (e) => {
+											onkeydown={async (e) => {
 												const isCtrlPressed = e.ctrlKey || e.metaKey; // metaKey is for Cmd key on Mac
 												const commandsContainerElement =
 													document.getElementById('commands-container');
@@ -1095,15 +1124,15 @@
 												}
 											}}
 											rows="1"
-											on:input={async (e) => {
+											oninput={async (e) => {
 												(e.target as HTMLTextAreaElement).style.height = '';
 												(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 320) + 'px';
 											}}
-											on:focus={async (e) => {
+											onfocus={async (e) => {
 												(e.target as HTMLTextAreaElement).style.height = '';
 												(e.target as HTMLTextAreaElement).style.height = Math.min((e.target as HTMLTextAreaElement).scrollHeight, 320) + 'px';
 											}}
-											on:paste={async (e) => {
+											onpaste={async (e) => {
 												const clipboardData = e.clipboardData || window.clipboardData;
 
 												if (clipboardData && clipboardData.items) {
@@ -1141,7 +1170,7 @@
 													}
 												}
 											}}
-										/>
+										></textarea>
 									{/if}
 
 									<div class="self-end mb-1.5 flex space-x-1 mr-1">
@@ -1151,7 +1180,7 @@
 													id="voice-input-button"
 													class=" text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 mr-0.5 self-center"
 													type="button"
-													on:click={async () => {
+													onclick={async () => {
 														try {
 															let stream = await navigator.mediaDevices
 																.getUserMedia({ audio: true })
@@ -1201,7 +1230,7 @@
 														<button
 															class=" bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-2 self-center"
 															type="button"
-															on:click={async () => {
+															onclick={async () => {
 																if (selectedModels.length > 1) {
 																	toast.error($i18n.t('Select only one model to call'));
 
@@ -1278,7 +1307,7 @@
 												<Tooltip content={$i18n.t('Stop')}>
 													<button
 														class="bg-white hover:bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-1.5"
-														on:click={() => {
+														onclick={() => {
 															stopResponse();
 														}}
 													>

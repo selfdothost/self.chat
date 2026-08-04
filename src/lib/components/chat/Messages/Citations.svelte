@@ -20,15 +20,19 @@
 		source?: Record<string, unknown>;
 	};
 
-	export let sources: Citation[] = [];
+	interface Props {
+		sources?: Citation[];
+	}
 
-	let citations: Citation[];
-	let showPercentage: boolean;
-	let showRelevance: boolean;
+	let { sources = [] }: Props = $props();
 
-	let showCitationModal = false;
-	let selectedCitation: Citation | null = null;
-	let isCollapsibleOpen = false;
+	let citations: Citation[] = $state();
+	let showPercentage: boolean = $state();
+	let showRelevance: boolean = $state();
+
+	let showCitationModal = $state(false);
+	let selectedCitation: Citation | null = $state(null);
+	let isCollapsibleOpen = $state(false);
 
 	function calculateShowRelevance(sources: Citation[]) {
 		const distances = sources.flatMap((citation) => citation.distances ?? []);
@@ -54,7 +58,7 @@
 		return distances.every((d) => d !== undefined && d >= -1 && d <= 1);
 	}
 
-	$: {
+	$effect(() => {
 		citations = sources.reduce((acc, source) => {
 			if (Object.keys(source).length === 0) {
 				return acc;
@@ -99,7 +103,7 @@
 
 		showRelevance = calculateShowRelevance(citations);
 		showPercentage = shouldShowPercentage(citations);
-	}
+	});
 </script>
 
 <CitationsModal
@@ -116,8 +120,8 @@
 				{#each citations as citation, idx (citation.id)}
 					<button
 						id={`source-${citation.source.name}`}
-						class="no-toggle outline-none flex dark:text-gray-300 p-1 bg-white dark:bg-gray-900 rounded-xl max-w-96"
-						on:click={() => {
+						class="no-toggle outline-hidden flex dark:text-gray-300 p-1 bg-white dark:bg-gray-900 rounded-xl max-w-96"
+						onclick={() => {
 							showCitationModal = true;
 							selectedCitation = citation;
 						}}
@@ -140,18 +144,18 @@
 				<div
 					class="flex items-center gap-2 text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition cursor-pointer"
 				>
-					<div class="flex-grow flex items-center gap-1 overflow-hidden">
+					<div class="grow flex items-center gap-1 overflow-hidden">
 						<span class="whitespace-nowrap hidden sm:inline">{$i18n.t('References from')}</span>
 						<div class="flex items-center">
 							<div class="flex text-xs font-medium items-center">
 								{#each citations.slice(0, 2) as citation, idx (citation.id)}
 									<button
-										class="no-toggle outline-none flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
-										on:click={() => {
+										class="no-toggle outline-hidden flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
+										onclick={() => {
 											showCitationModal = true;
 											selectedCitation = citation;
 										}}
-										on:pointerup={(e) => {
+										onpointerup={(e) => {
 											e.stopPropagation();
 										}}
 									>
@@ -173,7 +177,7 @@
 							<span>{$i18n.t('more')}</span>
 						</div>
 					</div>
-					<div class="flex-shrink-0">
+					<div class="shrink-0">
 						{#if isCollapsibleOpen}
 							<ChevronUp strokeWidth="3.5" className="size-3.5" />
 						{:else}
@@ -181,28 +185,30 @@
 						{/if}
 					</div>
 				</div>
-				<div slot="content">
-					<div class="flex text-xs font-medium">
-						{#each citations as citation, idx (citation.id)}
-							<button
-								class="no-toggle outline-none flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
-								on:click={() => {
+				{#snippet content()}
+								<div >
+						<div class="flex text-xs font-medium">
+							{#each citations as citation, idx (citation.id)}
+								<button
+									class="no-toggle outline-hidden flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
+									onclick={() => {
 									showCitationModal = true;
 									selectedCitation = citation;
 								}}
-							>
-								{#if citations.every((c) => c.distances !== undefined)}
-									<div class="bg-gray-50 dark:bg-gray-800 rounded-full size-4">
-										{idx + 1}
+								>
+									{#if citations.every((c) => c.distances !== undefined)}
+										<div class="bg-gray-50 dark:bg-gray-800 rounded-full size-4">
+											{idx + 1}
+										</div>
+									{/if}
+									<div class="flex-1 mx-1 line-clamp-1 truncate">
+										{citation.source.name}
 									</div>
-								{/if}
-								<div class="flex-1 mx-1 line-clamp-1 truncate">
-									{citation.source.name}
-								</div>
-							</button>
-						{/each}
+								</button>
+							{/each}
+						</div>
 					</div>
-				</div>
+							{/snippet}
 			</Collapsible>
 		{/if}
 	</div>

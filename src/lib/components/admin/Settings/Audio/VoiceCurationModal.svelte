@@ -22,17 +22,22 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
 
 	// Called when the modal closes, with `true` if at least one voice was
 	// successfully toggled while it was open. The parent (the admin Audio tab)
 	// uses this to refetch — curation gates the downstream selectable set, so a
-	// default-voice picker rendered behind this modal can go stale.
-	export let onClose: AnyFn = () => {};
+	
+	interface Props {
+		show?: boolean;
+		// default-voice picker rendered behind this modal can go stale.
+		onClose?: AnyFn;
+	}
 
-	let voices: VoiceCurationEntry[] = [];
-	let loading = true;
-	let searchValue = '';
+	let { show = $bindable(false), onClose = () => {} }: Props = $props();
+
+	let voices: VoiceCurationEntry[] = $state([]);
+	let loading = $state(true);
+	let searchValue = $state('');
 	let changed = false;
 
 	// Every declaration below is deliberately placed BEFORE the `$:` blocks that
@@ -112,7 +117,9 @@
 		}
 	};
 
-	$: handleVisibilityChange(show);
+	$effect(() => {
+		handleVisibilityChange(show);
+	});
 
 	// Client-side filtering over the fetched set, matching the text-model
 	// curation surface (admin/Settings/Models.svelte). Keeping the full set in
@@ -123,13 +130,13 @@
 	// read as an obvious pair distinguished only by their shown source. Enabled
 	// state is NOT part of the sort — a toggled row must not jump away from the
 	// cursor mid-curation.
-	$: filteredVoices = voices
+	let filteredVoices = $derived(voices
 		.filter((voice) => matchesSearch(voice, searchValue))
 		.sort(
 			(a, b) =>
 				displayName(a).localeCompare(displayName(b)) ||
 				sourceLabel(a).localeCompare(sourceLabel(b))
-		);
+		));
 </script>
 
 <Modal size="sm" bind:show>
@@ -141,7 +148,7 @@
 			<button
 				class="self-center"
 				type="button"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -222,8 +229,8 @@
 									<Tooltip content={voice.enabled ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
 										<Switch
 											state={voice.enabled}
-											on:change={(e) => {
-												toggleVoiceHandler(voice, e.detail);
+											onChange={(checked) => {
+												toggleVoiceHandler(voice, checked);
 											}}
 										/>
 									</Tooltip>

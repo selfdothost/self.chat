@@ -6,11 +6,15 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let vramUsedMb: number;
-	export let vramTotalMb: number;
-	export let onViewProcesses: (sortBy: string) => void;
+	interface Props {
+		vramUsedMb: number;
+		vramTotalMb: number;
+		onViewProcesses: (sortBy: string) => void;
+	}
 
-	$: vramPercent = vramTotalMb > 0 ? (vramUsedMb / vramTotalMb) * 100 : 0;
+	let { vramUsedMb, vramTotalMb, onViewProcesses }: Props = $props();
+
+	let vramPercent = $derived(vramTotalMb > 0 ? (vramUsedMb / vramTotalMb) * 100 : 0);
 
 	function formatMb(mb) {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
@@ -30,7 +34,7 @@
 
 	<button
 		class="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition"
-		on:click={() => onViewProcesses('vram_mb')}
+		onclick={() => onViewProcesses('vram_mb')}
 	>
 		{$i18n.t('View Processes')} &rarr;
 	</button>

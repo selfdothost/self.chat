@@ -17,18 +17,18 @@
 	let tokenizer = null;
 	let model = null;
 
-	export let feedbacks = [];
+	let { feedbacks = [] } = $props();
 
-	let rankedModels = [];
+	let rankedModels = $state([]);
 
-	let query = '';
+	let query = $state('');
 
 	// A memoization cache, mutated in place via .has()/.set() -- never read
 	// by the template or a $: block, so Svelte never needs to observe its
 	// mutations. SvelteMap would add proxy overhead for no benefit.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	let tagEmbeddings = new Map();
-	let loadingLeaderboard = true;
+	let loadingLeaderboard = $state(true);
 	let debounceTimer;
 
 	type Feedback = {
@@ -279,10 +279,12 @@
 		}, 1500); // Debounce for 1.5 seconds
 	};
 
-	// Svelte idiom: the comma-expression registers `query` as this reactive statement's
-	// dependency so Svelte re-runs debouncedQueryHandler() whenever query changes; not dead code.
-	// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-	$: query, debouncedQueryHandler();
+	// `void query` reads (and discards) query so this effect re-runs whenever it changes,
+	// even though debouncedQueryHandler() doesn't itself reference it.
+	$effect(() => {
+		void query;
+		debouncedQueryHandler();
+	});
 
 	onMount(async () => {
 		rankHandler();
@@ -295,7 +297,7 @@
 			{$i18n.t('Leaderboard')}
 		</div>
 
-		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 
 		<span class="text-lg font-medium text-gray-500 dark:text-gray-300 mr-1.5"
 			>{rankedModels.length}</span
@@ -309,10 +311,10 @@
 					<MagnifyingGlass className="size-3" />
 				</div>
 				<input
-					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
+					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
 					bind:value={query}
 					placeholder={$i18n.t('Search')}
-					on:focus={() => {
+					onfocus={() => {
 						loadEmbeddingModel();
 					}}
 				/>
@@ -370,7 +372,7 @@
 						</td>
 						<td class="px-3 py-1.5 flex flex-col justify-center">
 							<div class="flex items-center gap-2">
-								<div class="flex-shrink-0">
+								<div class="shrink-0">
 									<img
 										src={model?.info?.meta?.profile_image_url ?? '/favicon.png'}
 										alt={model.name}

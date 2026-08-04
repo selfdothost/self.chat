@@ -6,10 +6,16 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 	import AccessControl from './AccessControl.svelte';
 
-	export let show = false;
-	export let accessControl = null;
 
-	export let onChange = () => {};
+	/**
+	 * @typedef {Object} Props
+	 * @property {boolean} [show]
+	 * @property {any} [accessControl]
+	 * @property {any} [onChange]
+	 */
+
+	/** @type {Props} */
+	let { show = $bindable(false), accessControl = $bindable(null), onChange = () => {} } = $props();
 </script>
 
 <Modal size="sm" bind:show>
@@ -20,7 +26,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>

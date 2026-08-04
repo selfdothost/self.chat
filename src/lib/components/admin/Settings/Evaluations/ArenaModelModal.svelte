@@ -1,4 +1,6 @@
 <script>
+	import { preventDefault } from 'svelte/legacy';
+
 	import { createEventDispatcher, getContext, onMount } from 'svelte';
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
@@ -12,26 +14,29 @@
 	import { toast } from 'svelte-sonner';
 	import AccessControl from '$lib/components/workspace/common/AccessControl.svelte';
 
-	export let show = false;
-	export let edit = false;
 
 	// Typed explicitly -- a bare `null` default otherwise narrows to `never`
 	// inside the `if (model) {...}` checks in initModel() below, since nothing
 	// else in this file ever reassigns `model` to widen its inferred type.
-	/** @type {{ id?: string; name?: string; meta?: { profile_image_url?: string; description?: string; model_ids?: string[]; filter_mode?: string; access_control?: object } } | null} */
-	export let model = null;
+	
+	/**
+	 * @typedef {Object} Props
+	 * @property {boolean} [show]
+	 * @property {boolean} [edit]
+	 * @property {{ id?: string; name?: string; meta?: { profile_image_url?: string; description?: string; model_ids?: string[]; filter_mode?: string; access_control?: object } } | null} [model]
+	 */
 
-	let name = '';
-	let id = '';
+	/** @type {Props} */
+	let { show = $bindable(false), edit = false, model = null } = $props();
 
-	$: if (name) {
-		generateId();
-	}
+	let name = $state('');
+	let id = $state('');
+
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const generateId = () => {
 		if (!edit) {
 			id = name
@@ -42,17 +47,17 @@
 		}
 	};
 
-	let profileImageUrl = '/favicon.png';
-	let description = '';
+	let profileImageUrl = $state('/favicon.png');
+	let description = $state('');
 
-	let selectedModelId = '';
-	let modelIds = [];
-	let filterMode = 'include';
+	let selectedModelId = $state('');
+	let modelIds = $state([]);
+	let filterMode = $state('include');
 
-	let accessControl = {};
+	let accessControl = $state({});
 
-	let imageInputElement;
-	let loading = false;
+	let imageInputElement = $state();
+	let loading = $state(false);
 
 	const addModelHandler = () => {
 		if (selectedModelId) {
@@ -115,12 +120,19 @@
 		}
 	};
 
-	$: if (show) {
-		initModel();
-	}
 
 	onMount(() => {
 		initModel();
+	});
+	$effect(() => {
+		if (name) {
+			generateId();
+		}
+	});
+	$effect(() => {
+		if (show) {
+			initModel();
+		}
 	});
 </script>
 
@@ -136,7 +148,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -157,9 +169,9 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit|preventDefault={() => {
+					onsubmit={preventDefault(() => {
 						submitHandler();
-					}}
+					})}
 				>
 					<div class="px-1">
 						<div class="flex justify-center pb-3">
@@ -168,7 +180,7 @@
 								type="file"
 								hidden
 								accept="image/*"
-								on:change={(e) => {
+								onchange={(e) => {
 									const files = /** @type {HTMLInputElement} */ (e.target).files ?? [];
 									let reader = new FileReader();
 									reader.onload = (event) => {
@@ -229,7 +241,7 @@
 							<button
 								class="relative rounded-full w-fit h-fit shrink-0"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									imageInputElement.click();
 								}}
 							>
@@ -254,7 +266,7 @@
 
 								<div class="flex-1">
 									<input
-										class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+										class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 										type="text"
 										bind:value={name}
 										placeholder={$i18n.t('Model Name')}
@@ -269,7 +281,7 @@
 
 								<div class="flex-1">
 									<input
-										class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+										class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 										type="text"
 										bind:value={id}
 										placeholder={$i18n.t('Model ID')}
@@ -286,7 +298,7 @@
 
 							<div class="flex-1">
 								<input
-									class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+									class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 									type="text"
 									bind:value={description}
 									placeholder={$i18n.t('Enter description')}
@@ -313,7 +325,7 @@
 									<button
 										class=" text-xs text-gray-500"
 										type="button"
-										on:click={() => {
+										onclick={() => {
 											filterMode = filterMode === 'include' ? 'exclude' : 'include';
 										}}
 									>
@@ -333,10 +345,10 @@
 											<div class=" text-sm flex-1 py-1 rounded-lg">
 												{$models.find((model) => model.id === modelId)?.name}
 											</div>
-											<div class="flex-shrink-0">
+											<div class="shrink-0">
 												<button
 													type="button"
-													on:click={() => {
+													onclick={() => {
 														modelIds = modelIds.filter((_, idx) => idx !== modelIdx);
 													}}
 												>
@@ -359,7 +371,7 @@
 							<select
 								class="w-full py-1 text-sm rounded-lg bg-transparent {selectedModelId
 									? ''
-									: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+									: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 								bind:value={selectedModelId}
 							>
 								<option value="">{$i18n.t('Select a model')}</option>
@@ -371,7 +383,7 @@
 							<div>
 								<button
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										addModelHandler();
 									}}
 								>
@@ -386,7 +398,7 @@
 							<button
 								class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-gray-950 dark:text-white bg-white text-black hover:bg-gray-100 transition rounded-full flex flex-row space-x-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									dispatch('delete', model);
 									show = false;
 								}}

@@ -7,7 +7,7 @@
 	// is exactly the server response (already scope-filtered): a mod the response
 	// omits produces no entry, and this component applies NO permission/role
 	// gating of its own — the only filter is `add_to_nav`.
-	$: navMods = $enabledMods.filter((mod) => mod.add_to_nav === true);
+	let navMods = $derived($enabledMods.filter((mod) => mod.add_to_nav === true));
 
 	// An icon string is rendered as an image when it points at a URL/asset path,
 	// otherwise as a short text/emoji glyph. Never interpolated as HTML.
@@ -29,7 +29,7 @@
 			class="flex-grow flex space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition"
 			href={resolve('/(app)/mods/[id]', { id: mod.id })}
 			data-mod-id={mod.id}
-			on:click={onSelect}
+			onclick={onSelect}
 			draggable="false"
 		>
 			<div class="self-center flex items-center justify-center size-[1.1rem]">

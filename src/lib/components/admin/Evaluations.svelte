@@ -11,10 +11,10 @@
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
-	let selectedTab = 'leaderboard';
+	let selectedTab = $state('leaderboard');
 
-	let loaded = false;
-	let feedbacks = [];
+	let loaded = $state(false);
+	let feedbacks = $state([]);
 
 	onMount(async () => {
 		feedbacks = await getAllFeedbacks(localStorage.token);
@@ -44,7 +44,7 @@
 				'leaderboard'
 					? ''
 					: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => {
+				onclick={() => {
 					selectedTab = 'leaderboard';
 				}}
 			>
@@ -70,7 +70,7 @@
 				'feedbacks'
 					? ''
 					: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => {
+				onclick={() => {
 					selectedTab = 'feedbacks';
 				}}
 			>
@@ -96,7 +96,7 @@
 				'codetests'
 					? ''
 					: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => {
+				onclick={() => {
 					selectedTab = 'codetests';
 				}}
 			>
@@ -122,7 +122,7 @@
 				'langtests'
 					? ''
 					: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => {
+				onclick={() => {
 					selectedTab = 'langtests';
 				}}
 			>
@@ -148,7 +148,7 @@
 				'schedule'
 					? ''
 					: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-				on:click={() => {
+				onclick={() => {
 					selectedTab = 'schedule';
 				}}
 			>

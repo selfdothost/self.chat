@@ -6,8 +6,14 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let cpu;
-	export let onViewProcesses: (sortBy: string) => void;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		cpu: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onViewProcesses: (sortBy: string) => void;
+	}
+
+	let { cpu, onViewProcesses }: Props = $props();
 </script>
 
 <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 flex flex-col items-center gap-2">
@@ -19,7 +25,7 @@
 
 	<button
 		class="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition"
-		on:click={() => onViewProcesses('cpu_percent')}
+		onclick={() => onViewProcesses('cpu_percent')}
 	>
 		{$i18n.t('View Processes')} &rarr;
 	</button>

@@ -19,21 +19,33 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let initNewChat: AnyFn;
-	export let shareEnabled: boolean = false;
 
-	export let chat;
-	export let selectedModels;
-	export let showModelSelector = true;
+	interface Props {
+		initNewChat: AnyFn;
+		shareEnabled?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		chat: any;
+		selectedModels: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		showModelSelector?: boolean;
+	}
 
-	let showShareChatModal = false;
+	let {
+		initNewChat,
+		shareEnabled = false,
+		chat,
+		selectedModels = $bindable(),
+		showModelSelector = true
+	}: Props = $props();
+
+	let showShareChatModal = $state(false);
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
 
 <div class="sticky top-0 z-30 w-full px-1.5 py-1.5 -mb-8 flex items-center">
 	<div
-		class=" bg-gradient-to-b via-50% from-white via-white to-transparent dark:from-gray-900 dark:via-gray-900 dark:to-transparent pointer-events-none absolute inset-0 -bottom-7 z-[-1] blur"
+		class=" bg-linear-to-b via-50% from-white via-white to-transparent dark:from-gray-900 dark:via-gray-900 dark:to-transparent pointer-events-none absolute inset-0 -bottom-7 z-[-1] blur"
 	></div>
 
 	<div class=" flex max-w-full w-full mx-auto px-1 pt-0.5 bg-transparent">
@@ -46,7 +58,7 @@
 				<button
 					id="sidebar-toggle-button"
 					class="cursor-pointer px-2 py-2 flex rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-					on:click={() => {
+					onclick={() => {
 						showSidebar.set(!$showSidebar);
 					}}
 					aria-label="Toggle Sidebar"
@@ -103,7 +115,7 @@
 					<Tooltip content={$i18n.t('Controls')}>
 						<button
 							class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-							on:click={async () => {
+							onclick={async () => {
 								await showControls.set(!$showControls);
 							}}
 							aria-label="Controls"
@@ -119,7 +131,7 @@
 					<Tooltip content={$i18n.t('Controls')}>
 						<button
 							class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-							on:click={async () => {
+							onclick={async () => {
 								await showControls.set(!$showControls);
 							}}
 							aria-label="Controls"
@@ -137,7 +149,7 @@
 						class=" flex {$showSidebar
 							? 'md:hidden'
 							: ''} cursor-pointer px-2 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-						on:click={() => {
+						onclick={() => {
 							initNewChat();
 						}}
 						aria-label="New Chat"
@@ -152,8 +164,8 @@
 					<UserMenu
 						className="max-w-[200px]"
 						role={$user.role}
-						on:show={(e) => {
-							if (e.detail === 'archived-chat') {
+						onShow={(detail) => {
+							if (detail === 'archived-chat') {
 								showArchivedChats.set(true);
 							}
 						}}

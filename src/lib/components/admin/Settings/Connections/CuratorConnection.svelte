@@ -10,17 +10,29 @@
 
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 
-	export let onDelete: AnyFn = () => {};
-	export let onSubmit: AnyFn = () => {};
 
-	export let url = '';
-	export let idx = 0;
 	// Per-connection config bag (key/enable/etc.) -- shape varies with the
 	// connection type, mirrors AddConnectionModal's own loose `connection.config`.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let config: Record<string, any> = {};
+	
+	interface Props {
+		onDelete?: AnyFn;
+		onSubmit?: AnyFn;
+		url?: string;
+		idx?: number;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		config?: Record<string, any>;
+	}
 
-	let showConfigModal = false;
+	// `idx` accepted (parent passes it for list-key/removal purposes) but not
+	// read internally by this component.
+	let {
+		onDelete = () => {},
+		onSubmit = () => {},
+		url = $bindable(''),
+		config = $bindable({})
+	}: Props = $props();
+
+	let showConfigModal = $state(false);
 </script>
 
 <AddConnectionModal
@@ -55,7 +67,7 @@
 		{/if}
 
 		<input
-			class="w-full text-sm bg-transparent outline-none"
+			class="w-full text-sm bg-transparent outline-hidden"
 			placeholder={$i18n.t('Enter URL (e.g. http://self-curator:8094)')}
 			bind:value={url}
 		/>
@@ -65,7 +77,7 @@
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showConfigModal = true;
 				}}
 				type="button"

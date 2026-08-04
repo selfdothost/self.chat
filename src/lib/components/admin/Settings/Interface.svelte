@@ -1,12 +1,15 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { v4 as uuidv4 } from 'uuid';
 
 	import { getBackendConfig, getTaskConfig, updateTaskConfig } from '$lib/apis';
 	import { setDefaultPromptSuggestions } from '$lib/apis/configs';
 	import { config, models, user } from '$lib/stores';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 
 	import { banners as _banners } from '$lib/stores';
 	import type { Banner } from '$lib/types';
@@ -17,11 +20,15 @@
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
 
-	const dispatch = createEventDispatcher();
-
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let taskConfig = {
+	interface Props {
+		onSave?: AnyFn;
+	}
+
+	let { onSave = () => {} }: Props = $props();
+
+	let taskConfig = $state({
 		TASK_MODEL: '',
 		TASK_MODEL_EXTERNAL: '',
 		TITLE_GENERATION_PROMPT_TEMPLATE: '',
@@ -32,10 +39,10 @@
 		ENABLE_SEARCH_QUERY_GENERATION: true,
 		ENABLE_RETRIEVAL_QUERY_GENERATION: true,
 		QUERY_GENERATION_PROMPT_TEMPLATE: ''
-	};
+	});
 
-	let promptSuggestions = [];
-	let banners: Banner[] = [];
+	let promptSuggestions = $state([]);
+	let banners: Banner[] = $state([]);
 
 	const updateInterfaceHandler = async () => {
 		taskConfig = await updateTaskConfig(localStorage.token, taskConfig);
@@ -69,10 +76,10 @@
 {#if taskConfig}
 	<form
 		class="flex flex-col h-full justify-between space-y-3 text-sm"
-		on:submit|preventDefault={() => {
+		onsubmit={preventDefault(() => {
 			updateInterfaceHandler();
-			dispatch('save');
-		}}
+			onSave();
+		})}
 	>
 		<div class="  overflow-y-scroll scrollbar-hidden h-full pr-1.5">
 			<div>
@@ -103,7 +110,7 @@
 					<div class="flex-1">
 						<div class=" text-xs mb-1">{$i18n.t('Local Models')}</div>
 						<select
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={taskConfig.TASK_MODEL}
 							placeholder={$i18n.t('Select a model')}
 						>
@@ -119,7 +126,7 @@
 					<div class="flex-1">
 						<div class=" text-xs mb-1">{$i18n.t('External Models')}</div>
 						<select
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={taskConfig.TASK_MODEL_EXTERNAL}
 							placeholder={$i18n.t('Select a model')}
 						>
@@ -172,7 +179,7 @@
 							placement="top-start"
 						>
 							<input
-								class="w-full outline-none bg-transparent"
+								class="w-full outline-hidden bg-transparent"
 								bind:value={taskConfig.AUTOCOMPLETE_GENERATION_INPUT_MAX_LENGTH}
 								placeholder={$i18n.t('-1 for no limit, or a positive integer for a specific limit')}
 							/>
@@ -254,7 +261,7 @@
 					<button
 						class="p-1 px-3 text-xs flex rounded transition"
 						type="button"
-						on:click={() => {
+						onclick={() => {
 							if (banners.length === 0 || banners.at(-1).content !== '') {
 								banners = [
 									...banners,
@@ -287,7 +294,7 @@
 						<div class=" flex justify-between">
 							<div class="flex flex-row flex-1 border rounded-xl dark:border-gray-800">
 								<select
-									class="w-fit capitalize rounded-xl py-2 px-4 text-xs bg-transparent outline-none"
+									class="w-fit capitalize rounded-xl py-2 px-4 text-xs bg-transparent outline-hidden"
 									bind:value={banner.type}
 									required
 								>
@@ -303,7 +310,7 @@
 								</select>
 
 								<input
-									class="pr-5 py-1.5 text-xs w-full bg-transparent outline-none"
+									class="pr-5 py-1.5 text-xs w-full bg-transparent outline-hidden"
 									placeholder={$i18n.t('Content')}
 									bind:value={banner.content}
 								/>
@@ -318,7 +325,7 @@
 							<button
 								class="px-2"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									banners.splice(bannerIdx, 1);
 									banners = banners;
 								}}
@@ -349,7 +356,7 @@
 						<button
 							class="p-1 px-3 text-xs flex rounded transition"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								if (promptSuggestions.length === 0 || promptSuggestions.at(-1).content !== '') {
 									promptSuggestions = [...promptSuggestions, { content: '', title: ['', ''] }];
 								}
@@ -376,30 +383,30 @@
 								<div class="flex flex-col flex-1 pl-1">
 									<div class="flex border-b border-gray-100 dark:border-gray-800 w-full">
 										<input
-											class="px-3 py-1.5 text-xs w-full bg-transparent outline-none border-r border-gray-100 dark:border-gray-800"
+											class="px-3 py-1.5 text-xs w-full bg-transparent outline-hidden border-r border-gray-100 dark:border-gray-800"
 											placeholder={$i18n.t('Title (e.g. Tell me a fun fact)')}
 											bind:value={prompt.title[0]}
 										/>
 
 										<input
-											class="px-3 py-1.5 text-xs w-full bg-transparent outline-none border-r border-gray-100 dark:border-gray-800"
+											class="px-3 py-1.5 text-xs w-full bg-transparent outline-hidden border-r border-gray-100 dark:border-gray-800"
 											placeholder={$i18n.t('Subtitle (e.g. about the Roman Empire)')}
 											bind:value={prompt.title[1]}
 										/>
 									</div>
 
 									<textarea
-										class="px-3 py-1.5 text-xs w-full bg-transparent outline-none border-r border-gray-100 dark:border-gray-800 resize-none"
+										class="px-3 py-1.5 text-xs w-full bg-transparent outline-hidden border-r border-gray-100 dark:border-gray-800 resize-none"
 										placeholder={$i18n.t('Prompt (e.g. Tell me a fun fact about the Roman Empire)')}
 										rows="3"
 										bind:value={prompt.content}
-									/>
+									></textarea>
 								</div>
 
 								<button
 									class="px-3"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										promptSuggestions.splice(promptIdx, 1);
 										promptSuggestions = promptSuggestions;
 									}}

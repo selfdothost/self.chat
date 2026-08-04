@@ -19,8 +19,6 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 
-	export let onSubmit: AnyFn = () => {};
-	export let onDelete: AnyFn = () => {};
 
 	// Provider identity used to be four mutually-exclusive booleans (ollama/llamolotl/
 	// curator, with "none of them" implicitly meaning OpenAI). Adding a fifth provider
@@ -40,24 +38,39 @@
 		curator: { verify: verifyCuratorConnection, requiresKey: false }
 	};
 
-	export let show = false;
-	export let edit = false;
-	export let type: ProviderType = 'openai';
 
-	export let connection = null;
+	interface Props {
+		onSubmit?: AnyFn;
+		onDelete?: AnyFn;
+		show?: boolean;
+		edit?: boolean;
+		type?: ProviderType;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		connection?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
 
-	$: provider = PROVIDERS[type] ?? PROVIDERS.openai;
+	let {
+		onSubmit = () => {},
+		onDelete = () => {},
+		show = $bindable(false),
+		edit = false,
+		type = 'openai',
+		connection = null
+	}: Props = $props();
 
-	let url = '';
-	let key = '';
+	let provider = $derived(PROVIDERS[type] ?? PROVIDERS.openai);
 
-	let prefixId = '';
-	let enable = true;
+	let url = $state('');
+	let key = $state('');
 
-	let modelId = '';
-	let modelIds = [];
+	let prefixId = $state('');
+	let enable = $state(true);
 
-	let loading = false;
+	let modelId = $state('');
+	let modelIds = $state([]);
+
+	let loading = $state(false);
 
 	const verifyHandler = async () => {
 		const res = await provider.verify(localStorage.token, url, key).catch((error) => {
@@ -117,9 +130,11 @@
 		}
 	};
 
-	$: if (show) {
-		init();
-	}
+	$effect(() => {
+		if (show) {
+			init();
+		}
+	});
 
 	onMount(() => {
 		init();
@@ -138,7 +153,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -159,7 +174,7 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit={(e) => {
+					onsubmit={(e) => {
 						e.preventDefault();
 						submitHandler();
 					}}
@@ -171,7 +186,7 @@
 
 								<div class="flex-1">
 									<input
-										class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+										class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 										type="text"
 										bind:value={url}
 										placeholder={$i18n.t('API Base URL')}
@@ -184,7 +199,7 @@
 							<Tooltip content="Verify Connection" className="self-end -mb-1">
 								<button
 									class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-									on:click={() => {
+									onclick={() => {
 										verifyHandler();
 									}}
 									type="button"
@@ -204,7 +219,7 @@
 								</button>
 							</Tooltip>
 
-							<div class="flex flex-col flex-shrink-0 self-end">
+							<div class="flex flex-col shrink-0 self-end">
 								<Tooltip content={enable ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
 									<Switch bind:state={enable} />
 								</Tooltip>
@@ -217,7 +232,7 @@
 
 								<div class="flex-1">
 									<SensitiveInput
-										inputClassName="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+										inputClassName="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 										bind:value={key}
 										placeholder={$i18n.t('API Key')}
 										required={provider.requiresKey}
@@ -235,7 +250,7 @@
 										)}
 									>
 										<input
-											class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+											class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 											type="text"
 											bind:value={prefixId}
 											placeholder={$i18n.t('Prefix ID')}
@@ -261,10 +276,10 @@
 											<div class=" text-sm flex-1 py-1 rounded-lg">
 												{modelId}
 											</div>
-											<div class="flex-shrink-0">
+											<div class="shrink-0">
 												<button
 													type="button"
-													on:click={() => {
+													onclick={() => {
 														modelIds = modelIds.filter((_, idx) => idx !== modelIdx);
 													}}
 												>
@@ -301,7 +316,7 @@
 							<input
 								class="w-full py-1 text-sm rounded-lg bg-transparent {modelId
 									? ''
-									: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+									: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 								bind:value={modelId}
 								placeholder={$i18n.t('Add a model ID')}
 							/>
@@ -309,7 +324,7 @@
 							<div>
 								<button
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										addModelHandler();
 									}}
 								>
@@ -324,7 +339,7 @@
 							<button
 								class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-gray-900 dark:text-white bg-white text-black hover:bg-gray-100 transition rounded-full flex flex-row space-x-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									onDelete();
 									show = false;
 								}}

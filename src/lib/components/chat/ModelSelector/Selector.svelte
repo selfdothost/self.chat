@@ -29,34 +29,52 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let id = '';
-	export let value = '';
-	export let placeholder = 'Select a model';
-	export let searchEnabled = true;
-	export let searchPlaceholder = $i18n.t('Search a model');
 
-	export let showTemporaryChatControl = false;
 
-	export let items: {
+
+	interface Props {
+		id?: string;
+		value?: string;
+		placeholder?: string;
+		searchEnabled?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		searchPlaceholder?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		showTemporaryChatControl?: boolean;
+		items?: {
 		label: string;
 		value: string;
 		model: Model;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		[key: string]: any;
-	}[] = [];
+	}[];
+		className?: string;
+		triggerClassName?: string;
+		children?: import('svelte').Snippet;
+	}
 
-	export let className = 'w-[32rem]';
-	export let triggerClassName = 'text-lg';
+	let {
+		id = '',
+		value = $bindable(''),
+		placeholder = 'Select a model',
+		searchEnabled = true,
+		searchPlaceholder = $i18n.t('Search a model'),
+		showTemporaryChatControl = false,
+		items = [],
+		className = 'w-[32rem]',
+		triggerClassName = 'text-lg',
+		children
+	}: Props = $props();
 
-	let show = false;
+	let show = $state(false);
 
-	let selectedModel;
-	$: selectedModel = items.find((item) => item.value === value) ?? '';
+	let selectedModel = $derived(items.find((item) => item.value === value));
+	
 
-	let searchValue = '';
-	let ollamaVersion = null;
+	let searchValue = $state('');
+	let ollamaVersion = $state(null);
 
-	let selectedModelIdx = 0;
+	let selectedModelIdx = $state(0);
 
 	const fuse = new Fuse(
 		items.map((item) => {
@@ -74,11 +92,11 @@
 		}
 	);
 
-	$: filteredItems = searchValue
+	let filteredItems = $derived(searchValue
 		? fuse.search(searchValue).map((e) => {
 				return e.item;
 			})
-		: items;
+		: items);
 
 	const pullModelHandler = async () => {
 		const sanitizedModelTag = searchValue.trim().replace(/^ollama\s+(run|pull)\s+/, '');
@@ -241,7 +259,7 @@
 		id="model-selector-{id}-button"
 	>
 		<div
-			class="flex w-full text-left px-0.5 outline-none bg-transparent truncate {triggerClassName} justify-between font-medium placeholder-gray-400 focus:outline-none"
+			class="flex w-full text-left px-0.5 outline-hidden bg-transparent truncate {triggerClassName} justify-between font-medium placeholder-gray-400 focus:outline-hidden"
 		>
 			{#if selectedModel}
 				{selectedModel.label}
@@ -255,13 +273,13 @@
 	<DropdownMenuContent
 		class=" z-[10000] {$mobile
 			? `w-full`
-			: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-xl  bg-white dark:bg-gray-850 dark:text-white shadow-lg  outline-none"
+			: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-xl  bg-white dark:bg-gray-850 dark:text-white shadow-lg  outline-hidden"
 		side="bottom"
 		align={$mobile ? 'center' : 'start'}
 		sideOffset={3}
 		onCloseAutoFocus={(e) => e.preventDefault()}
 	>
-		<slot>
+		{#if children}{@render children()}{:else}
 			{#if searchEnabled}
 				<div class="flex items-center gap-2.5 px-5 mt-3.5 mb-3">
 					<Search className="size-4" strokeWidth="2.5" />
@@ -269,10 +287,10 @@
 					<input
 						id="model-search-input"
 						bind:value={searchValue}
-						class="w-full text-sm bg-transparent outline-none"
+						class="w-full text-sm bg-transparent outline-hidden"
 						placeholder={searchPlaceholder}
 						autocomplete="off"
-						on:keydown={(e) => {
+						onkeydown={(e) => {
 							if (e.code === 'Enter' && filteredItems.length > 0) {
 								value = filteredItems[selectedModelIdx].value;
 								show = false;
@@ -299,12 +317,12 @@
 				{#each filteredItems as item, index (item.value)}
 					<button
 						aria-label="model-item"
-						class="flex w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted {index ===
+						class="flex w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted {index ===
 						selectedModelIdx
 							? 'bg-gray-100 dark:bg-gray-800 group-hover:bg-transparent'
 							: ''}"
 						data-arrow-selected={index === selectedModelIdx}
-						on:click={() => {
+						onclick={() => {
 							value = item.value;
 							selectedModelIdx = index;
 
@@ -465,8 +483,8 @@
 						placement="top-start"
 					>
 						<button
-							class="flex w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
-							on:click={() => {
+							class="flex w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
+							onclick={() => {
 								pullModelHandler();
 							}}
 						>
@@ -479,7 +497,7 @@
 
 				{#each Object.keys($MODEL_DOWNLOAD_POOL) as model (model)}
 					<div
-						class="flex w-full justify-between font-medium select-none rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
+						class="flex w-full justify-between font-medium select-none rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
 					>
 						<div class="flex">
 							<div class="-ml-2 mr-2.5 translate-y-0.5">
@@ -514,7 +532,7 @@
 										Downloading "{model}"
 									</div>
 
-									<div class="flex-shrink-0">
+									<div class="shrink-0">
 										{'pullProgress' in $MODEL_DOWNLOAD_POOL[model]
 											? `(${$MODEL_DOWNLOAD_POOL[model].pullProgress}%)`
 											: ''}
@@ -533,7 +551,7 @@
 							<Tooltip content={$i18n.t('Cancel')}>
 								<button
 									class="text-gray-800 dark:text-gray-100"
-									on:click={() => {
+									onclick={() => {
 										cancelModelPullHandler(model);
 									}}
 								>
@@ -566,8 +584,8 @@
 
 				<div class="flex items-center mx-2 my-2">
 					<button
-						class="flex justify-between w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 px-3 text-sm text-gray-700 dark:text-gray-100 outline-none transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
-						on:click={async () => {
+						class="flex justify-between w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 px-3 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg cursor-pointer data-[highlighted]:bg-muted"
+						onclick={async () => {
 							temporaryChatEnabled.set(!$temporaryChatEnabled);
 							await goto(resolve('/'));
 							const newChatButton = document.getElementById('new-chat-button');
@@ -598,8 +616,8 @@
 				</div>
 			{/if}
 
-			<div class="hidden w-[42rem]" />
-			<div class="hidden w-[32rem]" />
-		</slot>
+			<div class="hidden w-[42rem]"></div>
+			<div class="hidden w-[32rem]"></div>
+		{/if}
 	</DropdownMenuContent>
 </DropdownMenu.Root>

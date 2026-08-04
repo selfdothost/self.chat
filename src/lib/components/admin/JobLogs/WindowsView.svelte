@@ -9,12 +9,12 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let windows: JobWindow[] = [];
-	let loading = true;
-	let showCompleted = false;
-	let showModal = false;
-	let editingWindow: JobWindow | null = null;
-	let deletingId: string | null = null;
+	let windows: JobWindow[] = $state([]);
+	let loading = $state(true);
+	let showCompleted = $state(false);
+	let showModal = $state(false);
+	let editingWindow: JobWindow | null = $state(null);
+	let deletingId: string | null = $state(null);
 
 	async function load() {
 		try {
@@ -29,15 +29,15 @@
 
 	// Sort: active → upcoming → disabled → completed
 	const ORDER: Record<string, number> = { active: 0, upcoming: 1, completed: 2 };
-	$: current = windows
+	let current = $derived(windows
 		.filter((w) => w.status !== 'completed')
 		.sort((a, b) => {
 			if (a.status === b.status) return a.start_at - b.start_at;
 			const ao = a.enabled ? ORDER[a.status] ?? 1 : 1.5;
 			const bo = b.enabled ? ORDER[b.status] ?? 1 : 1.5;
 			return ao - bo;
-		});
-	$: completed = windows.filter((w) => w.status === 'completed');
+		}));
+	let completed = $derived(windows.filter((w) => w.status === 'completed'));
 
 	function openCreate() {
 		editingWindow = null;
@@ -62,8 +62,7 @@
 		deletingId = null;
 	}
 
-	function handleSaved(event: CustomEvent<JobWindow>) {
-		const saved = event.detail;
+	function handleSaved(saved: JobWindow) {
 		const idx = windows.findIndex((w) => w.id === saved.id);
 		if (idx >= 0) {
 			windows = windows.map((w) => (w.id === saved.id ? saved : w));
@@ -112,7 +111,7 @@
 		<button
 			type="button"
 			class="px-3 py-1.5 text-sm rounded-lg bg-black text-white dark:bg-white dark:text-black hover:opacity-90"
-			on:click={openCreate}
+			onclick={openCreate}
 		>
 			+ {$i18n.t('New Window')}
 		</button>
@@ -164,7 +163,7 @@
 									type="button"
 									class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
 									title={$i18n.t('Edit')}
-									on:click={() => openEdit(w)}
+									onclick={() => openEdit(w)}
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
 										<path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.263a1.75 1.75 0 0 0 0-2.474ZM4.75 3.5A2.25 2.25 0 0 0 2.5 5.75v5.5A2.25 2.25 0 0 0 4.75 13.5h5.5A2.25 2.25 0 0 0 12.5 11.25V9a.75.75 0 0 0-1.5 0v2.25a.75.75 0 0 1-.75.75h-5.5a.75.75 0 0 1-.75-.75v-5.5a.75.75 0 0 1 .75-.75H7a.75.75 0 0 0 0-1.5H4.75Z" />
@@ -175,7 +174,7 @@
 									class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition disabled:opacity-50"
 									title={$i18n.t('Delete')}
 									disabled={deletingId === w.id}
-									on:click={() => handleDelete(w)}
+									onclick={() => handleDelete(w)}
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
 										<path fill-rule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clip-rule="evenodd" />
@@ -194,7 +193,7 @@
 				<button
 					type="button"
 					class="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 hover:text-gray-700 dark:hover:text-gray-200 transition"
-					on:click={() => (showCompleted = !showCompleted)}
+					onclick={() => (showCompleted = !showCompleted)}
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -232,7 +231,7 @@
 											type="button"
 											class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
 											title={$i18n.t('Edit')}
-											on:click={() => openEdit(w)}
+											onclick={() => openEdit(w)}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
 												<path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.263a1.75 1.75 0 0 0 0-2.474ZM4.75 3.5A2.25 2.25 0 0 0 2.5 5.75v5.5A2.25 2.25 0 0 0 4.75 13.5h5.5A2.25 2.25 0 0 0 12.5 11.25V9a.75.75 0 0 0-1.5 0v2.25a.75.75 0 0 1-.75.75h-5.5a.75.75 0 0 1-.75-.75v-5.5a.75.75 0 0 1 .75-.75H7a.75.75 0 0 0 0-1.5H4.75Z" />
@@ -243,7 +242,7 @@
 											class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition disabled:opacity-50"
 											title={$i18n.t('Delete')}
 											disabled={deletingId === w.id}
-											on:click={() => handleDelete(w)}
+											onclick={() => handleDelete(w)}
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
 												<path fill-rule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clip-rule="evenodd" />
@@ -260,4 +259,4 @@
 	{/if}
 </div>
 
-<WindowModal bind:show={showModal} window={editingWindow} on:saved={handleSaved} />
+<WindowModal bind:show={showModal} window={editingWindow} onSaved={handleSaved} />

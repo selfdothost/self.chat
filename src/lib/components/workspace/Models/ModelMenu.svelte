@@ -15,71 +15,88 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let user;
-	export let model;
 
-	export let cloneHandler: AnyFn;
-	export let exportHandler: AnyFn;
 
-	export let hideHandler: AnyFn;
-	export let deleteHandler: AnyFn;
-	export let onClose: AnyFn;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		user: any;
+		model: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		cloneHandler: AnyFn;
+		exportHandler: AnyFn;
+		hideHandler: AnyFn;
+		deleteHandler: AnyFn;
+		onClose: AnyFn;
+		children?: import('svelte').Snippet;
+	}
 
-	let show = false;
+	// user/model/hideHandler accepted (part of the public props contract) but
+	// not read internally by this component.
+	let {
+		cloneHandler,
+		exportHandler,
+		deleteHandler,
+		onClose,
+		children
+	}: Props = $props();
+
+	let show = $state(false);
 </script>
 
 <Dropdown
 	bind:show
-	on:change={(e) => {
-		if (e.detail === false) {
+	onChange={(open) => {
+		if (open === false) {
 			onClose();
 		}
 	}}
 >
 	<Tooltip content={$i18n.t('More')}>
-		<slot />
+		{@render children?.()}
 	</Tooltip>
 
-	<div slot="content">
-		<DropdownMenuContent
-			class="w-full max-w-[160px] rounded-xl px-1 py-1.5 border border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
-			sideOffset={-2}
-			side="bottom"
-			align="start"
-		>
-			<DropdownMenu.Item
-				class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					cloneHandler();
-				}}
+	{#snippet content()}
+		<div >
+			<DropdownMenuContent
+				class="w-full max-w-[160px] rounded-xl px-1 py-1.5 border border-gray-300/30 dark:border-gray-700/50 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
+				sideOffset={-2}
+				side="bottom"
+				align="start"
 			>
-				<DocumentDuplicate />
+				<DropdownMenu.Item
+					class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						cloneHandler();
+					}}
+				>
+					<DocumentDuplicate />
 
-				<div class="flex items-center">{$i18n.t('Clone')}</div>
-			</DropdownMenu.Item>
+					<div class="flex items-center">{$i18n.t('Clone')}</div>
+				</DropdownMenu.Item>
 
-			<DropdownMenu.Item
-				class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					exportHandler();
-				}}
-			>
-				<ArrowDownTray />
+				<DropdownMenu.Item
+					class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						exportHandler();
+					}}
+				>
+					<ArrowDownTray />
 
-				<div class="flex items-center">{$i18n.t('Export')}</div>
-			</DropdownMenu.Item>
+					<div class="flex items-center">{$i18n.t('Export')}</div>
+				</DropdownMenu.Item>
 
-			<hr class="border-gray-100 dark:border-gray-800 my-1" />
+				<hr class="border-gray-100 dark:border-gray-800 my-1" />
 
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					deleteHandler();
-				}}
-			>
-				<GarbageBin strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Delete')}</div>
-			</DropdownMenu.Item>
-		</DropdownMenuContent>
-	</div>
+				<DropdownMenu.Item
+					class="flex  gap-2  items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						deleteHandler();
+					}}
+				>
+					<GarbageBin strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Delete')}</div>
+				</DropdownMenu.Item>
+			</DropdownMenuContent>
+		</div>
+	{/snippet}
 </Dropdown>

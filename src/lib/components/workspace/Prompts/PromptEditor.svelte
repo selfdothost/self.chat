@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -10,25 +12,33 @@
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
 
-	export let onSubmit: AnyFn;
-	export let edit = false;
-	export let prompt = null;
+	interface Props {
+		onSubmit: AnyFn;
+		edit?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		prompt?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
+
+	let { onSubmit, edit = false, prompt = null }: Props = $props();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let loading = false;
+	let loading = $state(false);
 
-	let title = '';
-	let command = '';
-	let content = '';
+	let title = $state('');
+	let command = $state('');
+	let content = $state('');
 
-	let accessControl = null;
+	let accessControl = $state(null);
 
-	let showAccessControlModal = false;
+	let showAccessControlModal = $state(false);
 
-	$: if (!edit) {
-		command = title !== '' ? `${title.replace(/\s+/g, '-').toLowerCase()}` : '';
-	}
+	$effect(() => {
+		if (!edit) {
+			command = title !== '' ? `${title.replace(/\s+/g, '-').toLowerCase()}` : '';
+		}
+	});
 
 	const submitHandler = async () => {
 		loading = true;
@@ -75,9 +85,9 @@
 <div class="w-full max-h-full flex justify-center">
 	<form
 		class="flex flex-col w-full mb-10"
-		on:submit|preventDefault={() => {
+		onsubmit={preventDefault(() => {
 			submitHandler();
-		}}
+		})}
 	>
 		<div class="my-2">
 			<Tooltip
@@ -92,23 +102,23 @@
 				<div class="flex flex-col w-full">
 					<div class="flex items-center">
 						<input
-							class="text-2xl font-semibold w-full bg-transparent outline-none"
+							class="text-2xl font-semibold w-full bg-transparent outline-hidden"
 							placeholder={$i18n.t('Title')}
 							bind:value={title}
 							required
 						/>
 
-						<div class="self-center flex-shrink-0">
+						<div class="self-center shrink-0">
 							<button
 								class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									showAccessControlModal = true;
 								}}
 							>
 								<LockClosed strokeWidth="2.5" className="size-3.5" />
 
-								<div class="text-sm font-medium flex-shrink-0">
+								<div class="text-sm font-medium shrink-0">
 									{$i18n.t('Access')}
 								</div>
 							</button>
@@ -118,7 +128,7 @@
 					<div class="flex gap-0.5 items-center text-xs text-gray-500">
 						<div class="">/</div>
 						<input
-							class=" w-full bg-transparent outline-none"
+							class=" w-full bg-transparent outline-hidden"
 							placeholder={$i18n.t('Command')}
 							bind:value={command}
 							required
@@ -137,7 +147,7 @@
 			<div class="mt-2">
 				<div>
 					<Textarea
-						className="text-sm w-full bg-transparent outline-none overflow-y-hidden resize-none"
+						className="text-sm w-full bg-transparent outline-hidden overflow-y-hidden resize-none"
 						placeholder={$i18n.t('Write a summary in 50 words that summarizes [topic or keyword].')}
 						bind:value={content}
 						required

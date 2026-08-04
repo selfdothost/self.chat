@@ -16,37 +16,23 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveSettings: AnyFn;
+	interface Props {
+		saveSettings: AnyFn;
+	}
+
+	// saveSettings accepted (part of the public props contract) but not read
+	// internally by this component.
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let { saveSettings }: Props = $props();
 
 	// Chats
-	let importFiles;
+	let importFiles: FileList | undefined = $state();
 
-	let showArchiveConfirm = false;
-	let showDeleteConfirm = false;
+	let showArchiveConfirm = $state(false);
+	let showDeleteConfirm = $state(false);
 
-	let chatImportInputElement: HTMLInputElement;
+	let chatImportInputElement: HTMLInputElement = $state();
 
-	$: if (importFiles) {
-		console.log(importFiles);
-
-		let reader = new FileReader();
-		reader.onload = (event) => {
-			let chats = JSON.parse(event.target.result as string);
-			console.log(chats);
-			if (getImportOrigin(chats) == 'openai') {
-				try {
-					chats = convertOpenAIChats(chats);
-				} catch (error) {
-					console.log('Unable to import chats:', error);
-				}
-			}
-			importChats(chats);
-		};
-
-		if (importFiles.length > 0) {
-			reader.readAsText(importFiles[0]);
-		}
-	}
 
 	const importChats = async (_chats) => {
 		for (const chat of _chats) {
@@ -92,6 +78,29 @@
 		await chats.set(await getChatList(localStorage.token, $currentChatPage));
 		scrollPaginationEnabled.set(true);
 	};
+	$effect(() => {
+		if (importFiles) {
+			console.log(importFiles);
+
+			let reader = new FileReader();
+			reader.onload = (event) => {
+				let chats = JSON.parse(event.target.result as string);
+				console.log(chats);
+				if (getImportOrigin(chats) == 'openai') {
+					try {
+						chats = convertOpenAIChats(chats);
+					} catch (error) {
+						console.log('Unable to import chats:', error);
+					}
+				}
+				importChats(chats);
+			};
+
+			if (importFiles.length > 0) {
+				reader.readAsText(importFiles[0]);
+			}
+		}
+	});
 </script>
 
 <div class="flex flex-col h-full justify-between space-y-3 text-sm">
@@ -107,7 +116,7 @@
 			/>
 			<button
 				class=" flex rounded-md py-2 px-3.5 w-full hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-				on:click={() => {
+				onclick={() => {
 					chatImportInputElement.click();
 				}}
 			>
@@ -129,7 +138,7 @@
 			</button>
 			<button
 				class=" flex rounded-md py-2 px-3.5 w-full hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-				on:click={() => {
+				onclick={() => {
 					exportChats();
 				}}
 			>
@@ -176,7 +185,7 @@
 					<div class="flex space-x-1.5 items-center">
 						<button
 							class="hover:text-white transition"
-							on:click={() => {
+							onclick={() => {
 								archiveAllChatsHandler();
 								showArchiveConfirm = false;
 							}}
@@ -196,7 +205,7 @@
 						</button>
 						<button
 							class="hover:text-white transition"
-							on:click={() => {
+							onclick={() => {
 								showArchiveConfirm = false;
 							}}
 						>
@@ -216,7 +225,7 @@
 			{:else}
 				<button
 					class=" flex rounded-md py-2 px-3.5 w-full hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-					on:click={() => {
+					onclick={() => {
 						showArchiveConfirm = true;
 					}}
 				>
@@ -263,7 +272,7 @@
 					<div class="flex space-x-1.5 items-center">
 						<button
 							class="hover:text-white transition"
-							on:click={() => {
+							onclick={() => {
 								deleteAllChatsHandler();
 								showDeleteConfirm = false;
 							}}
@@ -283,7 +292,7 @@
 						</button>
 						<button
 							class="hover:text-white transition"
-							on:click={() => {
+							onclick={() => {
 								showDeleteConfirm = false;
 							}}
 						>
@@ -303,7 +312,7 @@
 			{:else}
 				<button
 					class=" flex rounded-md py-2 px-3.5 w-full hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-					on:click={() => {
+					onclick={() => {
 						showDeleteConfirm = true;
 					}}
 				>

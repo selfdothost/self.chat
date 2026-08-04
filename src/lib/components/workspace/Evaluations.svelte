@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { self } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import dayjs from 'dayjs';
@@ -19,11 +21,11 @@
 
 	const getToken = () => localStorage.getItem('token') ?? '';
 
-	let loaded = false;
-	let submitting = false;
+	let loaded = $state(false);
+	let submitting = $state(false);
 
-	let jobs: EvalJob[] = [];
-	let modelItems: { value: string; label: string }[] = [];
+	let jobs: EvalJob[] = $state([]);
+	let modelItems: { value: string; label: string }[] = $state([]);
 
 	type BenchmarkGroup = {
 		id: string;
@@ -35,27 +37,27 @@
 	};
 
 	// Job submission modal
-	let showJobModal = false;
-	let activeGroup: BenchmarkGroup | null = null;
-	let selectedTasks = new Set<string>();
-	let jobModelId = '';
-	let modelSearch = '';
-	let showModelDropdown = false;
-	let jobDryRun = false;
+	let showJobModal = $state(false);
+	let activeGroup: BenchmarkGroup | null = $state(null);
+	let selectedTasks = $state(new Set<string>());
+	let jobModelId = $state('');
+	let modelSearch = $state('');
+	let showModelDropdown = $state(false);
+	let jobDryRun = $state(false);
 
-	$: filteredModels = modelSearch
+	let filteredModels = $derived(modelSearch
 		? modelItems.filter(
 				(m) =>
 					m.label.toLowerCase().includes(modelSearch.toLowerCase()) ||
 					m.value.toLowerCase().includes(modelSearch.toLowerCase())
 		  )
-		: modelItems;
+		: modelItems);
 
 	// Active eval type for the submission modal
 	let activeEvalType: 'code-eval' | 'language-eval' = 'code-eval';
 
 	// Live/results view
-	let activeJob: EvalJob | null = null;
+	let activeJob: EvalJob | null = $state(null);
 
 	// BBH subtask definitions (shared between zero-shot and few-shot)
 	const bbhSubtasks = [
@@ -580,7 +582,7 @@
 				class="flex flex-col text-left w-full px-4 py-3 rounded-xl border transition group {group.gated
 					? 'border-gray-200 dark:border-gray-800 opacity-60 cursor-not-allowed'
 					: 'border-gray-200 dark:border-gray-800 hover:border-purple-300 dark:hover:border-purple-700 hover:bg-purple-50/50 dark:hover:bg-purple-950/20'}"
-				on:click={() => { if (!group.gated) openGroupModal(group, 'language-eval'); else toast.error($i18n.t('This dataset requires HuggingFace authentication. Configure HF_TOKEN in the language-eval container.')); }}
+				onclick={() => { if (!group.gated) openGroupModal(group, 'language-eval'); else toast.error($i18n.t('This dataset requires HuggingFace authentication. Configure HF_TOKEN in the language-eval container.')); }}
 			>
 				<div class="flex items-center justify-between w-full mb-1.5">
 					<div class="font-semibold text-sm">{group.name}</div>
@@ -634,7 +636,7 @@
 		{#each benchmarkGroups as group (group.id)}
 			<button
 				class="flex flex-col text-left w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition group"
-				on:click={() => openGroupModal(group)}
+				onclick={() => openGroupModal(group)}
 			>
 				<div class="flex items-center justify-between w-full mb-1.5">
 					<div class="font-semibold text-sm">{group.name}</div>
@@ -662,7 +664,7 @@
 		<div class="mb-4">
 			<div class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 px-0.5">
 				{$i18n.t('Your Evaluation Jobs')}
-				<div class="flex self-center w-[1px] h-5 mx-2 bg-gray-200 dark:bg-gray-700" />
+				<div class="flex self-center w-[1px] h-5 mx-2 bg-gray-200 dark:bg-gray-700"></div>
 				<span class="text-gray-500 dark:text-gray-400 font-normal">{jobs.length}</span>
 			</div>
 			<div class="space-y-1.5">
@@ -687,7 +689,7 @@
 								<Tooltip content={job.status === 'running' ? $i18n.t('Watch live') : $i18n.t('View Results')}>
 									<button
 										class="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center gap-1"
-										on:click={() => (activeJob = job)}
+										onclick={() => (activeJob = job)}
 									>
 										{#if job.status === 'running'}
 											<span class="relative flex h-2 w-2">
@@ -712,7 +714,7 @@
 								<Tooltip content={$i18n.t('Cancel')}>
 									<button
 										class="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-										on:click={() => handleCancel(job.id)}
+										onclick={() => handleCancel(job.id)}
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-500 hover:text-red-500 transition">
 											<path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" clip-rule="evenodd" />
@@ -736,13 +738,13 @@
 {/if}
 
 {#if activeJob}
-	<LiveEvalView job={activeJob} on:back={() => { activeJob = null; }} />
+	<LiveEvalView job={activeJob} onBack={() => { activeJob = null; }} />
 {/if}
 
 <!-- Submit Job Modal -->
 {#if showJobModal && activeGroup}
-	<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" on:click|self={() => (showJobModal = false)}>
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onclick={self(() => (showJobModal = false))}>
 		<div class="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 w-full mx-4 max-h-[90vh] flex flex-col {activeGroup.tasks.length > 20 ? 'max-w-2xl' : 'max-w-md'}">
 			<div class="font-semibold text-base mb-0.5">{$i18n.t('Submit Evaluation Job')}</div>
 			<div class="text-sm text-gray-500 dark:text-gray-400 mb-4">{activeGroup.name}</div>
@@ -760,7 +762,7 @@
 					<button
 						type="button"
 						class="w-full rounded-xl px-3 py-2 text-sm text-left bg-gray-50 dark:bg-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 flex items-center justify-between"
-						on:click={() => { showModelDropdown = !showModelDropdown; modelSearch = ''; }}
+						onclick={() => { showModelDropdown = !showModelDropdown; modelSearch = ''; }}
 					>
 						<span class={jobModelId ? '' : 'text-gray-400'}>
 							{jobModelId ? (modelItems.find((m) => m.value === jobModelId)?.label ?? jobModelId) : $i18n.t('Select a model')}
@@ -774,7 +776,7 @@
 						<div class="absolute z-[60] mt-1 w-full rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
 							<div class="p-2">
 								<input
-									class="w-full rounded-lg px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-700"
+									class="w-full rounded-lg px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-hidden border border-gray-200 dark:border-gray-700"
 									bind:value={modelSearch}
 									placeholder={$i18n.t('Search models...')}
 								/>
@@ -784,7 +786,7 @@
 									<button
 										type="button"
 										class="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition {jobModelId === model.value ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''}"
-										on:click={() => { jobModelId = model.value; showModelDropdown = false; }}
+										onclick={() => { jobModelId = model.value; showModelDropdown = false; }}
 									>
 										{model.label}
 									</button>
@@ -818,13 +820,13 @@
 							<button
 								type="button"
 								class="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-								on:click={() => { if (activeGroup) selectedTasks = new Set(activeGroup.tasks.map((t) => t.id)); }}
+								onclick={() => { if (activeGroup) selectedTasks = new Set(activeGroup.tasks.map((t) => t.id)); }}
 							>{$i18n.t('Select all')}</button>
 							<span class="text-gray-300 dark:text-gray-600">|</span>
 							<button
 								type="button"
 								class="text-[11px] text-gray-500 dark:text-gray-400 hover:underline"
-								on:click={() => { selectedTasks = new Set(); }}
+								onclick={() => { selectedTasks = new Set(); }}
 							>{$i18n.t('Deselect all')}</button>
 						</div>
 					</div>
@@ -838,7 +840,7 @@
 										<button
 											type="button"
 											class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
-											on:click={() => {
+											onclick={() => {
 												const next = new Set(selectedTasks);
 												catTasks.forEach((t) => next.add(t.id));
 												selectedTasks = next;
@@ -847,7 +849,7 @@
 										<button
 											type="button"
 											class="text-[10px] text-gray-500 dark:text-gray-400 hover:underline"
-											on:click={() => {
+											onclick={() => {
 												const next = new Set(selectedTasks);
 												catTasks.forEach((t) => next.delete(t.id));
 												selectedTasks = next;
@@ -862,7 +864,7 @@
 										type="checkbox"
 										class="rounded accent-blue-600"
 										checked={selectedTasks.has(task.id)}
-										on:change={() => toggleTask(task.id)}
+										onchange={() => toggleTask(task.id)}
 									/>
 									<span class="text-sm flex-1">{task.name}</span>
 									<span class="text-[10px] {difficultyColor(task.difficulty)}">{task.difficulty}</span>
@@ -882,7 +884,7 @@
 					<input
 						type="checkbox"
 						bind:checked={jobDryRun}
-						on:change={() => { if (jobDryRun) showModelDropdown = false; }}
+						onchange={() => { if (jobDryRun) showModelDropdown = false; }}
 						class="rounded border-gray-300 dark:border-gray-700 text-orange-500 focus:ring-orange-500 dark:bg-gray-900"
 					/>
 					<span class="text-xs font-medium {jobDryRun ? 'text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400'}">
@@ -901,12 +903,12 @@
 			</div>
 
 			<div class="flex justify-end gap-2">
-				<button class="px-3 py-1.5 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition" on:click={() => (showJobModal = false)}>
+				<button class="px-3 py-1.5 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition" onclick={() => (showJobModal = false)}>
 					{$i18n.t('Cancel')}
 				</button>
 				<button
 					class="px-4 py-1.5 rounded-xl text-sm font-medium {jobDryRun ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'} text-white transition disabled:opacity-50"
-					on:click={handleSubmitJob}
+					onclick={handleSubmitJob}
 					disabled={submitting || (!jobDryRun && !jobModelId) || selectedTasks.size === 0}
 				>
 					{submitting ? $i18n.t('Submitting...') : jobDryRun ? $i18n.t('Submit Test') : $i18n.t('Submit Job')}

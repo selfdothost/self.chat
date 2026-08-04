@@ -5,8 +5,8 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let messages = [];
-	let textAreaElement: HTMLTextAreaElement;
+	let { messages = $bindable([]) } = $props();
+	let textAreaElement: HTMLTextAreaElement = $state();
 	onMount(() => {
 		messages.forEach((_message, _idx) => {
 			textAreaElement.style.height = '';
@@ -33,29 +33,29 @@
 				<textarea
 					id="{message.role}-{idx}-textarea"
 					bind:this={textAreaElement}
-					class="w-full bg-transparent outline-none rounded-lg p-2 text-sm resize-none overflow-hidden"
+					class="w-full bg-transparent outline-hidden rounded-lg p-2 text-sm resize-none overflow-hidden"
 					placeholder={$i18n.t(`Enter {{role}} message here`, {
 						role: message.role === 'user' ? $i18n.t('a user') : $i18n.t('an assistant')
 					})}
 					rows="1"
-					on:input={(_e) => {
+					oninput={(_e) => {
 						textAreaElement.style.height = '';
 						textAreaElement.style.height = textAreaElement.scrollHeight + 'px';
 					}}
-					on:focus={(_e) => {
+					onfocus={(_e) => {
 						textAreaElement.style.height = '';
 						textAreaElement.style.height = textAreaElement.scrollHeight + 'px';
 
 						// e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
 					}}
 					bind:value={message.content}
-				/>
+				></textarea>
 			</div>
 
 			<div class=" pt-1">
 				<button
 					class=" group-hover:text-gray-500 dark:text-gray-900 dark:hover:text-gray-300 transition"
-					on:click={() => {
+					onclick={() => {
 						messages = messages.filter((message, messageIdx) => messageIdx !== idx);
 					}}
 				>

@@ -5,10 +5,9 @@
 	const { saveAs } = fileSaver;
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 	import { resolve } from '$app/paths';
-
-	const dispatch = createEventDispatcher();
+	import type { AnyFn } from '$lib/types';
 
 	import {
 		archiveChatById,
@@ -22,12 +21,17 @@
 	import UnarchiveAllConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
+	interface Props {
+		show?: boolean;
+		onChange?: AnyFn;
+	}
 
-	let chats = [];
+	let { show = $bindable(false), onChange = () => {} }: Props = $props();
 
-	let searchValue = '';
-	let showUnarchiveAllConfirmDialog = false;
+	let chats = $state([]);
+
+	let searchValue = $state('');
+	let showUnarchiveAllConfirmDialog = $state(false);
 
 	const unarchiveChatHandler = async (chatId) => {
 		await archiveChatById(localStorage.token, chatId).catch((error) => {
@@ -35,7 +39,7 @@
 		});
 
 		chats = await getArchivedChatList(localStorage.token);
-		dispatch('change');
+		onChange();
 	};
 
 	const deleteChatHandler = async (chatId) => {
@@ -61,23 +65,20 @@
 		chats = await getArchivedChatList(localStorage.token);
 	};
 
-	// Assignment runs inside an async IIFE triggered by this block; `chats`
-	// isn't part of the block's own condition (`show`), so setting it can't
-	// retrigger this reactive statement -- not an infinite loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (show) {
-		(async () => {
-			chats = await getArchivedChatList(localStorage.token);
-		})();
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+	$effect(() => {
+		if (show) {
+			(async () => {
+				chats = await getArchivedChatList(localStorage.token);
+			})();
+		}
+	});
 </script>
 
 <UnarchiveAllConfirmDialog
 	bind:show={showUnarchiveAllConfirmDialog}
 	message={$i18n.t('Are you sure you want to unarchive all archived chats?')}
 	confirmLabel={$i18n.t('Unarchive All')}
-	on:confirm={() => {
+	onConfirm={() => {
 		unarchiveAllHandler();
 	}}
 />
@@ -88,7 +89,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Archived Chats')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -125,7 +126,7 @@
 						</svg>
 					</div>
 					<input
-						class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
+						class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
 						bind:value={searchValue}
 						placeholder={$i18n.t('Search Chats')}
 					/>
@@ -146,7 +147,7 @@
 											<th scope="col" class="px-3 py-2 hidden md:flex">
 												{$i18n.t('Created At')}
 											</th>
-											<th scope="col" class="px-3 py-2 text-right" />
+											<th scope="col" class="px-3 py-2 text-right"></th>
 										</tr>
 									</thead>
 									<tbody>
@@ -176,7 +177,7 @@
 														<Tooltip content={$i18n.t('Unarchive Chat')}>
 															<button
 																class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-																on:click={async () => {
+																onclick={async () => {
 																	unarchiveChatHandler(chat.id);
 																}}
 															>
@@ -200,7 +201,7 @@
 														<Tooltip content={$i18n.t('Delete Chat')}>
 															<button
 																class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-																on:click={async () => {
+																onclick={async () => {
 																	deleteChatHandler(chat.id);
 																}}
 															>
@@ -232,7 +233,7 @@
 						<div class="flex flex-wrap text-sm font-medium gap-1.5 mt-2 m-1 justify-end w-full">
 							<button
 								class=" px-3.5 py-1.5 font-medium hover:bg-black/5 dark:hover:bg-white/5 outline outline-1 outline-gray-300 dark:outline-gray-800 rounded-3xl"
-								on:click={() => {
+								onclick={() => {
 									showUnarchiveAllConfirmDialog = true;
 								}}
 							>
@@ -241,7 +242,7 @@
 
 							<button
 								class="px-3.5 py-1.5 font-medium hover:bg-black/5 dark:hover:bg-white/5 outline outline-1 outline-gray-300 dark:outline-gray-800 rounded-3xl"
-								on:click={() => {
+								onclick={() => {
 									exportChatsHandler();
 								}}
 							>

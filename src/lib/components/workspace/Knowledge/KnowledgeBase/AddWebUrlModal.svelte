@@ -1,17 +1,19 @@
+<!-- @migration-task Error while migrating Svelte code: Can't migrate code with afterUpdate. Please migrate by hand. -->
 <script lang="ts">
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { afterUpdate } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import { isValidHttpUrl } from '$lib/utils';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	export let show = false;
+	export let onSubmit = (_detail) => {};
+	export let onCancel = () => {};
 	export let loading = false;
 	export let title = 'Scrape a webpage';
 	export let managedClose = false; // when true, parent controls closing after submit
@@ -79,7 +81,7 @@
 			return;
 		}
 
-		dispatch('submit', {
+		onSubmit({
 			url: trimmedUrl, limit, maxDepth, crawlDelay, max403s,
 			includePaths: includePaths.split(',').map((s) => s.trim()).filter(Boolean),
 			excludePaths: excludePaths.split(',').map((s) => s.trim()).filter(Boolean),
@@ -94,7 +96,7 @@
 		if (viewOnly) {
 			closeModal();
 		} else if (loading && managedClose) {
-			dispatch('cancel');
+			onCancel();
 		} else {
 			closeModal();
 		}
@@ -152,7 +154,7 @@
 						bind:value={url}
 						on:blur={normalizeUrl}
 						placeholder="example.com"
-						class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+						class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 						autocomplete="off"
 						disabled={loading}
 					/>
@@ -166,7 +168,7 @@
 							bind:value={limit}
 							min="1"
 							max="500"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>
@@ -180,7 +182,7 @@
 							bind:value={maxDepth}
 							min="1"
 							max="10"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>
@@ -193,7 +195,7 @@
 							type="number"
 							bind:value={crawlDelay}
 							min="1"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>
@@ -206,7 +208,7 @@
 							type="number"
 							bind:value={max403s}
 							min="0"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>
@@ -219,7 +221,7 @@
 							type="text"
 							bind:value={includePaths}
 							placeholder="/docs/.*"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>
@@ -232,7 +234,7 @@
 							type="text"
 							bind:value={excludePaths}
 							placeholder="/admin/.*"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>
@@ -270,7 +272,7 @@
 							bind:value={batchSize}
 							min="1"
 							max="100"
-							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+							class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 							disabled={loading}
 						/>
 					</div>

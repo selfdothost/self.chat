@@ -2,7 +2,6 @@
 	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
-	$: dispatch('change', open);
 
 	import { slide } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
@@ -10,23 +9,43 @@
 	import ChevronUp from '../icons/ChevronUp.svelte';
 	import ChevronDown from '../icons/ChevronDown.svelte';
 
-	export let open = false;
-	export let className = '';
-	export let buttonClassName =
-		'w-fit text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition';
-	export let title = null;
 
-	export let grow = false;
 
-	export let disabled = false;
-	export let hide = false;
+	interface Props {
+		open?: boolean;
+		className?: string;
+		buttonClassName?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		title?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		grow?: boolean;
+		disabled?: boolean;
+		hide?: boolean;
+		children?: import('svelte').Snippet;
+		content?: import('svelte').Snippet;
+	}
+
+	let {
+		open = $bindable(false),
+		className = '',
+		buttonClassName = 'w-fit text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition',
+		title = null,
+		grow = false,
+		disabled = false,
+		hide = false,
+		children,
+		content
+	}: Props = $props();
+	$effect(() => {
+		dispatch('change', open);
+	});
 </script>
 
 <div class={className}>
 	{#if title !== null}
 		<div
 			class="{buttonClassName} cursor-pointer"
-			on:pointerup={() => {
+			onpointerup={() => {
 				if (!disabled) {
 					open = !open;
 				}
@@ -49,24 +68,24 @@
 	{:else}
 		<div
 			class="{buttonClassName} cursor-pointer"
-			on:pointerup={() => {
+			onpointerup={() => {
 				if (!disabled) {
 					open = !open;
 				}
 			}}
 		>
 			<div>
-				<slot />
+				{@render children?.()}
 
 				{#if grow}
 					{#if open && !hide}
 						<div
 							transition:slide={{ duration: 300, easing: quintOut, axis: 'y' }}
-							on:pointerup={(e) => {
+							onpointerup={(e) => {
 								e.stopPropagation();
 							}}
 						>
-							<slot name="content" />
+							{@render content?.()}
 						</div>
 					{/if}
 				{/if}
@@ -77,7 +96,7 @@
 	{#if !grow}
 		{#if open && !hide}
 			<div transition:slide={{ duration: 300, easing: quintOut, axis: 'y' }}>
-				<slot name="content" />
+				{@render content?.()}
 			</div>
 		{/if}
 	{/if}

@@ -3,10 +3,9 @@
 	import type { Writable } from 'svelte/store';
 	import { DropdownMenu } from 'bits-ui';
 	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
@@ -15,79 +14,92 @@
 	import Download from '$lib/components/icons/Download.svelte';
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import PencilSquare from '$lib/components/icons/PencilSquare.svelte';
+	import type { AnyFn } from '$lib/types';
+	interface Props {
+		children?: import('svelte').Snippet;
+		onNewChat?: AnyFn;
+		onRename?: AnyFn;
+		onConfigure?: AnyFn;
+		onExport?: AnyFn;
+		onDelete?: AnyFn;
+	}
 
-	let show = false;
+	let {
+		children,
+		onNewChat = () => {},
+		onRename = () => {},
+		onConfigure = () => {},
+		onExport = () => {},
+		onDelete = () => {}
+	}: Props = $props();
+
+	let show = $state(false);
 </script>
 
-<Dropdown
-	bind:show
-	on:change={(e) => {
-		if (e.detail === false) {
-			dispatch('close');
-		}
-	}}
->
+<Dropdown bind:show>
 	<Tooltip content={$i18n.t('More')}>
-		<slot />
+		{@render children?.()}
 	</Tooltip>
 
-	<div slot="content">
-		<DropdownMenuContent
-			class="w-full max-w-[160px] rounded-lg px-1 py-1.5  z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
-			sideOffset={-2}
-			side="bottom"
-			align="start"
-		>
-			<DropdownMenu.Item
-				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('newChat');
-				}}
+	{#snippet content()}
+		<div >
+			<DropdownMenuContent
+				class="w-full max-w-[160px] rounded-lg px-1 py-1.5  z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
+				sideOffset={-2}
+				side="bottom"
+				align="start"
 			>
-				<PencilSquare strokeWidth="2" className="size-4" />
-				<div class="flex items-center">{$i18n.t('New Chat')}</div>
-			</DropdownMenu.Item>
+				<DropdownMenu.Item
+					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onNewChat();
+					}}
+				>
+					<PencilSquare strokeWidth="2" className="size-4" />
+					<div class="flex items-center">{$i18n.t('New Chat')}</div>
+				</DropdownMenu.Item>
 
-			<DropdownMenu.Item
-				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('rename');
-				}}
-			>
-				<Pencil strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Rename')}</div>
-			</DropdownMenu.Item>
+				<DropdownMenu.Item
+					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onRename();
+					}}
+				>
+					<Pencil strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Rename')}</div>
+				</DropdownMenu.Item>
 
-			<DropdownMenu.Item
-				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('configure');
-				}}
-			>
-				<Cog6 strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Configure')}</div>
-			</DropdownMenu.Item>
+				<DropdownMenu.Item
+					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onConfigure();
+					}}
+				>
+					<Cog6 strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Configure')}</div>
+				</DropdownMenu.Item>
 
-			<DropdownMenu.Item
-				class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('export');
-				}}
-			>
-				<Download strokeWidth="2" />
+				<DropdownMenu.Item
+					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onExport();
+					}}
+				>
+					<Download strokeWidth="2" />
 
-				<div class="flex items-center">{$i18n.t('Export')}</div>
-			</DropdownMenu.Item>
+					<div class="flex items-center">{$i18n.t('Export')}</div>
+				</DropdownMenu.Item>
 
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('delete');
-				}}
-			>
-				<GarbageBin strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Delete')}</div>
-			</DropdownMenu.Item>
-		</DropdownMenuContent>
-	</div>
+				<DropdownMenu.Item
+					class="flex  gap-2  items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onDelete();
+					}}
+				>
+					<GarbageBin strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Delete')}</div>
+				</DropdownMenu.Item>
+			</DropdownMenuContent>
+		</div>
+	{/snippet}
 </Dropdown>

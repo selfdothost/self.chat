@@ -4,8 +4,7 @@
 	import type { AnyFn } from '$lib/types';
 	import { DropdownMenu } from 'bits-ui';
 	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
-	import { getContext, createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { getContext } from 'svelte';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -16,16 +15,27 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let onClose: AnyFn = () => {};
-	export let webLoaderEngine: string = '';
+	interface Props {
+		onClose?: AnyFn;
+		onUpload?: AnyFn;
+		onSync?: AnyFn;
+		webLoaderEngine?: string;
+	}
 
-	let show = false;
+	let {
+		onClose = () => {},
+		onUpload = () => {},
+		onSync = () => {},
+		webLoaderEngine = ''
+	}: Props = $props();
+
+	let show = $state(false);
 </script>
 
 <Dropdown
 	bind:show
-	on:change={(e) => {
-		if (e.detail === false) {
+	onChange={(open) => {
+		if (open === false) {
 			onClose();
 		}
 	}}
@@ -34,7 +44,7 @@
 	<Tooltip content={$i18n.t('Add Content')}>
 		<button
 			class=" p-1.5 rounded-xl hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition font-medium text-sm flex items-center space-x-1"
-			on:click={(e) => {
+			onclick={(e) => {
 				e.stopPropagation();
 				show = true;
 			}}
@@ -52,81 +62,83 @@
 		</button>
 	</Tooltip>
 
-	<div slot="content">
-		<DropdownMenuContent
-			class="w-full max-w-44 rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
-			sideOffset={4}
-			side="bottom"
-			align="end"
-		>
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('upload', { type: 'files' });
-				}}
-			>
-				<ArrowUpCircle strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Upload files')}</div>
-			</DropdownMenu.Item>
-
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('upload', { type: 'directory' });
-				}}
-			>
-				<FolderOpen strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Upload directory')}</div>
-			</DropdownMenu.Item>
-
-			<Tooltip
-				content={$i18n.t(
-					'This option will delete all existing files in the collection and replace them with newly uploaded files.'
-				)}
-				className="w-full"
+	{#snippet content()}
+		<div >
+			<DropdownMenuContent
+				class="w-full max-w-44 rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
+				sideOffset={4}
+				side="bottom"
+				align="end"
 			>
 				<DropdownMenu.Item
 					class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					onSelect={() => {
-						dispatch('sync', { type: 'directory' });
+						onUpload({ type: 'files' });
 					}}
 				>
-					<ArrowPath strokeWidth="2" />
-					<div class="flex items-center">{$i18n.t('Sync directory')}</div>
+					<ArrowUpCircle strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Upload files')}</div>
 				</DropdownMenu.Item>
-			</Tooltip>
 
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('upload', { type: 'text' });
-				}}
-			>
-				<BarsArrowUp strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Add text content')}</div>
-			</DropdownMenu.Item>
+				<DropdownMenu.Item
+					class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onUpload({ type: 'directory' });
+					}}
+				>
+					<FolderOpen strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Upload directory')}</div>
+				</DropdownMenu.Item>
 
-			{#if webLoaderEngine === 'firecrawl'}
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('upload', { type: 'scrape' });
-				}}
-			>
-				<BarsArrowUp strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Scrape a webpage')}</div>
-			</DropdownMenu.Item>
+				<Tooltip
+					content={$i18n.t(
+						'This option will delete all existing files in the collection and replace them with newly uploaded files.'
+					)}
+					className="w-full"
+				>
+					<DropdownMenu.Item
+						class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+						onSelect={() => {
+							onSync({ type: 'directory' });
+						}}
+					>
+						<ArrowPath strokeWidth="2" />
+						<div class="flex items-center">{$i18n.t('Sync directory')}</div>
+					</DropdownMenu.Item>
+				</Tooltip>
 
-			<DropdownMenu.Item
-				class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-				onSelect={() => {
-					dispatch('upload', { type: 'crawl' });
-				}}
-			>
-				<BarsArrowUp strokeWidth="2" />
-				<div class="flex items-center">{$i18n.t('Crawl a website')}</div>
-			</DropdownMenu.Item>
-		{/if}
-		</DropdownMenuContent>
-	</div>
+				<DropdownMenu.Item
+					class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onUpload({ type: 'text' });
+					}}
+				>
+					<BarsArrowUp strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Add text content')}</div>
+				</DropdownMenu.Item>
+
+				{#if webLoaderEngine === 'firecrawl'}
+				<DropdownMenu.Item
+					class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onUpload({ type: 'scrape' });
+					}}
+				>
+					<BarsArrowUp strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Scrape a webpage')}</div>
+				</DropdownMenu.Item>
+
+				<DropdownMenu.Item
+					class="flex  gap-2  items-center px-3 py-2 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+					onSelect={() => {
+						onUpload({ type: 'crawl' });
+					}}
+				>
+					<BarsArrowUp strokeWidth="2" />
+					<div class="flex items-center">{$i18n.t('Crawl a website')}</div>
+				</DropdownMenu.Item>
+			{/if}
+			</DropdownMenuContent>
+		</div>
+	{/snippet}
 </Dropdown>

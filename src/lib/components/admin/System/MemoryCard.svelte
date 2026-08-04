@@ -6,8 +6,14 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let memory;
-	export let onViewProcesses: (sortBy: string) => void;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		memory: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onViewProcesses: (sortBy: string) => void;
+	}
+
+	let { memory, onViewProcesses }: Props = $props();
 
 	function formatMb(mb) {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
@@ -27,7 +33,7 @@
 
 	<button
 		class="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition"
-		on:click={() => onViewProcesses('memory_mb')}
+		onclick={() => onViewProcesses('memory_mb')}
 	>
 		{$i18n.t('View Processes')} &rarr;
 	</button>

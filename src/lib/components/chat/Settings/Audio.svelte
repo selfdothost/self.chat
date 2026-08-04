@@ -1,32 +1,38 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 
 	import { settings, config } from '$lib/stores';
 	import { getVoices as _getVoices } from '$lib/apis/audio';
 
 	import Switch from '$lib/components/common/Switch.svelte';
-	const dispatch = createEventDispatcher();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveSettings: AnyFn;
+	interface Props {
+		saveSettings: AnyFn;
+		onSave?: AnyFn;
+	}
+
+	let { saveSettings, onSave = () => {} }: Props = $props();
 
 	// Audio
-	let speechAutoSend = false;
-	let responseAutoPlayback = false;
-	let nonLocalVoices = false;
+	let speechAutoSend = $state(false);
+	let responseAutoPlayback = $state(false);
+	let nonLocalVoices = $state(false);
 
-	let STTEngine = '';
+	let STTEngine = $state('');
 
-	let voices = [];
-	let voice = '';
+	let voices = $state([]);
+	let voice = $state('');
 
 	// Audio speed control
-	let playbackRate = 1;
+	let playbackRate = $state(1);
 	const speedOptions = [2, 1.75, 1.5, 1.25, 1, 0.75, 0.5];
 
 	const getVoices = async () => {
@@ -82,7 +88,7 @@
 
 <form
 	class="flex flex-col h-full justify-between space-y-3 text-sm"
-	on:submit|preventDefault={async () => {
+	onsubmit={preventDefault(async () => {
 		saveSettings({
 			audio: {
 				stt: {
@@ -96,8 +102,8 @@
 				}
 			}
 		});
-		dispatch('save');
-	}}
+		onSave();
+	})}
 >
 	<div class=" space-y-3 overflow-y-scroll max-h-[28rem] lg:max-h-full">
 		<div>
@@ -108,7 +114,7 @@
 					<div class=" self-center text-xs font-medium">{$i18n.t('Speech-to-Text Engine')}</div>
 					<div class="flex items-center relative">
 						<select
-							class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+							class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 							bind:value={STTEngine}
 							placeholder="Select an engine"
 						>
@@ -126,7 +132,7 @@
 
 				<button
 					class="p-1 px-3 text-xs flex rounded transition"
-					on:click={() => {
+					onclick={() => {
 						toggleSpeechAutoSend();
 					}}
 					type="button"
@@ -148,7 +154,7 @@
 
 				<button
 					class="p-1 px-3 text-xs flex rounded transition"
-					on:click={() => {
+					onclick={() => {
 						toggleResponseAutoPlayback();
 					}}
 					type="button"
@@ -166,7 +172,7 @@
 
 				<div class="flex items-center relative">
 					<select
-						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 						bind:value={playbackRate}
 					>
 						{#each speedOptions as option (option)}
@@ -185,7 +191,7 @@
 				<div class="flex w-full">
 					<div class="flex-1">
 						<select
-							class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={voice}
 						>
 							<option value="" selected={voice !== ''}>{$i18n.t('Default')}</option>
@@ -216,7 +222,7 @@
 					<div class="flex-1">
 						<input
 							list="voice-list"
-							class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={voice}
 							placeholder="Select a voice"
 						/>

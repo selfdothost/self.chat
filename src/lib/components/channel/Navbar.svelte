@@ -4,12 +4,12 @@
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
 	import MenuLines from '../icons/MenuLines.svelte';
 
-	export let channel;
+	let { channel } = $props();
 </script>
 
 <div class="sticky top-0 z-30 w-full px-1.5 py-1.5 -mb-8 flex items-center">
 	<div
-		class=" bg-gradient-to-b via-50% from-white via-white to-transparent dark:from-gray-900 dark:via-gray-900 dark:to-transparent pointer-events-none absolute inset-0 -bottom-7 z-[-1] blur"
+		class=" bg-linear-to-b via-50% from-white via-white to-transparent dark:from-gray-900 dark:via-gray-900 dark:to-transparent pointer-events-none absolute inset-0 -bottom-7 z-[-1] blur"
 	></div>
 
 	<div class=" flex max-w-full w-full mx-auto px-1 pt-0.5 bg-transparent">
@@ -22,7 +22,7 @@
 				<button
 					id="sidebar-toggle-button"
 					class="cursor-pointer px-2 py-2 flex rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-					on:click={() => {
+					onclick={() => {
 						showSidebar.set(!$showSidebar);
 					}}
 					aria-label="Toggle Sidebar"
@@ -50,8 +50,8 @@
 					<UserMenu
 						className="max-w-[200px]"
 						role={$user.role}
-						on:show={(e) => {
-							if (e.detail === 'archived-chat') {
+						onShow={(detail) => {
+							if (detail === 'archived-chat') {
 								showArchivedChats.set(true);
 							}
 						}}

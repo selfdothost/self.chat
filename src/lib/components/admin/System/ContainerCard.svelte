@@ -6,12 +6,12 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let container;
+	let { container } = $props();
 
-	$: memPercent =
-		container.memory_limit_mb > 0
+	let memPercent =
+		$derived(container.memory_limit_mb > 0
 			? (container.memory_used_mb / container.memory_limit_mb) * 100
-			: 0;
+			: 0);
 
 	function formatMb(mb) {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;

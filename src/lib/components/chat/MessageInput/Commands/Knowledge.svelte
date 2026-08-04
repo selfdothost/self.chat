@@ -14,27 +14,35 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let prompt = '';
-	export let command = '';
+	interface Props {
+		prompt?: string;
+		command?: string;
+	}
+
+	let { prompt = $bindable(''), command = '' }: Props = $props();
 
 	const dispatch = createEventDispatcher();
-	let selectedIdx = 0;
+	let selectedIdx = $state(0);
 
-	let items = [];
-	let fuse = null;
+	let items = $state([]);
+	let fuse = $state(null);
 
-	let filteredItems = [];
-	$: if (fuse) {
-		filteredItems = command.slice(1)
-			? fuse.search(command).map((e) => {
-					return e.item;
-				})
-			: items;
-	}
+	let filteredItems = $state([]);
+	$effect(() => {
+		if (fuse) {
+			filteredItems = command.slice(1)
+				? fuse.search(command).map((e) => {
+						return e.item;
+					})
+				: items;
+		}
+	});
 
-	$: if (command) {
-		selectedIdx = 0;
-	}
+	$effect(() => {
+		if (command) {
+			selectedIdx = 0;
+		}
+	});
 
 	export const selectUp = () => {
 		selectedIdx = Math.max(0, selectedIdx - 1);
@@ -175,11 +183,11 @@
 								? ' bg-gray-50 dark:bg-gray-850 dark:text-gray-100 selected-command-option-button'
 								: ''}"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								console.log(item);
 								confirmSelect(item);
 							}}
-							on:mousemove={() => {
+							onmousemove={() => {
 								selectedIdx = idx;
 							}}
 						>
@@ -187,25 +195,25 @@
 								<div class=" font-medium text-black dark:text-gray-100 flex items-center gap-1">
 									{#if item.legacy}
 										<div
-											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 flex-shrink-0"
+											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 shrink-0"
 										>
 											Legacy
 										</div>
 									{:else if item?.meta?.document}
 										<div
-											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 flex-shrink-0"
+											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 shrink-0"
 										>
 											Document
 										</div>
 									{:else if item?.type === 'file'}
 										<div
-											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 flex-shrink-0"
+											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 shrink-0"
 										>
 											File
 										</div>
 									{:else}
 										<div
-											class="bg-green-500/20 text-green-700 dark:text-green-200 rounded uppercase text-xs font-bold px-1 flex-shrink-0"
+											class="bg-green-500/20 text-green-700 dark:text-green-200 rounded uppercase text-xs font-bold px-1 shrink-0"
 										>
 											Collection
 										</div>
@@ -240,7 +248,7 @@
 													class=" font-medium text-black dark:text-gray-100 flex items-center gap-1"
 												>
 													<div
-														class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 flex-shrink-0"
+														class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded uppercase text-xs font-bold px-1 shrink-0"
 													>
 														File
 													</div>
@@ -273,7 +281,7 @@
 						<button
 							class="px-3 py-1.5 rounded-xl w-full text-left bg-gray-50 dark:bg-gray-850 dark:text-gray-100 selected-command-option-button"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								const url = prompt.split(' ')?.at(0)?.substring(1);
 								if (isValidHttpUrl(url)) {
 									confirmSelectYoutube(url);
@@ -296,7 +304,7 @@
 						<button
 							class="px-3 py-1.5 rounded-xl w-full text-left bg-gray-50 dark:bg-gray-850 dark:text-gray-100 selected-command-option-button"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								const url = prompt.split(' ')?.at(0)?.substring(1);
 								if (isValidHttpUrl(url)) {
 									confirmSelectWeb(url);

@@ -10,17 +10,27 @@
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import AddConnectionModal from './AddConnectionModal.svelte';
 
-	export let onDelete: AnyFn = () => {};
-	export let onSubmit: AnyFn = () => {};
 
-	export let url = '';
 	// Unlike OpenAIConnection there is no sibling `key` prop: the Anthropic key lives
 	// inside the per-URL config bag, so there is no parallel keys array to keep in
 	// index-lockstep with the URLs (self.ai#59).
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let config: Record<string, any> = {};
+	
+	interface Props {
+		onDelete?: AnyFn;
+		onSubmit?: AnyFn;
+		url?: string;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		config?: Record<string, any>;
+	}
 
-	let showConfigModal = false;
+	let {
+		onDelete = () => {},
+		onSubmit = () => {},
+		url = $bindable(''),
+		config = $bindable({})
+	}: Props = $props();
+
+	let showConfigModal = $state(false);
 </script>
 
 <AddConnectionModal
@@ -77,7 +87,7 @@
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showConfigModal = true;
 				}}
 				type="button"

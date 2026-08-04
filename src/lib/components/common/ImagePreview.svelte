@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 
-	export let show = false;
-	export let src = '';
-	export let alt = '';
+	interface Props {
+		show?: boolean;
+		src?: string;
+		alt?: string;
+	}
 
-	let previewElement = null;
+	let { show = $bindable(false), src = '', alt = '' }: Props = $props();
+
+	let previewElement = $state(null);
 
 	const downloadImage = (url, filename, prefixName = '') => {
 		fetch(url)
@@ -30,15 +34,17 @@
 		}
 	};
 
-	$: if (show && previewElement) {
-		document.body.appendChild(previewElement);
-		window.addEventListener('keydown', handleKeyDown);
-		document.body.style.overflow = 'hidden';
-	} else if (previewElement) {
-		window.removeEventListener('keydown', handleKeyDown);
-		document.body.removeChild(previewElement);
-		document.body.style.overflow = 'unset';
-	}
+	$effect(() => {
+		if (show && previewElement) {
+			document.body.appendChild(previewElement);
+			window.addEventListener('keydown', handleKeyDown);
+			document.body.style.overflow = 'hidden';
+		} else if (previewElement) {
+			window.removeEventListener('keydown', handleKeyDown);
+			document.body.removeChild(previewElement);
+			document.body.style.overflow = 'unset';
+		}
+	});
 
 	onDestroy(() => {
 		show = false;
@@ -58,7 +64,7 @@
 			<div>
 				<button
 					class=" p-5"
-					on:click={() => {
+					onclick={() => {
 						show = false;
 					}}
 				>
@@ -78,7 +84,7 @@
 			<div>
 				<button
 					class=" p-5"
-					on:click={() => {
+					onclick={() => {
 						downloadImage(src, src.substring(src.lastIndexOf('/') + 1), alt);
 					}}
 				>

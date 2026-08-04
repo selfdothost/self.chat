@@ -5,8 +5,14 @@
 	// "here are the N sites a search touched". A web_fetch is one page the user
 	// or the model named, so the useful thing to show is that page — inline,
 	// already visible, no disclosure to open. A one-item collapsible would be a
-	// worse version of a link.
-	export let status: { url?: string; title?: string; done?: boolean; error?: boolean } = {};
+	
+	interface Props {
+		// worse version of a link.
+		status?: { url?: string; title?: string; done?: boolean; error?: boolean };
+		children?: import('svelte').Snippet;
+	}
+
+	let { status = {}, children }: Props = $props();
 
 	// The host, not the full URL: the path on a real article URL is long enough
 	// to swallow the row, and the host is what tells a reader where this came
@@ -21,7 +27,7 @@
 </script>
 
 <div class="flex items-center gap-1.5 min-w-0">
-	<slot />
+	{@render children?.()}
 
 	{#if status?.url}
 		<a

@@ -31,9 +31,9 @@
 	// store -- see the note above.
 	const nodesInitializedState = useNodesInitialized();
 
-	export let history;
+	let { history } = $props();
 
-	let selectedMessageId = null;
+	let selectedMessageId = $state(null);
 
 	const nodes = writable([]);
 	const edges = writable([]);
@@ -42,18 +42,12 @@
 		custom: CustomNode
 	};
 
-	$: if (history) {
-		drawFlow();
-	}
 
-	$: if (history && history.currentId) {
-		focusNode();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const focusNode = async () => {
 		if (selectedMessageId === null) {
 			await fitView({ nodes: [{ id: history.currentId }] });
@@ -139,32 +133,48 @@
 		drawFlow();
 	});
 
-	// These replace the old nodesInitialized/width/height `.subscribe(...)`
-	// calls that used to live in onMount() -- none of the three are Svelte
-	// stores in this @xyflow/svelte version (see the notes above), so
-	// `.subscribe` doesn't exist on them and would have thrown at runtime.
-	// Reading their reactive getters inside `$:` blocks re-runs whenever the
-	// underlying signal changes, same as the `history` blocks above.
-	$: if (nodesInitializedState.current) {
-		(async () => {
-			await tick();
-			await fitView({ nodes: [{ id: history.currentId }] });
-		})();
-	}
 
-	$: if (flowStore.width) {
-		fitView({ nodes: [{ id: history.currentId }] });
-	}
 
-	$: if (flowStore.height) {
-		fitView({ nodes: [{ id: history.currentId }] });
-	}
 
 	onDestroy(() => {
 		console.log('Overview destroyed');
 
 		nodes.set([]);
 		edges.set([]);
+	});
+	$effect(() => {
+		if (history) {
+			drawFlow();
+		}
+	});
+	$effect(() => {
+		if (history && history.currentId) {
+			focusNode();
+		}
+	});
+	// These replace the old nodesInitialized/width/height `.subscribe(...)`
+	// calls that used to live in onMount() -- none of the three are Svelte
+	// stores in this @xyflow/svelte version (see the notes above), so
+	// `.subscribe` doesn't exist on them and would have thrown at runtime.
+	// Reading their reactive getters inside an $effect re-runs whenever the
+	// underlying signal changes, same as the `history` blocks above.
+	$effect(() => {
+		if (nodesInitializedState.current) {
+			(async () => {
+				await tick();
+				await fitView({ nodes: [{ id: history.currentId }] });
+			})();
+		}
+	});
+	$effect(() => {
+		if (flowStore.width) {
+			fitView({ nodes: [{ id: history.currentId }] });
+		}
+	});
+	$effect(() => {
+		if (flowStore.height) {
+			fitView({ nodes: [{ id: history.currentId }] });
+		}
 	});
 </script>
 
@@ -173,7 +183,7 @@
 		<div class="flex items-center gap-2.5">
 			<button
 				class="self-center p-0.5"
-				on:click={() => {
+				onclick={() => {
 					showOverview.set(false);
 				}}
 			>
@@ -183,7 +193,7 @@
 		</div>
 		<button
 			class="self-center p-0.5"
-			on:click={() => {
+			onclick={() => {
 				dispatch('close');
 				showOverview.set(false);
 			}}

@@ -26,7 +26,11 @@
 	};
 
 	type $$Props = NodeProps<Node<OverviewNodeData>>;
-	export let data: $$Props['data'];
+	interface Props {
+		data: $$Props['data'];
+	}
+
+	let { data = $bindable() }: Props = $props();
 </script>
 
 <div
@@ -76,7 +80,7 @@
 
 						<button
 							class={data?.message?.favorite ? '' : 'invisible group-hover:visible'}
-							on:click={() => {
+							onclick={() => {
 								data.message.favorite = !(data?.message?.favorite ?? false);
 							}}
 						>

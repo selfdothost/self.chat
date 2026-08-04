@@ -21,10 +21,10 @@
 	import FeedbackMenu from './FeedbackMenu.svelte';
 	import EllipsisHorizontal from '$lib/components/icons/EllipsisHorizontal.svelte';
 
-	export let feedbacks = [];
+	let { feedbacks = $bindable([]) } = $props();
 
-	let page = 1;
-	$: paginatedFeedbacks = feedbacks.slice((page - 1) * 10, page * 10);
+	let page = $state(1);
+	let paginatedFeedbacks = $derived(feedbacks.slice((page - 1) * 10, page * 10));
 
 	//////////////////////
 	//
@@ -61,7 +61,7 @@
 	<div class="flex md:self-center text-lg font-medium px-0.5">
 		{$i18n.t('Feedback History')}
 
-		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 
 		<span class="text-lg font-medium text-gray-500 dark:text-gray-300">{feedbacks.length}</span>
 	</div>
@@ -71,7 +71,7 @@
 			<Tooltip content={$i18n.t('Export')}>
 				<button
 					class=" p-2 rounded-xl hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition font-medium text-sm flex items-center space-x-1"
-					on:click={() => {
+					onclick={() => {
 						exportHandler();
 					}}
 				>
@@ -120,7 +120,7 @@
 						<td class=" py-0.5 text-right font-semibold">
 							<div class="flex justify-center">
 								<Tooltip content={feedback?.user?.name}>
-									<div class="flex-shrink-0">
+									<div class="shrink-0">
 										<img
 											src={feedback?.user?.profile_image_url ?? '/user.png'}
 											alt={feedback?.user?.name}
@@ -180,7 +180,7 @@
 
 						<td class=" px-3 py-1 text-right font-semibold">
 							<FeedbackMenu
-								on:delete={(_e) => {
+								onDelete={() => {
 									deleteFeedbackHandler(feedback.id);
 								}}
 							>

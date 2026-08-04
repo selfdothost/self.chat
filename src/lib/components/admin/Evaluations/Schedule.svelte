@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+	const bubble = createBubbler();
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import dayjs from 'dayjs';
@@ -20,33 +23,34 @@
 		deleteEvalJob,
 		type EvalJob
 	} from '$lib/apis/evaluations/jobs';
+	import { getEvalTasks, type EvalTask, type EvalType } from '$lib/apis/evaluations/tasks';
 	import { getModels } from '$lib/apis/index';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let loaded = false;
-	let submitting = false;
-	let jobs: EvalJob[] = [];
+	let loaded = $state(false);
+	let submitting = $state(false);
+	let jobs: EvalJob[] = $state([]);
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
-	let modelItems: { value: string; label: string }[] = [];
-	let activeJob: EvalJob | null = null;
+	let modelItems: { value: string; label: string }[] = $state([]);
+	let activeJob: EvalJob | null = $state(null);
 
 	// Ad-hoc run form
-	let showRunForm = false;
-	let runEvalType: 'code-eval' | 'language-eval' = 'code-eval';
-	let runBenchmark = 'humaneval';
-	let runModelId = '';
-	let modelSearch = '';
-	let showModelDropdown = false;
-	let runDryRun = false;
+	let showRunForm = $state(false);
+	let runEvalType: 'code-eval' | 'language-eval' = $state('code-eval');
+	let runBenchmark = $state('humaneval');
+	let runModelId = $state('');
+	let modelSearch = $state('');
+	let showModelDropdown = $state(false);
+	let runDryRun = $state(false);
 
-	$: filteredModels = modelSearch
+	let filteredModels = $derived(modelSearch
 		? modelItems.filter(
 				(m) =>
 					m.label.toLowerCase().includes(modelSearch.toLowerCase()) ||
 					m.value.toLowerCase().includes(modelSearch.toLowerCase())
 		  )
-		: modelItems;
+		: modelItems);
 
 	const loadModels = async () => {
 		try {
@@ -60,64 +64,155 @@
 		}
 	};
 
-	const codeBenchmarkOptions = [
-		// HumanEval
-		{ id: 'humaneval', name: 'HumanEval' },
-		{ id: 'humanevalplus', name: 'HumanEval+' },
-		// MBPP
-		{ id: 'mbpp', name: 'MBPP' },
-		{ id: 'mbppplus', name: 'MBPP+' },
-		// APPS
-		{ id: 'apps-introductory', name: 'APPS Introductory' },
-		{ id: 'apps-interview', name: 'APPS Interview' },
-		{ id: 'apps-competition', name: 'APPS Competition' },
-		// DS-1000
-		{ id: 'ds1000-all-completion', name: 'DS-1000 (All)' },
-		{ id: 'ds1000-numpy-completion', name: 'DS-1000 NumPy' },
-		{ id: 'ds1000-pandas-completion', name: 'DS-1000 Pandas' },
-		{ id: 'ds1000-scipy-completion', name: 'DS-1000 SciPy' },
-		{ id: 'ds1000-matplotlib-completion', name: 'DS-1000 Matplotlib' },
-		{ id: 'ds1000-sklearn-completion', name: 'DS-1000 Sklearn' },
-		{ id: 'ds1000-tensorflow-completion', name: 'DS-1000 TensorFlow' },
-		{ id: 'ds1000-pytorch-completion', name: 'DS-1000 PyTorch' },
-		// MultiPL-E
-		{ id: 'multiple-js', name: 'MultiPL-E JavaScript' },
-		{ id: 'multiple-ts', name: 'MultiPL-E TypeScript' },
-		{ id: 'multiple-java', name: 'MultiPL-E Java' },
-		{ id: 'multiple-cpp', name: 'MultiPL-E C++' },
-		{ id: 'multiple-cs', name: 'MultiPL-E C#' },
-		{ id: 'multiple-go', name: 'MultiPL-E Go' },
-		{ id: 'multiple-rs', name: 'MultiPL-E Rust' },
-		{ id: 'multiple-rb', name: 'MultiPL-E Ruby' },
-		{ id: 'multiple-php', name: 'MultiPL-E PHP' },
-		{ id: 'multiple-sh', name: 'MultiPL-E Bash' },
-		{ id: 'multiple-scala', name: 'MultiPL-E Scala' },
-		{ id: 'multiple-lua', name: 'MultiPL-E Lua' },
-		{ id: 'multiple-r', name: 'MultiPL-E R' },
-		{ id: 'multiple-pl', name: 'MultiPL-E Perl' },
-		{ id: 'multiple-rkt', name: 'MultiPL-E Racket' }
-	];
+	// Benchmarks come from the harness now, not from a literal here. Both
+	// harnesses have always served their own task list and nothing ever asked;
+	// the array this replaces had drifted to 30 code + 14 language options
+	// against 23 MultiPL-E languages and 13,418 vendored task YAMLs, so eight
+	// runnable MultiPL-E languages were invisible purely by omission
+	// (self.chat#32 / self.ai#89).
+	//
+	// These maps only make discovered ids prettier. Anything without an entry
+	// still shows, under its real harness name — a task must never be hidden
+	// just because nobody wrote a label for it. That omission is the whole bug.
+	const BENCHMARK_LABELS: Record<string, string> = {
+		humaneval: 'HumanEval',
+		humanevalplus: 'HumanEval+',
+		mbpp: 'MBPP',
+		mbppplus: 'MBPP+',
+		'apps-introductory': 'APPS Introductory',
+		'apps-interview': 'APPS Interview',
+		'apps-competition': 'APPS Competition',
+		leaderboard: 'Leaderboard v2 (Full Suite)',
+		leaderboard_ifeval: 'IFEval',
+		bbh_cot_zeroshot: 'BBH (CoT Zero-shot)',
+		bbh_cot_fewshot: 'BBH (CoT Few-shot)',
+		leaderboard_math_hard: 'MATH Hard',
+		leaderboard_gpqa: 'GPQA',
+		leaderboard_musr: 'MUSR',
+		leaderboard_mmlu_pro: 'MMLU-PRO',
+		arc_challenge: 'ARC Challenge',
+		hellaswag: 'HellaSwag',
+		mmlu: 'MMLU',
+		truthfulqa_mc2: 'TruthfulQA MC2',
+		winogrande: 'Winogrande',
+		gsm8k: 'GSM8K'
+	};
 
-	const languageEvalBenchmarkOptions = [
-		// Leaderboard v2
-		{ id: 'leaderboard', name: 'Leaderboard v2 (Full Suite)' },
-		{ id: 'leaderboard_ifeval', name: 'IFEval' },
-		{ id: 'bbh_cot_zeroshot', name: 'BBH (CoT Zero-shot)' },
-		{ id: 'bbh_cot_fewshot', name: 'BBH (CoT Few-shot)' },
-		{ id: 'leaderboard_math_hard', name: 'MATH Hard' },
-		{ id: 'leaderboard_gpqa', name: 'GPQA' },
-		{ id: 'leaderboard_musr', name: 'MUSR' },
-		{ id: 'leaderboard_mmlu_pro', name: 'MMLU-PRO' },
-		// Classic benchmarks
-		{ id: 'arc_challenge', name: 'ARC Challenge' },
-		{ id: 'hellaswag', name: 'HellaSwag' },
-		{ id: 'mmlu', name: 'MMLU' },
-		{ id: 'truthfulqa_mc2', name: 'TruthfulQA MC2' },
-		{ id: 'winogrande', name: 'Winogrande' },
-		{ id: 'gsm8k', name: 'GSM8K' },
-	];
+	// code_eval/tasks/multiple.py LANGUAGES — all 23, so the eight the old
+	// hardcoded array never listed get a real name too.
+	const MULTIPLE_LANGUAGE_NAMES: Record<string, string> = {
+		sh: 'Bash', clj: 'Clojure', cpp: 'C++', cs: 'C#', d: 'D', dart: 'Dart',
+		elixir: 'Elixir', go: 'Go', hs: 'Haskell', java: 'Java', js: 'JavaScript',
+		jl: 'Julia', lua: 'Lua', ml: 'OCaml', pl: 'Perl', php: 'PHP', r: 'R',
+		rkt: 'Racket', rb: 'Ruby', rs: 'Rust', scala: 'Scala', swift: 'Swift',
+		ts: 'TypeScript'
+	};
 
-	$: benchmarkOptions = runEvalType === 'language-eval' ? languageEvalBenchmarkOptions : codeBenchmarkOptions;
+	const DS1000_LIBRARY_NAMES: Record<string, string> = {
+		all: 'All', numpy: 'NumPy', pandas: 'Pandas', scipy: 'SciPy',
+		matplotlib: 'Matplotlib', sklearn: 'Scikit-learn', tensorflow: 'TensorFlow',
+		pytorch: 'PyTorch'
+	};
+
+	const prettyBenchmarkName = (id: string): string => {
+		if (BENCHMARK_LABELS[id]) return BENCHMARK_LABELS[id];
+
+		const multiple = /^multiple-(.+)$/.exec(id);
+		if (multiple) return `MultiPL-E ${MULTIPLE_LANGUAGE_NAMES[multiple[1]] ?? multiple[1]}`;
+
+		const ds1000 = /^ds1000-(.+)-(completion|insertion)$/.exec(id);
+		if (ds1000) {
+			const library = DS1000_LIBRARY_NAMES[ds1000[1]] ?? ds1000[1];
+			return ds1000[2] === 'insertion' ? `DS-1000 ${library} (Insertion)` : `DS-1000 ${library}`;
+		}
+
+		return id;
+	};
+
+	// Rendering every discovered task at once would put >13k <option> nodes in
+	// the DOM for language-eval. Cap it and tell the admin what was withheld —
+	// a silently truncated list is the same failure as the hardcoded one.
+	const MAX_RENDERED_BENCHMARKS = 300;
+
+	let discoveredTasks: EvalTask[] = $state([]);
+	let tasksLoading = $state(false);
+	let tasksError = $state('');
+	let benchmarkFilter = $state('');
+
+	// Switching eval type back and forth shouldn't re-fetch; the server also
+	// caches, but this keeps the picker instant. A plain object, not a Map:
+	// nothing reads this reactively — `discoveredTasks` is the $state that
+	// drives the UI — so a SvelteMap would imply reactivity that isn't there.
+	let taskCache: Partial<Record<EvalType, EvalTask[]>> = {};
+
+	const loadTasks = async (evalType: EvalType) => {
+		tasksError = '';
+		const cached = taskCache[evalType];
+		if (cached) {
+			discoveredTasks = cached;
+			return;
+		}
+		tasksLoading = true;
+		try {
+			const tasks = await getEvalTasks(localStorage.token, evalType);
+			taskCache[evalType] = tasks;
+			discoveredTasks = tasks;
+		} catch (e) {
+			// Distinct from "the harness reported no tasks" — keep the two apart
+			// so an outage doesn't read as an empty catalog. The free-text
+			// fallback below keeps scheduling possible either way.
+			discoveredTasks = [];
+			tasksError = typeof e === 'string' ? e : $i18n.t('Could not list benchmarks.');
+		} finally {
+			tasksLoading = false;
+		}
+	};
+
+	let benchmarkOptions = $derived(
+		discoveredTasks.map((t) => ({
+			id: t.name,
+			name: prettyBenchmarkName(t.name),
+			category: t.category ?? 'other'
+		}))
+	);
+
+	let matchingBenchmarks = $derived(
+		benchmarkFilter.trim()
+			? benchmarkOptions.filter((b) => {
+					const q = benchmarkFilter.trim().toLowerCase();
+					return b.id.toLowerCase().includes(q) || b.name.toLowerCase().includes(q);
+			  })
+			: benchmarkOptions
+	);
+
+	// Always keep the bound value present, or bind:value would silently reset
+	// when the filter excludes the current selection.
+	let renderedBenchmarks = $derived(
+		(() => {
+			const shown = matchingBenchmarks.slice(0, MAX_RENDERED_BENCHMARKS);
+			if (runBenchmark && !shown.some((b) => b.id === runBenchmark)) {
+				const selected = benchmarkOptions.find((b) => b.id === runBenchmark);
+				shown.unshift(
+					selected ?? { id: runBenchmark, name: runBenchmark, category: 'selected' }
+				);
+			}
+			return shown;
+		})()
+	);
+
+	let benchmarkGroups = $derived(
+		(() => {
+			const groups: Record<string, { id: string; name: string; category: string }[]> = {};
+			for (const b of renderedBenchmarks) {
+				(groups[b.category] ??= []).push(b);
+			}
+			return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+		})()
+	);
+
+	let withheldBenchmarkCount = $derived(
+		Math.max(0, matchingBenchmarks.length - MAX_RENDERED_BENCHMARKS)
+	);
 
 	const statusColor = (s: string) => {
 		switch (s) {
@@ -141,10 +236,11 @@
 	};
 
 	const getBenchmarkName = (id: string) => {
-		if (!id.includes(',')) {
-			const allOptions = [...codeBenchmarkOptions, ...languageEvalBenchmarkOptions];
-			return allOptions.find((b) => b.id === id)?.name ?? id;
-		}
+		// Job rows are rendered before (and independently of) task discovery, so
+		// this resolves from the label maps rather than the discovered list —
+		// a historical job's benchmark must still read correctly even when the
+		// harness is unreachable.
+		if (!id.includes(',')) return prettyBenchmarkName(id);
 		// Comma-separated list — resolve to group name
 		const first = id.split(',')[0].trim();
 		for (const [prefix, label] of Object.entries(GROUP_NAMES)) {
@@ -242,19 +338,19 @@
 </script>
 
 {#if activeJob}
-	<LiveEvalView job={activeJob} on:back={() => { activeJob = null; }} />
+	<LiveEvalView job={activeJob} onBack={() => { activeJob = null; }} />
 {:else}
 <div class="mt-0.5 mb-2 gap-1 flex flex-col md:flex-row justify-between">
 	<div class="flex md:self-center text-lg font-medium px-0.5 shrink-0 items-center">
 		{$i18n.t('Schedule')}
 		{#if loaded}
-			<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+			<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 			<span class="text-sm font-normal text-gray-500">{jobs.length} {$i18n.t('jobs')}</span>
 		{/if}
 	</div>
 	<button
 		class="px-3 py-1.5 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
-		on:click={async () => { showRunForm = !showRunForm; if (showRunForm && modelItems.length === 0) await loadModels(); }}
+		onclick={async () => { showRunForm = !showRunForm; if (showRunForm) { if (modelItems.length === 0) await loadModels(); await loadTasks(runEvalType); } }}
 	>
 		{$i18n.t('Run Evaluation')}
 	</button>
@@ -264,7 +360,7 @@
 	<div class="mb-4 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
 		<div class="flex items-center justify-between mb-3">
 			<div class="font-medium text-sm">{$i18n.t('Start Ad-hoc Evaluation')}</div>
-			<button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition" on:click={() => { showRunForm = false; }}>
+			<button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition" onclick={() => { showRunForm = false; }}>
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4 text-gray-500">
 					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
 				</svg>
@@ -278,14 +374,14 @@
 					<button
 						type="button"
 						class="flex-1 px-3 py-1.5 rounded-xl text-sm font-medium border transition {runEvalType === 'code-eval' ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300' : 'bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400 hover:border-gray-300'}"
-						on:click={() => { runEvalType = 'code-eval'; runBenchmark = 'humaneval'; }}
+						onclick={async () => { runEvalType = 'code-eval'; runBenchmark = 'humaneval'; benchmarkFilter = ''; await loadTasks('code-eval'); }}
 					>
 						{$i18n.t('Code')}
 					</button>
 					<button
 						type="button"
 						class="flex-1 px-3 py-1.5 rounded-xl text-sm font-medium border transition {runEvalType === 'language-eval' ? 'bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300' : 'bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400 hover:border-gray-300'}"
-						on:click={() => { runEvalType = 'language-eval'; runBenchmark = 'leaderboard'; }}
+						onclick={async () => { runEvalType = 'language-eval'; runBenchmark = 'leaderboard'; benchmarkFilter = ''; await loadTasks('language-eval'); }}
 					>
 						{$i18n.t('Leaderboard')}
 					</button>
@@ -293,13 +389,64 @@
 			</div>
 
 			<div>
-				<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Benchmark')}</div>
-				<select class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800"
-					bind:value={runBenchmark}>
-					{#each benchmarkOptions as bm (bm.id)}
-						<option value={bm.id}>{bm.name}</option>
-					{/each}
-				</select>
+				<div class="flex items-center justify-between mb-1">
+					<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Benchmark')}</div>
+					{#if tasksLoading}
+						<div class="text-xs text-gray-400">{$i18n.t('Loading benchmarks…')}</div>
+					{:else if !tasksError && benchmarkOptions.length > 0}
+						<div class="text-xs text-gray-400">{benchmarkOptions.length} {$i18n.t('available')}</div>
+					{/if}
+				</div>
+
+				{#if tasksError}
+					<!-- Discovery failed. Rather than lock scheduling behind an unreachable
+					     harness, fall back to typing the task name directly. -->
+					<input
+						class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-hidden border border-red-300 dark:border-red-800"
+						placeholder={$i18n.t('Benchmark name (e.g. humaneval)')}
+						bind:value={runBenchmark}
+					/>
+					<div class="text-xs text-red-600 dark:text-red-400 mt-1">
+						{tasksError}
+						<button
+							type="button"
+							class="underline ml-1"
+							onclick={async () => { delete taskCache[runEvalType]; await loadTasks(runEvalType); }}
+						>
+							{$i18n.t('Retry')}
+						</button>
+					</div>
+				{:else}
+					{#if benchmarkOptions.length > 20}
+						<input
+							class="w-full rounded-xl px-3 py-1.5 mb-1 text-sm bg-gray-50 dark:bg-gray-850 dark:text-gray-100 outline-hidden border border-gray-200 dark:border-gray-800"
+							placeholder={$i18n.t('Filter benchmarks…')}
+							bind:value={benchmarkFilter}
+						/>
+					{/if}
+					<select
+						class="w-full rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 dark:text-gray-100 outline-hidden border border-gray-200 dark:border-gray-800"
+						bind:value={runBenchmark}
+					>
+						{#each benchmarkGroups as [category, items] (category)}
+							<optgroup label={category}>
+								{#each items as bm (bm.id)}
+									<option value={bm.id}>{bm.name}</option>
+								{/each}
+							</optgroup>
+						{/each}
+					</select>
+					{#if withheldBenchmarkCount > 0}
+						<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+							{$i18n.t('Showing the first')} {MAX_RENDERED_BENCHMARKS} — {withheldBenchmarkCount}
+							{$i18n.t('more match; type to narrow.')}
+						</div>
+					{:else if !tasksLoading && benchmarkOptions.length === 0}
+						<div class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+							{$i18n.t('The harness reported no benchmarks.')}
+						</div>
+					{/if}
+				{/if}
 			</div>
 
 			<div class="relative">
@@ -314,7 +461,7 @@
 					<button
 						type="button"
 						class="w-full rounded-xl px-3 py-2 text-sm text-left bg-gray-50 dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800 flex items-center justify-between"
-						on:click={() => { showModelDropdown = !showModelDropdown; modelSearch = ''; }}
+						onclick={() => { showModelDropdown = !showModelDropdown; modelSearch = ''; }}
 					>
 						<span class={runModelId ? '' : 'text-gray-400'}>
 							{runModelId ? (modelItems.find((m) => m.value === runModelId)?.label ?? runModelId) : $i18n.t('Select a model')}
@@ -328,7 +475,7 @@
 						<div class="absolute z-10 mt-1 w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg">
 							<div class="p-2">
 								<input
-									class="w-full rounded-lg px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-850 dark:text-gray-100 outline-none border border-gray-200 dark:border-gray-800"
+									class="w-full rounded-lg px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-850 dark:text-gray-100 outline-hidden border border-gray-200 dark:border-gray-800"
 									bind:value={modelSearch}
 									placeholder={$i18n.t('Search models...')}
 								/>
@@ -338,7 +485,7 @@
 									<button
 										type="button"
 										class="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition {runModelId === model.value ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
-										on:click={() => { runModelId = model.value; showModelDropdown = false; }}
+										onclick={() => { runModelId = model.value; showModelDropdown = false; }}
 									>
 										{model.label}
 									</button>
@@ -356,7 +503,7 @@
 					<input
 						type="checkbox"
 						bind:checked={runDryRun}
-						on:change={() => { if (runDryRun) showModelDropdown = false; }}
+						onchange={() => { if (runDryRun) showModelDropdown = false; }}
 						class="rounded border-gray-300 dark:border-gray-700 text-orange-500 focus:ring-orange-500 dark:bg-gray-900"
 					/>
 					<span class="text-xs font-medium {runDryRun ? 'text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400'}">
@@ -371,12 +518,12 @@
 			</div>
 
 			<div class="flex justify-end gap-2 pt-1">
-				<button class="px-3 py-1.5 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-850 transition" on:click={() => { showRunForm = false; }}>
+				<button class="px-3 py-1.5 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-850 transition" onclick={() => { showRunForm = false; }}>
 					{$i18n.t('Cancel')}
 				</button>
 				<button
 					class="px-4 py-1.5 rounded-xl text-sm font-medium {runDryRun ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'} text-white transition disabled:opacity-50"
-					on:click={handleStartRun} disabled={submitting || (!runDryRun && !runModelId.trim())}
+					onclick={handleStartRun} disabled={submitting || (!runDryRun && !runModelId.trim())}
 				>
 					{submitting ? $i18n.t('Starting...') : runDryRun ? $i18n.t('Start Test') : $i18n.t('Start')}
 				</button>
@@ -409,7 +556,7 @@
 				{#each jobs as job (job.id)}
 					<tr
 						class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 {['running', 'completed', 'failed', 'cancelled'].includes(job.status) ? 'cursor-pointer' : ''}"
-						on:click={() => { if (['running', 'completed', 'failed', 'cancelled'].includes(job.status)) activeJob = job; }}
+						onclick={() => { if (['running', 'completed', 'failed', 'cancelled'].includes(job.status)) activeJob = job; }}
 					>
 						<td class="px-3 py-2">
 							<span class="px-2 py-0.5 rounded-lg text-[11px] font-medium {statusColor(job.status)}">
@@ -432,18 +579,18 @@
 						<td class="px-3 py-2 text-gray-500">
 							{dayjs(job.created_at * 1000).fromNow()}
 						</td>
-						<td class="px-3 py-2 text-right" on:click|stopPropagation>
+						<td class="px-3 py-2 text-right" onclick={stopPropagation(bubble('click'))}>
 							<div class="flex items-center justify-end gap-1">
 								{#if job.status === 'pending'}
 									<Tooltip content={$i18n.t('Approve')}>
-										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleApprove(job.id)}>
+										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleApprove(job.id)}>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-green-500 hover:text-green-600">
 												<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
 											</svg>
 										</button>
 									</Tooltip>
 									<Tooltip content={$i18n.t('Reject')}>
-										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleReject(job.id)}>
+										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleReject(job.id)}>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-red-400 hover:text-red-500">
 												<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
 											</svg>
@@ -452,7 +599,7 @@
 								{/if}
 								{#if ['queued', 'running'].includes(job.status)}
 									<Tooltip content={$i18n.t('Cancel')}>
-										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleCancel(job.id)}>
+										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleCancel(job.id)}>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-500 hover:text-red-500">
 												<path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" clip-rule="evenodd" />
 											</svg>
@@ -461,7 +608,7 @@
 								{/if}
 								{#if ['completed', 'failed', 'cancelled'].includes(job.status)}
 									<Tooltip content={$i18n.t('Delete')}>
-										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" on:click={() => handleDelete(job.id)}>
+										<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition" onclick={() => handleDelete(job.id)}>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-gray-500 hover:text-red-500 transition">
 												<path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022 1.005 11.36A2.75 2.75 0 007.77 20h4.46a2.75 2.75 0 002.751-2.689l1.005-11.36.149.022a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 01.7.797l-.5 5.5a.75.75 0 01-1.494-.136l.5-5.5a.75.75 0 01.794-.66zm2.84 0a.75.75 0 01.794.66l.5 5.5a.75.75 0 01-1.494.137l-.5-5.5a.75.75 0 01.7-.798z" clip-rule="evenodd" />
 											</svg>

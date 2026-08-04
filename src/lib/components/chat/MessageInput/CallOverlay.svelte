@@ -3,9 +3,7 @@
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
 	import { config, models, settings, showCallOverlay } from '$lib/stores';
-	import { onMount, tick, getContext, onDestroy, createEventDispatcher } from 'svelte';
-
-	const dispatch = createEventDispatcher();
+	import { onMount, tick, getContext, onDestroy } from 'svelte';
 
 	import { blobToFile } from '$lib/utils';
 	import { generateEmoji } from '$lib/apis';
@@ -18,34 +16,50 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let eventTarget: EventTarget;
-	export let submitPrompt: AnyFn;
-	export let stopResponse: AnyFn;
-	export let files;
-	export let chatId;
-	export let modelId;
+	interface Props {
+		eventTarget: EventTarget;
+		submitPrompt: AnyFn;
+		stopResponse: AnyFn;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		files: any;
+		chatId: any;
+		modelId: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onClose?: AnyFn;
+	}
+
+	let {
+		eventTarget,
+		submitPrompt,
+		stopResponse,
+		// eslint-disable-next-line no-useless-assignment -- $bindable() default is reassigned once the parent's real value is observed
+		files = $bindable(),
+		chatId,
+		modelId,
+		onClose = () => {}
+	}: Props = $props();
 
 	let wakeLock = null;
 
-	let model = null;
+	let model = $state(null);
 
-	let loading = false;
+	let loading = $state(false);
 	let confirmed = false;
-	let assistantSpeaking = false;
+	let assistantSpeaking = $state(false);
 
-	let emoji = null;
-	let camera = false;
-	let cameraStream = null;
+	let emoji = $state(null);
+	let camera = $state(false);
+	let cameraStream = $state(null);
 
 	let chatStreaming = false;
-	let rmsLevel = 0;
+	let rmsLevel = $state(0);
 	let hasStartedSpeaking = false;
 	let mediaRecorder;
-	let audioStream = null;
+	let audioStream = $state(null);
 	let audioChunks = [];
 
-	let videoInputDevices = [];
-	let selectedVideoInputDeviceId = null;
+	let videoInputDevices = $state([]);
+	let selectedVideoInputDeviceId = $state(null);
 
 	const getVideoInputDevices = async () => {
 		const devices = await navigator.mediaDevices.enumerateDevices();
@@ -673,7 +687,7 @@
 			<button
 				type="button"
 				class="flex justify-center items-center w-full h-20 min-h-20"
-				on:click={() => {
+				onclick={() => {
 					if (assistantSpeaking) {
 						stopAllAudio();
 					}
@@ -745,7 +759,7 @@
 						'/static/favicon.png'
 							? `background-image: url('${model?.info?.meta?.profile_image_url}');`
 							: ''}
-					/>
+					></div>
 				{/if}
 				<!-- navbar -->
 			</button>
@@ -755,7 +769,7 @@
 			{#if !camera}
 				<button
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						if (assistantSpeaking) {
 							stopAllAudio();
 						}
@@ -827,7 +841,7 @@
 							'/static/favicon.png'
 								? `background-image: url('${model?.info?.meta?.profile_image_url}');`
 								: ''}
-						/>
+						></div>
 					{/if}
 				</button>
 			{:else}
@@ -843,13 +857,13 @@
 						<track kind="captions" />
 					</video>
 
-					<canvas id="camera-canvas" style="display:none;" />
+					<canvas id="camera-canvas" style="display:none;"></canvas>
 
 					<div class=" absolute top-4 md:top-8 left-4">
 						<button
 							type="button"
 							class="p-1.5 text-white cursor-pointer backdrop-blur-xl bg-black/10 rounded-full"
-							on:click={() => {
+							onclick={() => {
 								stopCamera();
 							}}
 						>
@@ -874,9 +888,9 @@
 				{#if camera}
 					<VideoInputMenu
 						devices={videoInputDevices}
-						on:change={async (e) => {
-							console.log(e.detail);
-							selectedVideoInputDeviceId = e.detail;
+						onChange={async (deviceId) => {
+							console.log(deviceId);
+							selectedVideoInputDeviceId = deviceId;
 							await stopVideoStream();
 							await startVideoStream();
 						}}
@@ -901,7 +915,7 @@
 						<button
 							class=" p-3 rounded-full bg-gray-50 dark:bg-gray-900"
 							type="button"
-							on:click={async () => {
+							onclick={async () => {
 								await navigator.mediaDevices.getUserMedia({ video: true });
 								startCamera();
 							}}
@@ -933,7 +947,7 @@
 			<div>
 				<button
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						if (assistantSpeaking) {
 							stopAllAudio();
 						}
@@ -954,7 +968,7 @@
 			<div>
 				<button
 					class=" p-3 rounded-full bg-gray-50 dark:bg-gray-900"
-					on:click={async () => {
+					onclick={async () => {
 						await stopAudioStream();
 						await stopVideoStream();
 
@@ -962,7 +976,7 @@
 						console.log(cameraStream);
 
 						showCallOverlay.set(false);
-						dispatch('close');
+						onClose();
 					}}
 					type="button"
 				>

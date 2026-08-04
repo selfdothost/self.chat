@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher } from 'svelte';
 	import { getContext } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 
 	import Modal from '../../common/Modal.svelte';
 	import {
@@ -16,18 +18,29 @@
 	import Valves from '$lib/components/common/Valves.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let show = false;
 
-	export let type = 'tool';
-	export let id = null;
+	interface Props {
+		show?: boolean;
+		type?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		id?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onSave?: AnyFn;
+	}
 
-	let saving = false;
-	let loading = false;
+	let {
+		show = $bindable(false),
+		type = 'tool',
+		id = null,
+		onSave = () => {}
+	}: Props = $props();
 
-	let valvesSpec = null;
-	let valves = {};
+	let saving = $state(false);
+	let loading = $state(false);
+
+	let valvesSpec = $state(null);
+	let valves = $state({});
 
 	const submitHandler = async () => {
 		saving = true;
@@ -54,7 +67,7 @@
 
 			if (res) {
 				toast.success('Valves updated successfully');
-				dispatch('save');
+				onSave();
 			}
 		}
 
@@ -90,9 +103,11 @@
 		loading = false;
 	};
 
-	$: if (show) {
-		initHandler();
-	}
+	$effect(() => {
+		if (show) {
+			initHandler();
+		}
+	});
 </script>
 
 <Modal size="sm" bind:show>
@@ -101,7 +116,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Valves')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -122,9 +137,9 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit|preventDefault={() => {
+					onsubmit={preventDefault(() => {
 						submitHandler();
-					}}
+					})}
 				>
 					<div class="px-1">
 						{#if !loading}

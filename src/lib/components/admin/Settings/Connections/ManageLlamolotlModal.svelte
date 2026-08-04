@@ -24,27 +24,31 @@
 	import ModelDeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 
-	export let show = false;
-	export let urlIdx: number | null = null;
+	interface Props {
+		show?: boolean;
+		urlIdx?: number | null;
+	}
 
-	let showModelDeleteConfirm = false;
-	let loading = true;
+	let { show = $bindable(false), urlIdx = null }: Props = $props();
 
-	let availableModels: { name: string; size: number; modified: number; registered?: boolean; shards?: number; hf_repo?: string; quant?: string; trainable?: boolean; source_type?: string; pulled_at?: string; bake_info?: { base_model: string; adapters: { path: string; weight: number }[]; outtype: string; quant_type?: string; baked_at: string } }[] = [];
+	let showModelDeleteConfirm = $state(false);
+	let loading = $state(true);
+
+	let availableModels: { name: string; size: number; modified: number; registered?: boolean; shards?: number; hf_repo?: string; quant?: string; trainable?: boolean; source_type?: string; pulled_at?: string; bake_info?: { base_model: string; adapters: { path: string; weight: number }[]; outtype: string; quant_type?: string; baked_at: string } }[] = $state([]);
 
 	const MAX_PARALLEL_DOWNLOADS = 3;
 
-	let modelTransferring = false;
-	let modelTag = '';
-	let selectedFilename: string | null = null;
-	let availableFiles: string[] = [];
-	let showFileSelector = false;
+	let modelTransferring = $state(false);
+	let modelTag = $state('');
+	let selectedFilename: string | null = $state(null);
+	let availableFiles: string[] = $state([]);
+	let showFileSelector = $state(false);
 
-	let inspecting = false;
-	let showDownloadConfirm = false;
-	let downloadInfo: ModelInspectResult | null = null;
+	let inspecting = $state(false);
+	let showDownloadConfirm = $state(false);
+	let downloadInfo: ModelInspectResult | null = $state(null);
 
-	let deleteModelName = '';
+	let deleteModelName = $state('');
 
 	const pullModelHandler = async () => {
 		const sanitizedModelTag = modelTag.trim();
@@ -319,14 +323,16 @@
 		loading = false;
 	};
 
-	$: if (show) {
-		init();
-	}
+	$effect(() => {
+		if (show) {
+			init();
+		}
+	});
 </script>
 
 <ModelDeleteConfirmDialog
 	bind:show={showModelDeleteConfirm}
-	on:confirm={() => {
+	onConfirm={() => {
 		deleteModelHandler();
 	}}
 />
@@ -337,13 +343,13 @@
 			<div
 				class="flex w-full justify-between items-center text-lg font-medium self-center font-primary"
 			>
-				<div class=" flex-shrink-0">
+				<div class=" shrink-0">
 					{$i18n.t('Manage Llamolotl')}
 				</div>
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -372,7 +378,7 @@
 								<div class="flex w-full">
 									<div class="flex-1 mr-2">
 										<input
-											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 											placeholder={$i18n.t('Enter HuggingFace repo (e.g. {{modelTag}})', {
 												modelTag: 'bartowski/Llama-3.2-1B-Instruct-GGUF'
 											})}
@@ -381,7 +387,7 @@
 									</div>
 									<button
 										class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-										on:click={() => {
+										onclick={() => {
 											pullModelHandler();
 										}}
 										disabled={modelTransferring}
@@ -456,7 +462,7 @@
 									{#if singleFile}
 										<div class="flex justify-between text-sm dark:text-gray-200">
 											<span class="truncate mr-2 text-gray-600 dark:text-gray-400">{downloadInfo.files[0].name}</span>
-											<span class="flex-shrink-0 font-semibold">
+											<span class="shrink-0 font-semibold">
 												{downloadInfo.files[0].size > 0 ? (downloadInfo.files[0].size / 1024 ** 3).toFixed(2) + ' GB' : '?'}
 											</span>
 										</div>
@@ -466,10 +472,10 @@
 											{#each downloadInfo.files as file (file.name)}
 												<button
 													class="w-full flex justify-between items-center text-xs py-1.5 px-2 rounded transition text-left {selectedFilename === file.name ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'}"
-													on:click={() => { selectedFilename = file.name; }}
+													onclick={() => { selectedFilename = file.name; }}
 												>
 													<span class="truncate mr-2">{file.name}</span>
-													<span class="flex-shrink-0">
+													<span class="shrink-0">
 														{file.size > 0 ? (file.size / 1024 ** 3).toFixed(2) + ' GB' : '?'}
 													</span>
 												</button>
@@ -487,7 +493,7 @@
 												{#each downloadInfo.files as file (file.name)}
 													<div class="flex justify-between text-xs py-0.5">
 														<span class="truncate mr-2 text-gray-500 dark:text-gray-400">{file.name}</span>
-														<span class="flex-shrink-0 text-gray-600 dark:text-gray-300">
+														<span class="shrink-0 text-gray-600 dark:text-gray-300">
 															{file.size > 0 ? (file.size / 1024 ** 3).toFixed(2) + ' GB' : '?'}
 														</span>
 													</div>
@@ -498,13 +504,13 @@
 									<div class="flex justify-end gap-2 pt-1 border-t border-gray-200 dark:border-gray-700">
 										<button
 											class="px-3 py-1 text-xs rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 transition"
-											on:click={cancelDownloadInspect}
+											onclick={cancelDownloadInspect}
 										>
 											{$i18n.t('Cancel')}
 										</button>
 										<button
 											class="px-3 py-1 text-xs rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
-											on:click={confirmAndPull}
+											onclick={confirmAndPull}
 											disabled={!singleFile && downloadInfo.type === 'gguf' && !selectedFilename}
 										>
 											{$i18n.t('Download')}
@@ -522,7 +528,7 @@
 											{#each availableFiles as file (file)}
 												<button
 													class="w-full text-left rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-													on:click={() => {
+													onclick={() => {
 														selectFileAndPull(file);
 													}}
 												>
@@ -570,7 +576,7 @@
 														<Tooltip content={$i18n.t('Cancel')}>
 															<button
 																class="text-gray-800 dark:text-gray-100"
-																on:click={() => {
+																onclick={() => {
 																	cancelModelPullHandler(model);
 																}}
 															>
@@ -653,7 +659,7 @@
 												<Tooltip content={$i18n.t('Register')}>
 													<button
 														class="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition"
-														on:click={() => {
+														onclick={() => {
 															registerModelHandler(model.name);
 														}}
 													>
@@ -671,7 +677,7 @@
 								<div class="flex w-full">
 									<div class="flex-1 mr-2">
 										<select
-											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 											bind:value={deleteModelName}
 											placeholder={$i18n.t('Select a model')}
 										>
@@ -695,7 +701,7 @@
 									</div>
 									<button
 										class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-										on:click={() => {
+										onclick={() => {
 											showModelDeleteConfirm = true;
 										}}
 									>

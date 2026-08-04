@@ -1,4 +1,6 @@
 <script>
+	import { preventDefault } from 'svelte/legacy';
+
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { getContext } from 'svelte';
@@ -10,11 +12,11 @@
 	import { knowledge } from '$lib/stores';
 	import AccessControl from '../common/AccessControl.svelte';
 
-	let loading = false;
+	let loading = $state(false);
 
-	let name = '';
-	let description = '';
-	let accessControl = null;
+	let name = $state('');
+	let description = $state('');
+	let accessControl = $state(null);
 
 	const submitHandler = async () => {
 		loading = true;
@@ -49,7 +51,7 @@
 <div class="w-full max-h-full">
 	<button
 		class="flex space-x-1"
-		on:click={() => {
+		onclick={() => {
 			goto(resolve('/(app)/workspace/knowledge'));
 		}}
 	>
@@ -72,9 +74,9 @@
 
 	<form
 		class="flex flex-col max-w-lg mx-auto mt-10 mb-10"
-		on:submit|preventDefault={() => {
+		onsubmit={preventDefault(() => {
 			submitHandler();
-		}}
+		})}
 	>
 		<div class=" w-full flex flex-col justify-center">
 			<div class=" text-2xl font-medium font-primary mb-2.5">
@@ -87,7 +89,7 @@
 
 					<div class="w-full mt-1">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="text"
 							bind:value={name}
 							placeholder={$i18n.t('Name your knowledge base')}
@@ -101,12 +103,12 @@
 
 					<div class=" w-full mt-1">
 						<textarea
-							class="w-full resize-none rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full resize-none rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							rows="4"
 							bind:value={description}
 							placeholder={$i18n.t('Describe your knowledge base and objectives')}
 							required
-						/>
+						></textarea>
 					</div>
 				</div>
 			</div>

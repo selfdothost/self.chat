@@ -8,7 +8,7 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let tags = [];
+	let { tags = [] } = $props();
 </script>
 
 <div class="flex flex-row flex-wrap gap-1 line-clamp-1">

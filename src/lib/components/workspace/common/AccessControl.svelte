@@ -12,12 +12,18 @@
 	import UserCircleSolid from '$lib/components/icons/UserCircleSolid.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 
-	export let onChange: AnyFn = () => {};
 
-	export let accessControl = null;
+	interface Props {
+		onChange?: AnyFn;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		accessControl?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
 
-	let selectedGroupId = '';
-	let groups = [];
+	let { onChange = () => {}, accessControl = $bindable(null) }: Props = $props();
+
+	let selectedGroupId = $state('');
+	let groups = $state([]);
 
 	onMount(async () => {
 		groups = await getGroups(localStorage.token);
@@ -38,7 +44,9 @@
 		}
 	});
 
-	$: onChange(accessControl);
+	$effect(() => {
+		onChange(accessControl);
+	});
 </script>
 
 <div class=" rounded-lg flex flex-col gap-2">
@@ -85,9 +93,9 @@
 			<div>
 				<select
 					id="models"
-					class="outline-none bg-transparent text-sm font-medium rounded-lg block w-fit pr-10 max-w-full placeholder-gray-400"
+					class="outline-hidden bg-transparent text-sm font-medium rounded-lg block w-fit pr-10 max-w-full placeholder-gray-400"
 					value={accessControl !== null ? 'private' : 'public'}
-					on:change={(e) => {
+					onchange={(e) => {
 						if ((e.target as HTMLSelectElement).value === 'public') {
 							accessControl = null;
 						} else {
@@ -144,7 +152,7 @@
 									<button
 										class=" rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-850 transition"
 										type="button"
-										on:click={() => {
+										onclick={() => {
 											accessControl.read.group_ids = accessControl.read.group_ids.filter(
 												(id) => id !== group.id
 											);
@@ -172,7 +180,7 @@
 					<div class="flex flex-1 items-center">
 						<div class="w-full">
 							<select
-								class="outline-none bg-transparent text-sm font-medium rounded-lg block w-full pr-10 max-w-full dark:placeholder-gray-700"
+								class="outline-hidden bg-transparent text-sm font-medium rounded-lg block w-full pr-10 max-w-full dark:placeholder-gray-700"
 								bind:value={selectedGroupId}
 							>
 								<option class=" text-gray-700" value="" disabled selected
@@ -188,7 +196,7 @@
 								<button
 									class=" p-1 rounded-xl bg-transparent dark:hover:bg-white/5 hover:bg-black/5 transition font-medium text-sm flex items-center space-x-1"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										if (selectedGroupId !== '') {
 											accessControl.read.group_ids = [
 												...accessControl.read.group_ids,

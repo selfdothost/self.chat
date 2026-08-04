@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import { io } from 'socket.io-client';
 	import { spring } from 'svelte/motion';
 
@@ -26,7 +26,7 @@
 	} from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Toaster, toast } from 'svelte-sonner';
 
 	import { getBackendConfig } from '$lib/apis';
@@ -42,12 +42,17 @@
 	import { bestMatchingLanguage } from '$lib/utils';
 	import { getAllTags, getChatList } from '$lib/apis/chats';
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
+	interface Props {
+		children?: import('svelte').Snippet;
+	}
+
+	let { children }: Props = $props();
 
 	setContext('i18n', i18n);
 
 	const bc = new BroadcastChannel('active-tab-channel');
 
-	let loaded = false;
+	let loaded = $state(false);
 
 	const BREAKPOINT = 768;
 
@@ -68,10 +73,6 @@
 			console.log('connect_error', err);
 		});
 
-		_socket.on('connect', () => {
-			console.log('connected', _socket.id);
-		});
-
 		_socket.on('reconnect_attempt', (attempt) => {
 			console.log('reconnect_attempt', attempt);
 		});
@@ -88,12 +89,10 @@
 		});
 
 		_socket.on('user-list', (data) => {
-			console.log('user-list', data);
 			activeUserIds.set(data.user_ids);
 		});
 
 		_socket.on('usage', (data) => {
-			console.log('usage', data);
 			USAGE_POOL.set(data['models']);
 		});
 	};
@@ -143,7 +142,7 @@
 
 	const channelEventHandler = async (event) => {
 		// check url path
-		const channel = $page.url.pathname.includes(`/channels/${event.channel_id}`);
+		const channel = page.url.pathname.includes(`/channels/${event.channel_id}`);
 
 		if ((!channel || document.visibilityState !== 'visible') && event?.user?.id !== $user?.id) {
 			await tick();
@@ -223,7 +222,6 @@
 		let backendConfig = null;
 		try {
 			backendConfig = await getBackendConfig();
-			console.log('Backend config:', backendConfig);
 		} catch (error) {
 			console.error('Error loading backend config:', error);
 		}
@@ -274,7 +272,7 @@
 				} else {
 					// Don't redirect if we're already on the auth page
 					// Needed because we pass in tokens from OAuth logins via URL fragments
-					if ($page.url.pathname !== '/auth') {
+					if (page.url.pathname !== '/auth') {
 						await goto(resolve('/auth'));
 					}
 				}
@@ -329,7 +327,7 @@
 </svelte:head>
 
 {#if loaded}
-	<slot />
+	{@render children?.()}
 {/if}
 
 <Toaster

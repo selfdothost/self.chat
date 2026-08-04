@@ -67,114 +67,64 @@
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
 
-	export let chatIdProp = '';
+	interface Props {
+		chatIdProp?: string;
+	}
 
-	let loaded = false;
+	let { chatIdProp = '' }: Props = $props();
+
+	let loaded = $state(false);
 	const eventTarget = new EventTarget();
-	let controlPane = null;
-	let controlPaneComponent;
+	let controlPane = $state(null);
+	let controlPaneComponent: ChatControls | undefined = $state();
 
-	let autoScroll = true;
-	let messagesContainerElement: HTMLDivElement;
+	let autoScroll = $state(true);
+	let messagesContainerElement: HTMLDivElement = $state();
 
-	let navbarElement;
+	let navbarElement: Navbar | undefined = $state();
 
-	let showEventConfirmation = false;
-	let eventConfirmationTitle = '';
-	let eventConfirmationMessage = '';
-	let eventConfirmationInput = false;
-	let eventConfirmationInputPlaceholder = '';
-	let eventConfirmationInputValue = '';
-	let eventCallback = null;
+	let showEventConfirmation = $state(false);
+	let eventConfirmationTitle = $state('');
+	let eventConfirmationMessage = $state('');
+	let eventConfirmationInput = $state(false);
+	let eventConfirmationInputPlaceholder = $state('');
+	let eventConfirmationInputValue = $state('');
+	let eventCallback = $state(null);
 
 	let chatIdUnsubscriber: Unsubscriber | undefined;
 
-	let selectedModels: string[] = [''];
-	let atSelectedModel: Model | undefined;
-	let selectedModelIds;
-	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
+	let selectedModels: string[] = $state(['']);
+	let atSelectedModel: Model | undefined = $state();
+	let selectedModelIds = $derived(atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels);
 
-	let selectedToolIds = [];
-	let webSearchEnabled = false;
+	let selectedToolIds = $state([]);
+	let webSearchEnabled = $state(false);
 	// Its own toggle, not part of Web Search: crawling is a different capability
 	// with a different cost. See selfai/self.ai middleware `deep_research_enabled`.
-	let deepResearchEnabled = false;
-	let webCrawlEnabled = false;
+	let deepResearchEnabled = $state(false);
+	let webCrawlEnabled = $state(false);
 	/** Destination KB for Web Crawl. '' = unconfigured; the tool isn't offered without it. */
-	let webCrawlKbId = '';
+	let webCrawlKbId = $state('');
 
 	let chat = null;
 
-	let history = {
+	let history = $state({
 		messages: {},
 		currentId: null
-	};
+	});
 
 	let taskId = null;
 
 	// Chat Input
-	let prompt = '';
-	let chatFiles = [];
-	let files = [];
+	let prompt = $state('');
+	let chatFiles = $state([]);
+	let files = $state([]);
 	// Advanced model params bag (stream_response, system, stop, seed, etc.) --
 	// genuinely dynamic, keyed by whatever the selected model's advanced
 	// params UI (AdvancedParams.svelte) exposes.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let params: Record<string, any> = {};
+	let params: Record<string, any> = $state({});
 
-	// Assignments run inside an async IIFE triggered by this block; none of
-	// them (loaded/prompt/files/selectedToolIds/webSearchEnabled) are part of
-	// the block's own condition (`chatIdProp`), so they can't retrigger this
-	// reactive statement -- not an infinite loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (chatIdProp) {
-		(async () => {
-			console.log(chatIdProp);
-
-			prompt = '';
-			files = [];
-			selectedToolIds = [];
-			webSearchEnabled = false;
-			deepResearchEnabled = false;
-			webCrawlEnabled = false;
-			webCrawlKbId = '';
-
-			loaded = false;
-
-			if (chatIdProp && (await loadChat())) {
-				await tick();
-				loaded = true;
-
-				if (localStorage.getItem(`chat-input-${chatIdProp}`)) {
-					try {
-						const input = JSON.parse(localStorage.getItem(`chat-input-${chatIdProp}`));
-
-						prompt = input.prompt;
-						files = input.files;
-						selectedToolIds = input.selectedToolIds;
-						webSearchEnabled = input.webSearchEnabled;
-						deepResearchEnabled = input.deepResearchEnabled ?? false;
-						webCrawlEnabled = input.webCrawlEnabled ?? false;
-						webCrawlKbId = input.webCrawlKbId ?? '';
-					} catch {
-						// Corrupt/unparsable saved draft — leave the already-reset
-						// prompt/files/etc. defaults in place rather than restoring.
-					}
-				}
-
-				window.setTimeout(() => scrollToBottom(), 0);
-				const chatInput = document.getElementById('chat-input');
-				chatInput?.focus();
-			} else {
-				await goto(resolve('/'));
-			}
-		})();
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
-
-	$: if (selectedModels && chatIdProp !== '') {
-		saveSessionSelectedModels();
-	}
 
 	const saveSessionSelectedModels = () => {
 		if (selectedModels.length === 0 || (selectedModels.length === 1 && selectedModels[0] === '')) {
@@ -184,14 +134,11 @@
 		console.log('saveSessionSelectedModels', selectedModels, sessionStorage.selectedModels);
 	};
 
-	$: if (selectedModels) {
-		setToolIds();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const setToolIds = async () => {
 		if (!$tools) {
 			tools.set(await getTools(localStorage.token));
@@ -1906,6 +1853,68 @@
 			}
 		}
 	};
+	
+	// Assignments run inside an async IIFE triggered by this block; none of
+	// them (loaded/prompt/files/selectedToolIds/webSearchEnabled) are part of
+	// the block's own condition (`chatIdProp`), so they can't retrigger this
+	// reactive statement -- not an infinite loop.
+	$effect(() => {
+		if (chatIdProp) {
+			(async () => {
+				console.log(chatIdProp);
+
+				prompt = '';
+				files = [];
+				selectedToolIds = [];
+				webSearchEnabled = false;
+				deepResearchEnabled = false;
+				webCrawlEnabled = false;
+				webCrawlKbId = '';
+
+				loaded = false;
+
+				if (chatIdProp && (await loadChat())) {
+					await tick();
+					loaded = true;
+
+					if (localStorage.getItem(`chat-input-${chatIdProp}`)) {
+						try {
+							const input = JSON.parse(localStorage.getItem(`chat-input-${chatIdProp}`));
+
+							prompt = input.prompt;
+							files = input.files;
+							selectedToolIds = input.selectedToolIds;
+							webSearchEnabled = input.webSearchEnabled;
+							deepResearchEnabled = input.deepResearchEnabled ?? false;
+							webCrawlEnabled = input.webCrawlEnabled ?? false;
+							webCrawlKbId = input.webCrawlKbId ?? '';
+						} catch {
+							// Corrupt/unparsable saved draft — leave the already-reset
+							// prompt/files/etc. defaults in place rather than restoring.
+						}
+					}
+
+					window.setTimeout(() => scrollToBottom(), 0);
+					const chatInput = document.getElementById('chat-input');
+					chatInput?.focus();
+				} else {
+					await goto(resolve('/'));
+				}
+			})();
+		}
+	});
+	 
+
+	$effect(() => {
+		if (selectedModels && chatIdProp !== '') {
+			saveSessionSelectedModels();
+		}
+	});
+	$effect(() => {
+		if (selectedModels) {
+			setToolIds();
+		}
+	});
 </script>
 
 <svelte:head>
@@ -1916,7 +1925,7 @@
 	</title>
 </svelte:head>
 
-<audio id="audioElement" src="" style="display: none;" />
+<audio id="audioElement" src="" style="display: none;"></audio>
 
 <EventConfirmDialog
 	bind:show={showEventConfirmation}
@@ -1925,14 +1934,14 @@
 	input={eventConfirmationInput}
 	inputPlaceholder={eventConfirmationInputPlaceholder}
 	inputValue={eventConfirmationInputValue}
-	on:confirm={(e) => {
-		if (e.detail) {
-			eventCallback(e.detail);
+	onConfirm={(inputValue) => {
+		if (inputValue) {
+			eventCallback(inputValue);
 		} else {
 			eventCallback(true);
 		}
 	}}
-	on:cancel={() => {
+	onCancel={() => {
 		eventCallback(false);
 	}}
 />
@@ -1950,11 +1959,11 @@
 					? 'md:max-w-[calc(100%-260px)] md:translate-x-[260px]'
 					: ''} top-0 left-0 w-full h-full bg-cover bg-center bg-no-repeat"
 				style="background-image: url({$settings.backgroundImageUrl})  "
-			/>
+			></div>
 
 			<div
-				class="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-white to-white/85 dark:from-gray-900 dark:to-[#171717]/90 z-0"
-			/>
+				class="absolute top-0 left-0 w-full h-full bg-linear-to-t from-white to-white/85 dark:from-gray-900 dark:to-[#171717]/90 z-0"
+			></div>
 		{/if}
 
 		<Navbar
@@ -1983,9 +1992,7 @@
 							{#each $banners.filter( (b) => (b.dismissible ? !JSON.parse(localStorage.getItem('dismissedBannerIds') ?? '[]').includes(b.id) : true) ) as banner (banner.id)}
 								<Banner
 									{banner}
-									on:dismiss={(e) => {
-										const bannerId = e.detail;
-
+									onDismiss={(bannerId) => {
 										localStorage.setItem(
 											'dismissedBannerIds',
 											JSON.stringify(
@@ -2008,7 +2015,7 @@
 							class=" pb-2.5 flex flex-col justify-between w-full flex-auto overflow-auto h-0 max-w-full z-10 scrollbar-hidden"
 							id="messages-container"
 							bind:this={messagesContainerElement}
-							on:scroll={(_e) => {
+							onscroll={(_e) => {
 								autoScroll =
 									messagesContainerElement.scrollHeight - messagesContainerElement.scrollTop <=
 									messagesContainerElement.clientHeight + 5;
@@ -2103,8 +2110,8 @@
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{stopResponse}
 								{createMessagePair}
-								on:upload={async (e) => {
-									const { type, data } = e.detail;
+								onUpload={async (detail) => {
+									const { type, data } = detail;
 
 									if (type === 'web') {
 										await uploadWeb(data);
@@ -2112,13 +2119,13 @@
 										await uploadYoutubeTranscription(data);
 									}
 								}}
-								on:submit={async (e) => {
-									if (e.detail) {
+								onSubmit={async (detail) => {
+									if (detail) {
 										await tick();
 										submitPrompt(
 											($settings?.richTextInput ?? true)
-												? e.detail.replaceAll('\n\n', '\n')
-												: e.detail
+												? detail.replaceAll('\n\n', '\n')
+												: detail
 										);
 									}
 								}}

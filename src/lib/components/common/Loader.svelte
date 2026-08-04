@@ -1,8 +1,14 @@
 <script lang="ts">
-	import { createEventDispatcher, onDestroy, onMount } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { onDestroy, onMount } from 'svelte';
+	import type { AnyFn } from '$lib/types';
+	interface Props {
+		children?: import('svelte').Snippet;
+		onVisible?: AnyFn;
+	}
 
-	let loaderElement: HTMLElement;
+	let { children, onVisible = () => {} }: Props = $props();
+
+	let loaderElement: HTMLElement = $state();
 
 	let observer;
 	let intervalId;
@@ -12,11 +18,20 @@
 			(entries, _observer) => {
 				entries.forEach((entry) => {
 					if (entry.isIntersecting) {
+						// Clear any interval already running before starting a new one --
+						// without this, every intersection crossing leaks another
+						// concurrent 100ms interval (never reachable again to clear),
+						// each one independently re-triggering onVisible() and its
+						// scroll/render side effects forever. Confirmed live: this
+						// compounded a chat view from ~26MB to 4GB+ of heap within
+						// ~20 seconds of opening any chat long enough to scroll the
+						// loader in and out of view.
+						if (intervalId) {
+							clearInterval(intervalId);
+						}
 						intervalId = setInterval(() => {
-							dispatch('visible');
+							onVisible();
 						}, 100);
-						// dispatch('visible');
-						// observer.unobserve(loaderElement); // Stop observing until content is loaded
 					} else {
 						clearInterval(intervalId);
 					}
@@ -42,5 +57,5 @@
 </script>
 
 <div bind:this={loaderElement}>
-	<slot />
+	{@render children?.()}
 </div>

@@ -1,11 +1,12 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 
-	import { onMount, getContext, createEventDispatcher } from 'svelte';
-
-	const dispatch = createEventDispatcher();
+	import { onMount, getContext } from 'svelte';
 
 	import { getQuerySettings, updateQuerySettings, resetVectorDB, getEmbeddingConfig, updateEmbeddingConfig, getRerankingConfig, updateRerankingConfig, getRAGConfig, updateRAGConfig } from '$lib/apis/retrieval';
 
@@ -20,43 +21,49 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let updateEmbeddingModelLoading = false;
-	let updateRerankingModelLoading = false;
+	interface Props {
+		onSave?: AnyFn;
+	}
 
-	let showResetConfirm = false;
-	let showResetUploadDirConfirm = false;
+	let { onSave = () => {} }: Props = $props();
 
-	let embeddingEngine = '';
-	let embeddingModel = '';
-	let embeddingBatchSize = 1;
-	let rerankingModel = '';
+	let updateEmbeddingModelLoading = $state(false);
+	let updateRerankingModelLoading = $state(false);
 
-	let fileMaxSize = null;
-	let fileMaxCount = null;
+	let showResetConfirm = $state(false);
+	let showResetUploadDirConfirm = $state(false);
 
-	let contentExtractionEngine = 'default';
-	let tikaServerUrl = '';
-	let showTikaServerUrl = false;
+	let embeddingEngine = $state('');
+	let embeddingModel = $state('');
+	let embeddingBatchSize = $state(1);
+	let rerankingModel = $state('');
 
-	let textSplitter = '';
-	let chunkSize = 0;
-	let chunkOverlap = 0;
-	let pdfExtractImages = true;
+	let fileMaxSize = $state(null);
+	let fileMaxCount = $state(null);
 
-	let enableGoogleDriveIntegration = false;
+	let contentExtractionEngine = $state('default');
+	let tikaServerUrl = $state('');
+	let showTikaServerUrl = $state(false);
 
-	let OpenAIUrl = '';
-	let OpenAIKey = '';
+	let textSplitter = $state('');
+	let chunkSize = $state(0);
+	let chunkOverlap = $state(0);
+	let pdfExtractImages = $state(true);
 
-	let OllamaUrl = '';
-	let OllamaKey = '';
+	let enableGoogleDriveIntegration = $state(false);
 
-	let querySettings = {
+	let OpenAIUrl = $state('');
+	let OpenAIKey = $state('');
+
+	let OllamaUrl = $state('');
+	let OllamaKey = $state('');
+
+	let querySettings = $state({
 		template: '',
 		r: 0.0,
 		k: 4,
 		hybrid: false
-	};
+	});
 
 	const embeddingModelUpdateHandler = async () => {
 		if (embeddingEngine === '' && embeddingModel.split('/').length - 1 > 1) {
@@ -192,7 +199,7 @@
 
 		await updateQuerySettings(localStorage.token, querySettings);
 
-		dispatch('save');
+		onSave();
 	};
 
 	const setEmbeddingConfig = async () => {
@@ -253,7 +260,7 @@
 
 <ResetUploadDirConfirmDialog
 	bind:show={showResetUploadDirConfirm}
-	on:confirm={async () => {
+	onConfirm={async () => {
 		const res = await deleteAllFiles(localStorage.token).catch((error) => {
 			toast.error(error);
 			return null;
@@ -267,7 +274,7 @@
 
 <ResetVectorDBConfirmDialog
 	bind:show={showResetConfirm}
-	on:confirm={() => {
+	onConfirm={() => {
 		const res = resetVectorDB(localStorage.token).catch((error) => {
 			toast.error(error);
 			return null;
@@ -281,9 +288,9 @@
 
 <form
 	class="flex flex-col h-full justify-between space-y-3 text-sm"
-	on:submit|preventDefault={() => {
+	onsubmit={preventDefault(() => {
 		submitHandler();
-	}}
+	})}
 >
 	<div class=" space-y-2.5 overflow-y-scroll scrollbar-hidden h-full pr-1.5">
 		<div class="flex flex-col gap-0.5">
@@ -293,10 +300,10 @@
 				<div class=" self-center text-xs font-medium">{$i18n.t('Embedding Model Engine')}</div>
 				<div class="flex items-center relative">
 					<select
-						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 						bind:value={embeddingEngine}
 						placeholder="Select an embedding model engine"
-						on:change={(e) => {
+						onchange={(e) => {
 							const value = (e.target as HTMLSelectElement).value;
 							if (value === 'ollama') {
 								embeddingModel = '';
@@ -317,7 +324,7 @@
 			{#if embeddingEngine === 'openai'}
 				<div class="my-0.5 flex gap-2 pr-2">
 					<input
-						class="flex-1 w-full rounded-lg text-sm bg-transparent outline-none"
+						class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
 						placeholder={$i18n.t('API Base URL')}
 						bind:value={OpenAIUrl}
 						required
@@ -328,7 +335,7 @@
 			{:else if embeddingEngine === 'ollama'}
 				<div class="my-0.5 flex gap-2 pr-2">
 					<input
-						class="flex-1 w-full rounded-lg text-sm bg-transparent outline-none"
+						class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
 						placeholder={$i18n.t('API Base URL')}
 						bind:value={OllamaUrl}
 						required
@@ -374,7 +381,7 @@
 
 				<button
 					class="p-1 px-3 text-xs flex rounded transition"
-					on:click={() => {
+					onclick={() => {
 						toggleHybridSearch();
 					}}
 					type="button"
@@ -390,7 +397,7 @@
 
 		<hr class="dark:border-gray-850" />
 
-		<div class="space-y-2" />
+		<div class="space-y-2"></div>
 		<div>
 			<div class=" mb-2 text-sm font-medium">{$i18n.t('Embedding Model')}</div>
 
@@ -398,7 +405,7 @@
 				<div class="flex w-full">
 					<div class="flex-1 mr-2">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							bind:value={embeddingModel}
 							placeholder={$i18n.t('Set embedding model')}
 							required
@@ -409,7 +416,7 @@
 				<div class="flex w-full">
 					<div class="flex-1 mr-2">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							placeholder={$i18n.t('Set embedding model (e.g. {{model}})', {
 								model: embeddingModel.slice(-40)
 							})}
@@ -420,7 +427,7 @@
 					{#if embeddingEngine === ''}
 						<button
 							class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-							on:click={() => {
+							onclick={() => {
 								embeddingModelUpdateHandler();
 							}}
 							disabled={updateEmbeddingModelLoading}
@@ -488,7 +495,7 @@
 					<div class="flex w-full">
 						<div class="flex-1 mr-2">
 							<input
-								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								placeholder={$i18n.t('Set reranking model (e.g. {{model}})', {
 									model: 'BAAI/bge-reranker-v2-m3'
 								})}
@@ -497,7 +504,7 @@
 						</div>
 						<button
 							class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-							on:click={() => {
+							onclick={() => {
 								rerankingModelUpdateHandler();
 							}}
 							disabled={updateRerankingModelLoading}
@@ -562,9 +569,9 @@
 				<div class="self-center text-xs font-medium">{$i18n.t('Engine')}</div>
 				<div class="flex items-center relative">
 					<select
-						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-none text-right"
+						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-hidden text-right"
 						bind:value={contentExtractionEngine}
-						on:change={(e) => {
+						onchange={(e) => {
 							showTikaServerUrl = (e.target as HTMLSelectElement).value === 'tika';
 						}}
 					>
@@ -578,7 +585,7 @@
 				<div class="flex w-full mt-1">
 					<div class="flex-1 mr-2">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							placeholder={$i18n.t('Enter Tika Server URL')}
 							bind:value={tikaServerUrl}
 						/>
@@ -611,7 +618,7 @@
 
 					<div class="w-full">
 						<input
-							class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="number"
 							placeholder={$i18n.t('Enter Top K')}
 							bind:value={querySettings.k}
@@ -629,7 +636,7 @@
 
 						<div class="w-full">
 							<input
-								class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								type="number"
 								step="0.01"
 								placeholder={$i18n.t('Enter Score')}
@@ -674,7 +681,7 @@
 				<div class="self-center text-xs font-medium">{$i18n.t('Text Splitter')}</div>
 				<div class="flex items-center relative">
 					<select
-						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-none text-right"
+						class="dark:bg-gray-900 w-fit pr-8 rounded px-2 text-xs bg-transparent outline-hidden text-right"
 						bind:value={textSplitter}
 					>
 						<option value="">{$i18n.t('Default')} ({$i18n.t('Character')})</option>
@@ -690,7 +697,7 @@
 					</div>
 					<div class="self-center">
 						<input
-							class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="number"
 							placeholder={$i18n.t('Enter Chunk Size')}
 							bind:value={chunkSize}
@@ -707,7 +714,7 @@
 
 					<div class="self-center">
 						<input
-							class="w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="number"
 							placeholder={$i18n.t('Enter Chunk Overlap')}
 							bind:value={chunkOverlap}
@@ -748,7 +755,7 @@
 							placement="top-start"
 						>
 							<input
-								class="w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								type="number"
 								placeholder={$i18n.t('Leave empty for unlimited')}
 								bind:value={fileMaxSize}
@@ -771,7 +778,7 @@
 							placement="top-start"
 						>
 							<input
-								class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class=" w-full rounded-lg py-1.5 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								type="number"
 								placeholder={$i18n.t('Leave empty for unlimited')}
 								bind:value={fileMaxCount}
@@ -789,7 +796,7 @@
 		<div>
 			<button
 				class=" flex rounded-xl py-2 px-3.5 w-full hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-				on:click={() => {
+				onclick={() => {
 					showResetUploadDirConfirm = true;
 				}}
 				type="button"
@@ -816,7 +823,7 @@
 
 			<button
 				class=" flex rounded-xl py-2 px-3.5 w-full hover:bg-gray-200 dark:hover:bg-gray-800 transition"
-				on:click={() => {
+				onclick={() => {
 					showResetConfirm = true;
 				}}
 				type="button"

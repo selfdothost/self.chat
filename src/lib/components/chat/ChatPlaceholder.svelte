@@ -16,19 +16,21 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let modelIds = [];
-	export let models = [];
 
-	export let submitPrompt;
+	let { modelIds = [], models = $bindable([]), submitPrompt } = $props();
 
-	let mounted = false;
-	let selectedModelIdx = 0;
+	let mounted = $state(false);
+	let selectedModelIdx = $state(0);
 
-	$: if (modelIds.length > 0) {
-		selectedModelIdx = models.length - 1;
-	}
+	$effect(() => {
+		if (modelIds.length > 0) {
+			selectedModelIdx = models.length - 1;
+		}
+	});
 
-	$: models = modelIds.map((id) => $_models.find((m) => m.id === id));
+	$effect(() => {
+		models = modelIds.map((id) => $_models.find((m) => m.id === id));
+	});
 
 	onMount(() => {
 		mounted = true;
@@ -42,7 +44,7 @@
 				<!-- compare mode lets the user pick the same model into more than one slot; index is the only stable disambiguator -->
 				{#each models as model, modelIdx (modelIdx)}
 					<button
-						on:click={() => {
+						onclick={() => {
 							selectedModelIdx = modelIdx;
 						}}
 					>
@@ -133,8 +135,8 @@
 				suggestionPrompts={models[selectedModelIdx]?.info?.meta?.suggestion_prompts ??
 					$config?.default_prompt_suggestions ??
 					[]}
-				on:select={(e) => {
-					submitPrompt(e.detail);
+				onSelect={(detail) => {
+					submitPrompt(detail);
 				}}
 			/>
 		</div>

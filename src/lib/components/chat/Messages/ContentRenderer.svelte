@@ -7,26 +7,42 @@
 	import FloatingButtons from '../ContentRenderer/FloatingButtons.svelte';
 	import { createMessagesList } from '$lib/utils';
 
-	export let id;
-	export let content;
-	export let history;
 	// Typed as a union (not left to infer from the `null` initializer) so the
 	// `{#if floatingButtons && model}` truthy-check below narrows to the object
 	// case instead of collapsing to `never`.
-	/** @type {{ id?: string } | null} */
-	export let model = null;
-	export let sources = null;
+	
 
-	export let save = false;
-	export let floatingButtons = true;
 
-	export let onSourceClick = () => {};
-	/** @type {import('$lib/types').AnyFn} */
-	export let onAddMessages = () => {};
+	
+	/**
+	 * @typedef {Object} Props
+	 * @property {any} id
+	 * @property {any} content
+	 * @property {any} history
+	 * @property {{ id?: string } | null} [model]
+	 * @property {any} [sources]
+	 * @property {boolean} [save]
+	 * @property {boolean} [floatingButtons]
+	 * @property {any} [onSourceClick]
+	 * @property {import('$lib/types').AnyFn} [onAddMessages]
+	 */
 
-	let contentContainerElement;
+	/** @type {Props} */
+	let {
+		id,
+		content,
+		history,
+		model = null,
+		sources = null,
+		save = false,
+		floatingButtons = true,
+		onSourceClick = () => {},
+		onAddMessages = () => {}
+	} = $props();
 
-	let floatingButtonsElement;
+	let contentContainerElement = $state();
+
+	let floatingButtonsElement = $state();
 
 	const updateButtonPosition = (event) => {
 		const buttonsContainerElement = document.getElementById(`floating-buttons-${id}`);

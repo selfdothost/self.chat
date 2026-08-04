@@ -28,7 +28,7 @@ vi.mock('$lib/apis/folders', () => ({
 }));
 
 import { updateFolderPresetById } from '$lib/apis/folders';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const updatePresetMock = updateFolderPresetById as unknown as ReturnType<typeof vi.fn>;
 
 const modelsFixture = [

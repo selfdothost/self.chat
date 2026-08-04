@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -25,41 +27,55 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let onSubmit: AnyFn;
-	export let onBack: null | AnyFn = null;
 
-	export let model = null;
-	export let edit = false;
 
-	export let preset = true;
+	interface Props {
+		onSubmit: AnyFn;
+		onBack?: null | AnyFn;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		model?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		edit?: boolean;
+		preset?: boolean;
+	}
 
-	let loading = false;
+	let {
+		onSubmit,
+		onBack = null,
+		model = $bindable(null),
+		edit = false,
+		preset = true
+	}: Props = $props();
 
-	let filesInputElement;
-	let inputFiles;
+	let loading = $state(false);
 
-	let showAdvanced = false;
-	let showPreview = false;
+	let filesInputElement: HTMLInputElement | undefined = $state();
+	let inputFiles: FileList | undefined = $state();
 
-	let loaded = false;
+	let showAdvanced = $state(false);
+	let showPreview = $state(false);
+
+	let loaded = $state(false);
 
 	// ///////////
 	// model
 	// ///////////
 
-	let id = '';
-	let name = '';
+	let id = $state('');
+	let name = $state('');
 
-	$: if (!edit) {
-		if (name) {
-			id = name
-				.replace(/\s+/g, '-')
-				.replace(/[^a-zA-Z0-9-]/g, '')
-				.toLowerCase();
+	$effect(() => {
+		if (!edit) {
+			if (name) {
+				id = name
+					.replace(/\s+/g, '-')
+					.replace(/[^a-zA-Z0-9-]/g, '')
+					.toLowerCase();
+			}
 		}
-	}
+	});
 
-	let info: ModelConfig = {
+	let info: ModelConfig = $state({
 		id: '',
 		base_model_id: null,
 		name: '',
@@ -72,34 +88,34 @@
 		params: {
 			system: ''
 		}
-	};
+	});
 
-	let params: ModelParams = {
+	let params: ModelParams = $state({
 		system: ''
-	};
-	let capabilities = {
+	});
+	let capabilities = $state({
 		vision: true,
 		usage: undefined,
 		citations: true
-	};
+	});
 
-	let knowledge = [];
-	let toolIds = [];
-	let filterIds = [];
-	let actionIds = [];
+	let knowledge = $state([]);
+	let toolIds = $state([]);
+	let filterIds = $state([]);
+	let actionIds = $state([]);
 
-	let accessControl = {};
+	let accessControl = $state({});
 
-	let availableLoras: AvailableLora[] = [];
-	let selectedLoras: { file: string; scale: number }[] = [];
-	let lorasLoading = false;
+	let availableLoras: AvailableLora[] = $state([]);
+	let selectedLoras: { file: string; scale: number }[] = $state([]);
+	let lorasLoading = $state(false);
 
 	// Per-model TTS voice: the admin-enabled ("selectable") self-hosted voices,
 	// and the one this model speaks with ('' = use the default, no override).
 	// selectableVoices stays empty on deployments without self-hosted TTS, which
 	// hides the picker entirely.
-	let selectableVoices: Array<{ id: string; name?: string; language?: string | null }> = [];
-	let selectedVoice = '';
+	let selectableVoices: Array<{ id: string; name?: string; language?: string | null }> = $state([]);
+	let selectedVoice = $state('');
 
 	// Fetch available LoRAs when a llamolotl base model is selected
 	const fetchLorasForModel = async (base_model_id: string | null) => {
@@ -342,7 +358,7 @@
 	{#if onBack}
 		<button
 			class="flex space-x-1"
-			on:click={() => {
+			onclick={() => {
 				onBack();
 			}}
 		>
@@ -371,7 +387,7 @@
 			type="file"
 			hidden
 			accept="image/*"
-			on:change={() => {
+			onchange={() => {
 				let reader = new FileReader();
 				reader.onload = (event) => {
 					let originalImageUrl = `${event.target.result}`;
@@ -436,19 +452,19 @@
 		{#if !edit || (edit && model)}
 			<form
 				class="flex flex-col md:flex-row w-full gap-3 md:gap-6"
-				on:submit|preventDefault={() => {
+				onsubmit={preventDefault(() => {
 					submitHandler();
-				}}
+				})}
 			>
-				<div class="self-center md:self-start flex justify-center my-2 flex-shrink-0">
+				<div class="self-center md:self-start flex justify-center my-2 shrink-0">
 					<div class="self-center">
 						<button
-							class="rounded-xl flex flex-shrink-0 items-center {info.meta.profile_image_url !==
+							class="rounded-xl flex shrink-0 items-center {info.meta.profile_image_url !==
 							'/static/favicon.png'
 								? 'bg-transparent'
 								: 'bg-white'} shadow-xl group relative"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								filesInputElement.click();
 							}}
 						>
@@ -495,7 +511,7 @@
 						<div class="flex w-full mt-1 justify-end">
 							<button
 								class="px-2 py-1 text-gray-500 rounded-lg text-xs"
-								on:click={() => {
+								onclick={() => {
 									info.meta.profile_image_url = '/static/favicon.png';
 								}}
 								type="button"
@@ -511,7 +527,7 @@
 						<div class="flex-1">
 							<div>
 								<input
-									class="text-3xl font-semibold w-full bg-transparent outline-none"
+									class="text-3xl font-semibold w-full bg-transparent outline-hidden"
 									placeholder={$i18n.t('Model Name')}
 									bind:value={name}
 									required
@@ -522,7 +538,7 @@
 						<div class="flex-1">
 							<div>
 								<input
-									class="text-xs w-full bg-transparent text-gray-500 outline-none"
+									class="text-xs w-full bg-transparent text-gray-500 outline-hidden"
 									placeholder={$i18n.t('Model ID')}
 									bind:value={id}
 									disabled={edit}
@@ -538,10 +554,10 @@
 
 							<div>
 								<select
-									class="text-sm w-full bg-transparent outline-none"
+									class="text-sm w-full bg-transparent outline-hidden"
 									placeholder="Select a base model (e.g. llama3, gpt-4o)"
 									bind:value={info.base_model_id}
-									on:change={(e) => {
+									onchange={(e) => {
 										addUsage((e.target as HTMLSelectElement).value);
 										fetchLorasForModel((e.target as HTMLSelectElement).value);
 									}}
@@ -599,10 +615,10 @@
 									>
 										<button
 											type="button"
-											class="flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition {isSelected
+											class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition {isSelected
 												? 'bg-blue-500 border-blue-500 text-white'
 												: 'border-gray-300 dark:border-gray-600'}"
-											on:click={() => toggleLora(lora.file)}
+											onclick={() => toggleLora(lora.file)}
 										>
 											{#if isSelected}
 												<svg
@@ -635,7 +651,7 @@
 										</div>
 
 										{#if isSelected}
-											<div class="flex items-center gap-1.5 flex-shrink-0">
+											<div class="flex items-center gap-1.5 shrink-0">
 												<label for="lora-scale-{lora.file}" class="text-xs text-gray-500 dark:text-gray-400"
 													>{$i18n.t('Scale')}:</label
 												>
@@ -645,9 +661,9 @@
 													min="0"
 													max="2"
 													step="0.1"
-													class="w-16 text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none"
+													class="w-16 text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 outline-hidden"
 													value={selectedEntry?.scale ?? 1.0}
-													on:change={(e) =>
+													onchange={(e) =>
 														updateLoraScale(
 															lora.file,
 															parseFloat((e.target as HTMLInputElement).value) || 1.0
@@ -670,7 +686,7 @@
 							<button
 								class="p-1 text-xs flex rounded transition"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									if (info.meta.description === null) {
 										info.meta.description = '';
 									} else {
@@ -688,7 +704,7 @@
 
 						{#if info.meta.description !== null}
 							<Textarea
-								className=" text-sm w-full bg-transparent outline-none resize-none overflow-y-hidden "
+								className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
 								placeholder={$i18n.t('Add a short description about what this model does')}
 								bind:value={info.meta.description}
 							/>
@@ -733,7 +749,7 @@
 								<div class=" text-xs font-semibold mb-2">{$i18n.t('System Prompt')}</div>
 								<div>
 									<Textarea
-										className=" text-sm w-full bg-transparent outline-none resize-none overflow-y-hidden "
+										className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
 										placeholder="Write your model system prompt content here
 e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 										bind:value={info.params.system}
@@ -749,7 +765,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 								<button
 									class="p-1 px-3 text-xs flex rounded transition"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										showAdvanced = !showAdvanced;
 									}}
 								>
@@ -766,7 +782,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 									<AdvancedParams
 										admin={true}
 										bind:params
-										on:change={(_e) => {
+										onChange={() => {
 											info.params = { ...info.params, ...params };
 										}}
 									/>
@@ -787,7 +803,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 								<button
 									class="p-1 text-xs flex rounded transition"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										if ((info?.meta?.suggestion_prompts ?? null) === null) {
 											info.meta.suggestion_prompts = [{ content: '' }];
 										} else {
@@ -807,7 +823,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 								<button
 									class="p-1 px-2 text-xs flex rounded transition"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										if (
 											info.meta.suggestion_prompts.length === 0 ||
 											info.meta.suggestion_prompts.at(-1).content !== ''
@@ -840,7 +856,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 									{#each info.meta.suggestion_prompts as prompt, promptIdx (promptIdx)}
 										<div class=" flex rounded-lg">
 											<input
-												class=" text-sm w-full bg-transparent outline-none border-r border-gray-50 dark:border-gray-850"
+												class=" text-sm w-full bg-transparent outline-hidden border-r border-gray-50 dark:border-gray-850"
 												placeholder={$i18n.t('Write a prompt suggestion (e.g. Who are you?)')}
 												bind:value={prompt.content}
 											/>
@@ -848,7 +864,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 											<button
 												class="px-2"
 												type="button"
-												on:click={() => {
+												onclick={() => {
 													info.meta.suggestion_prompts.splice(promptIdx, 1);
 													info.meta.suggestion_prompts = info.meta.suggestion_prompts;
 												}}
@@ -908,7 +924,7 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 							<button
 								class="p-1 px-3 text-xs flex rounded transition"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									showPreview = !showPreview;
 								}}
 							>
@@ -923,12 +939,12 @@ e.g.) You are Mario from Super Mario Bros, acting as an assistant."
 						{#if showPreview}
 							<div>
 								<textarea
-									class="text-sm w-full bg-transparent outline-none resize-none"
+									class="text-sm w-full bg-transparent outline-hidden resize-none"
 									rows="10"
 									value={JSON.stringify(info, null, 2)}
 									disabled
 									readonly
-								/>
+								></textarea>
 							</div>
 						{/if}
 					</div>

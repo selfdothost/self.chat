@@ -10,10 +10,10 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import { toast } from 'svelte-sonner';
 
-	let name = '';
-	let content = '';
+	let name = $state('');
+	let content = $state('');
 
-	let voiceInput = false;
+	let voiceInput = $state(false);
 	let loading = false;
 </script>
 
@@ -27,10 +27,10 @@
 	{/if}
 
 	<div class=" w-full flex flex-col gap-2 {loading ? 'opacity-20' : ''}">
-		<div class="flex-shrink-0 w-full flex justify-between items-center">
+		<div class="shrink-0 w-full flex justify-between items-center">
 			<div class="w-full">
 				<input
-					class="w-full text-2xl font-medium bg-transparent outline-none"
+					class="w-full text-2xl font-medium bg-transparent outline-hidden"
 					type="text"
 					bind:value={name}
 					placeholder={$i18n.t('Title')}
@@ -55,11 +55,11 @@
 					<VoiceRecording
 						bind:recording={voiceInput}
 						className="p-1 w-full max-w-full"
-						on:cancel={() => {
+						onCancel={() => {
 							voiceInput = false;
 						}}
-						on:confirm={(e) => {
-							const { text, filename } = e.detail;
+						onConfirm={(detail) => {
+							const { text, filename } = detail;
 
 							// url is hostname + /cache/audio/transcription/ + filename
 							const url = `${window.location.origin}/cache/audio/transcription/${filename}`;
@@ -81,7 +81,7 @@
 					<button
 						class="cursor-pointer p-2.5 flex rounded-full hover:bg-gray-100 dark:hover:bg-gray-850 transition shadow-xl"
 						type="button"
-						on:click={async () => {
+						onclick={async () => {
 							try {
 								let stream = await navigator.mediaDevices
 									.getUserMedia({ audio: true })

@@ -30,28 +30,28 @@
 	import ModNav from './Sidebar/ModNav.svelte';
 	import PencilSquare from '../icons/PencilSquare.svelte';
 
-	let navElement;
-	let search = '';
+	let navElement = $state();
+	let search = $state('');
 
-	let shiftKey = false;
+	let shiftKey = $state(false);
 
-	let selectedChatId = null;
-	let showDropdown = false;
-	let showPinnedChat = true;
+	let selectedChatId = $state(null);
+	let showDropdown = $state(false);
+	let showPinnedChat = $state(true);
 	// Collapse state of the "Folders" section header. Scoped to the folder tree only
 	// (SO/R2); persisted across reload via localStorage, same as showPinnedChat.
-	let showFolders = true;
+	let showFolders = $state(true);
 
-	let showCreateChannel = false;
+	let showCreateChannel = $state(false);
 
 	// Pagination variables
-	let chatListLoading = false;
-	let allChatsLoaded = false;
+	let chatListLoading = $state(false);
+	let allChatsLoaded = $state(false);
 
 	// Folder tree keyed by id -- built up dynamically in initFolders() below
 	// (parent_id/childrenIds/items all attached after the fact), not a fixed shape.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let folders: Record<string, any> = {};
+	let folders: Record<string, any> = $state({});
 
 	const initFolders = async () => {
 		const folderList = await getFolders(localStorage.token).catch((error) => {
@@ -193,7 +193,6 @@
 	let searchDebounceTimeout;
 
 	const searchDebounceHandler = async () => {
-		console.log('search', search);
 		chats.set(null);
 
 		if (searchDebounceTimeout) {
@@ -207,7 +206,14 @@
 			searchDebounceTimeout = setTimeout(async () => {
 				allChatsLoaded = false;
 				currentChatPage.set(1);
-				await chats.set(await getChatListBySearchText(localStorage.token, search));
+
+				const searchResults = await getChatListBySearchText(localStorage.token, search).catch(
+					(error) => {
+						toast.error(error);
+						return [];
+					}
+				);
+				await chats.set(searchResults);
 
 				if ($chats.length === 0) {
 					tags.set(await getAllTags(localStorage.token));
@@ -385,7 +391,7 @@
 
 <ArchivedChatsModal
 	bind:show={$showArchivedChats}
-	on:change={async () => {
+	onChange={async () => {
 		await initChatList();
 	}}
 />
@@ -409,15 +415,15 @@
 	}}
 />
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 
 {#if $showSidebar}
 	<div
 		class=" fixed md:hidden z-40 top-0 right-0 left-0 bottom-0 bg-black/60 w-full min-h-screen h-screen flex justify-center overflow-hidden overscroll-contain"
-		on:mousedown={() => {
+		onmousedown={() => {
 			showSidebar.set(!$showSidebar);
 		}}
-	/>
+	></div>
 {/if}
 
 <div
@@ -437,7 +443,7 @@
 		<div class="px-1.5 flex justify-between space-x-1 text-gray-600 dark:text-gray-400">
 			<button
 				class=" cursor-pointer p-[7px] flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-				on:click={() => {
+				onclick={() => {
 					showSidebar.set(!$showSidebar);
 				}}
 			>
@@ -464,7 +470,7 @@
 				class="flex justify-between items-center flex-1 rounded-lg px-2 py-1 h-full text-right hover:bg-gray-100 dark:hover:bg-gray-900 transition"
 				href={resolve('/(app)')}
 				draggable="false"
-				on:click={async () => {
+				onclick={async () => {
 					selectedChatId = null;
 					await goto(resolve('/(app)'));
 					const newChatButton = document.getElementById('new-chat-button');
@@ -499,9 +505,9 @@
 		{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.training || $user?.permissions?.workspace?.tools}
 			<div class="px-1.5 flex justify-center text-gray-800 dark:text-gray-200">
 				<a
-					class="flex-grow flex space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition"
+					class="grow flex space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition"
 					href={resolve('/(app)/workspace')}
-					on:click={() => {
+					onclick={() => {
 						selectedChatId = null;
 						chatId.set('');
 
@@ -546,7 +552,7 @@
 
 			<SearchInput
 				bind:value={search}
-				on:input={searchDebounceHandler}
+				onInput={searchDebounceHandler}
 				placeholder={$i18n.t('Search')}
 			/>
 		</div>
@@ -587,15 +593,15 @@
 						<Folder
 							className=""
 							bind:open={showPinnedChat}
-							on:change={(e) => {
-								localStorage.setItem('showPinnedChat', e.detail);
-								console.log(e.detail);
+							onChange={(detail) => {
+								localStorage.setItem('showPinnedChat', detail);
+								console.log(detail);
 							}}
-							on:import={(e) => {
-								importChatHandler(e.detail, true);
+							onImport={(detail) => {
+								importChatHandler(detail, true);
 							}}
-							on:drop={async (e) => {
-								const { type, id, item } = e.detail;
+							onDrop={async (detail) => {
+								const { type, id, item } = detail;
 
 								if (type === 'chat') {
 									let chat = await getChatById(localStorage.token, id).catch((_error) => {
@@ -666,16 +672,16 @@
 					createFolder();
 				}}
 				onAddLabel={$i18n.t('New Folder')}
-				on:change={(e) => {
+				onChange={(detail) => {
 					// Persist the Folders section collapse state (SO/R2), same
 					// localStorage mechanism as the Pinned section.
-					localStorage.setItem('showFolders', e.detail);
+					localStorage.setItem('showFolders', detail);
 				}}
-				on:import={(e) => {
-					importChatHandler(e.detail);
+				onImport={(detail) => {
+					importChatHandler(detail);
 				}}
-				on:drop={async (e) => {
-					const { type, id, item } = e.detail;
+				onDrop={async (detail) => {
+					const { type, id, item } = detail;
 
 					if (type === 'chat') {
 						let chat = await getChatById(localStorage.token, id).catch((_error) => {
@@ -800,7 +806,7 @@
 
 						{#if $scrollPaginationEnabled && !allChatsLoaded}
 							<Loader
-								on:visible={(_e) => {
+								onVisible={() => {
 									if (!chatListLoading) {
 										loadMoreChats();
 									}
@@ -829,15 +835,15 @@
 				{#if $user !== undefined}
 					<UserMenu
 						role={$user.role}
-						on:show={(e) => {
-							if (e.detail === 'archived-chat') {
+						onShow={(detail) => {
+							if (detail === 'archived-chat') {
 								showArchivedChats.set(true);
 							}
 						}}
 					>
 						<button
 							class=" flex items-center rounded-xl py-2.5 px-2.5 w-full hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-							on:click={() => {
+							onclick={() => {
 								showDropdown = !showDropdown;
 							}}
 						>

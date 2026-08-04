@@ -20,6 +20,16 @@ type BaseModel = {
 	// wire; set/read only in this frontend).
 	preset?: boolean;
 	arena?: boolean;
+	// Backend-resolved per-model action buttons (from meta.actionIds, expanded
+	// server-side into full {id, name, icon} entries) — attached by getModels(),
+	// not declared in ModelConfig since it's a response-time enrichment, not
+	// stored config.
+	actions?: { id: string; name: string; icon_url?: string }[];
+	// Load status fallback read by ModelStatusDot's callers (admin/Settings/Models,
+	// workspace/Models, chat/MessageInput/Commands/Models) when `modelLoadStatus`
+	// has no entry for this model's id or base_model_id — a response-time
+	// enrichment like `actions`, not part of ModelConfig.
+	status?: string;
 };
 
 // Arena models (model-vs-model comparison entries) are filtered out of most

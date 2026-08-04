@@ -15,7 +15,16 @@
 	// below for why depth isn't fixed at one level.
 	type ModPermissionNode = boolean | { [key: string]: ModPermissionNode };
 
-	export let permissions: {
+
+	// Every loaded mod's declared scopes (self.ai#69) -- each scope id is a
+	// dotted key ("mods.<mod id>.<...>") walked by the same has_permission()
+	// core uses for every other permission, so a mod scope is just another
+	// nested boolean under permissions.mods.<mod id>. `path` is that id's
+	// segments after "mods.<mod id>." -- usually one segment (e.g. ["use"])
+	// but a mod may declare a deeper scope, so this walks arbitrary depth
+	
+	interface Props {
+		permissions?: {
 		workspace: {
 			models: boolean;
 			knowledge: boolean;
@@ -35,7 +44,12 @@
 		// because its shape is only known once mods with declared scopes are
 		// loaded (see `mods` prop below).
 		mods?: Record<string, ModPermissionNode>;
-	} = {
+	};
+		// rather than assuming one level.
+		mods?: ModScopesResponse[];
+	}
+
+	let { permissions = $bindable({
 		workspace: {
 			models: false,
 			knowledge: false,
@@ -50,16 +64,7 @@
 			temporary: true,
 			file_upload: true
 		}
-	};
-
-	// Every loaded mod's declared scopes (self.ai#69) -- each scope id is a
-	// dotted key ("mods.<mod id>.<...>") walked by the same has_permission()
-	// core uses for every other permission, so a mod scope is just another
-	// nested boolean under permissions.mods.<mod id>. `path` is that id's
-	// segments after "mods.<mod id>." -- usually one segment (e.g. ["use"])
-	// but a mod may declare a deeper scope, so this walks arbitrary depth
-	// rather than assuming one level.
-	export let mods: ModScopesResponse[] = [];
+	}), mods = [] }: Props = $props();
 
 	const scopePath = (scopeId: string, modId: string): string[] => {
 		const prefix = `mods.${modId}.`;
@@ -91,9 +96,9 @@
 		permissions = permissions;
 	};
 
-	let showToolsWarning = false;
-	let toolsWarningEverOpened = false;
-	let toolsAccessConfirmed = false;
+	let showToolsWarning = $state(false);
+	let toolsWarningEverOpened = $state(false);
+	let toolsAccessConfirmed = $state(false);
 
 	// Turning this on lets non-admin users run arbitrary Python on the server
 	// (see context/treasuremaps/2026-07-20-tools-piston-sandboxing.md). A
@@ -114,20 +119,22 @@
 	// microtask apart), so checking synchronously here would misfire on
 	// every confirm. Deferring to a macrotask guarantees any in-flight
 	// confirm has already set toolsAccessConfirmed by the time this runs.
-	$: if (toolsWarningEverOpened && !showToolsWarning) {
-		setTimeout(() => {
-			if (!toolsAccessConfirmed) {
-				permissions.workspace.tools = false;
-			}
-		}, 0);
-	}
+	$effect(() => {
+		if (toolsWarningEverOpened && !showToolsWarning) {
+			setTimeout(() => {
+				if (!toolsAccessConfirmed) {
+					permissions.workspace.tools = false;
+				}
+			}, 0);
+		}
+	});
 </script>
 
 <ConfirmDialog
 	bind:show={showToolsWarning}
 	title={$i18n.t('Enable Tools Access?')}
 	confirmLabel={$i18n.t('Enable Tools Access')}
-	on:confirm={() => {
+	onConfirm={() => {
 		toolsAccessConfirmed = true;
 	}}
 >
@@ -177,7 +184,7 @@
 										<div class=" text-sm flex-1 rounded-lg">
 											{modelId}
 										</div>
-										<div class="flex-shrink-0">
+										<div class="shrink-0">
 											<button
 												type="button"
 												on:click={() => {
@@ -203,7 +210,7 @@
 					<select
 						class="w-full py-1 text-sm rounded-lg bg-transparent {selectedModelId
 							? ''
-							: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+							: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 						bind:value={selectedModelId}
 					>
 						<option value="">{$i18n.t('Select a model')}</option>
@@ -238,7 +245,7 @@
 
 			<div class="flex-1 mr-2">
 				<select
-					class="w-full bg-transparent outline-none py-0.5 text-sm"
+					class="w-full bg-transparent outline-hidden py-0.5 text-sm"
 					bind:value={permissions.model.default_id}
 					placeholder="Select a model"
 				>
@@ -306,7 +313,7 @@
 				</div>
 				<Switch
 					bind:state={permissions.workspace.tools}
-					on:change={(e) => handleToolsAccessChange(e.detail)}
+					onChange={(checked) => handleToolsAccessChange(checked)}
 				/>
 			</Tooltip>
 		</div>
@@ -367,8 +374,8 @@
 							</div>
 							<Switch
 								state={getModScopeState(mod.id, scopePath(scope.id, mod.id))}
-								on:change={(e) =>
-									setModScopeState(mod.id, scopePath(scope.id, mod.id), e.detail)}
+								onChange={(checked) =>
+									setModScopeState(mod.id, scopePath(scope.id, mod.id), checked)}
 							/>
 						</div>
 					{/each}

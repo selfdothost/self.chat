@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { stopPropagation } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import dayjs from 'dayjs';
-	import { createEventDispatcher, getContext } from 'svelte';
-	const dispatch = createEventDispatcher<{ open: string | null; delete: string | null }>();
+	import { getContext } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { getUserById } from '$lib/apis/users';
@@ -16,12 +18,21 @@
 
 	// File item shape varies by upload path (direct upload, URL scrape,
 	// Google Drive, ...) — accessed dynamically rather than through one
-	// consistent interface, same as the rest of the KnowledgeBase tree.
-	export let files = [];
+	
+	interface Props {
+		// consistent interface, same as the rest of the KnowledgeBase tree.
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		files?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onOpen?: AnyFn;
+		onDelete?: AnyFn;
+	}
+
+	let { files = [], onOpen = () => {}, onDelete = () => {} }: Props = $props();
 
 	// Files carry only user_id — resolve display names lazily, once per id,
 	// via the existing per-user endpoint (no bulk-lookup API exists).
-	let userNames: Record<string, string> = {};
+	let userNames: Record<string, string> = $state({});
 	// A "seen before" dedup guard, mutated in place -- never read by the
 	// template or triggers a re-render itself; the actual reactive state
 	// (userNames) is updated separately via reassignment in resolveUserName.
@@ -35,7 +46,7 @@
 		userNames = { ...userNames, [userId]: name };
 	};
 
-	$: {
+	$effect(() => {
 		for (const file of files) {
 			const userId = file.user_id;
 			if (userId && !requestedUserIds.has(userId)) {
@@ -43,7 +54,7 @@
 				resolveUserName(userId);
 			}
 		}
-	}
+	});
 </script>
 
 <div class="scrollbar-hidden relative whitespace-nowrap overflow-x-auto max-w-full h-full rounded-lg">
@@ -58,7 +69,7 @@
 				<th scope="col" class="px-3 py-1.5">{$i18n.t('Size')}</th>
 				<th scope="col" class="px-3 py-1.5">{$i18n.t('Uploaded')}</th>
 				<th scope="col" class="px-3 py-1.5">{$i18n.t('Uploaded By')}</th>
-				<th scope="col" class="px-3 py-1.5 text-right" />
+				<th scope="col" class="px-3 py-1.5 text-right"></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -68,11 +79,11 @@
 					'uploading'
 						? 'opacity-60'
 						: ''}"
-					on:dblclick={() => {
+					ondblclick={() => {
 						if (file.status === 'uploading' && file.id !== null) {
 							return;
 						}
-						dispatch('open', file.id);
+						onOpen(file.id);
 					}}
 				>
 					<td class="px-3 py-1.5 font-medium text-gray-900 dark:text-white max-w-xs">
@@ -116,10 +127,10 @@
 						<button
 							type="button"
 							class="p-1 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-lg"
-							on:click|stopPropagation={() => {
+							onclick={stopPropagation(() => {
 								if (file.status === 'uploading') return;
-								dispatch('delete', file.id);
-							}}
+								onDelete(file.id);
+							})}
 						>
 							<GarbageBin className="size-3.5" />
 						</button>

@@ -1,34 +1,41 @@
 <script lang="ts">
 	import { DropdownMenu } from 'bits-ui';
 	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
-	import { createEventDispatcher } from 'svelte';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { activeUserIds } from '$lib/stores';
 
-	export let side: 'top' | 'right' | 'bottom' | 'left' = 'right';
 	// bits-ui's Align is 'start' | 'center' | 'end' (not a CSS side) -- for a
 	// right-side popover, 'start' is the top-aligned option, which is what this
-	// was actually going for.
-	export let align: 'start' | 'center' | 'end' = 'start';
+	
 
-	export let user = null;
-	let show = false;
+	interface Props {
+		side?: 'top' | 'right' | 'bottom' | 'left';
+		// was actually going for.
+		align?: 'start' | 'center' | 'end';
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		user?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		children?: import('svelte').Snippet;
+		content?: import('svelte').Snippet;
+	}
 
-	const dispatch = createEventDispatcher();
+	let {
+		side = 'right',
+		align = 'start',
+		user = null,
+		children,
+		content
+	}: Props = $props();
+	let show = $state(false);
 </script>
 
-<DropdownMenu.Root
-	bind:open={show}
-	onOpenChange={(state) => {
-		dispatch('change', state);
-	}}
->
+<DropdownMenu.Root bind:open={show}>
 	<DropdownMenu.Trigger>
-		<slot />
+		{@render children?.()}
 	</DropdownMenu.Trigger>
 
-	<slot name="content">
+	{#if content}{@render content()}{:else}
 		<DropdownMenuContent
 			class="max-w-full w-[240px] rounded-lg z-[9999] bg-white dark:bg-black dark:text-white shadow-lg"
 			sideOffset={8}
@@ -63,8 +70,8 @@
 									<span class="relative flex size-2">
 										<span
 											class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
-										/>
-										<span class="relative inline-flex rounded-full size-2 bg-green-500" />
+										></span>
+										<span class="relative inline-flex rounded-full size-2 bg-green-500"></span>
 									</span>
 								</div>
 
@@ -74,7 +81,7 @@
 							{:else}
 								<div>
 									<span class="relative flex size-2">
-										<span class="relative inline-flex rounded-full size-2 bg-gray-500" />
+										<span class="relative inline-flex rounded-full size-2 bg-gray-500"></span>
 									</span>
 								</div>
 
@@ -87,5 +94,5 @@
 				</div>
 			{/if}
 		</DropdownMenuContent>
-	</slot>
+	{/if}
 </DropdownMenu.Root>

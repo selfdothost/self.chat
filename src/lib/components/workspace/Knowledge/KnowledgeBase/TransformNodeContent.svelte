@@ -4,13 +4,17 @@
     
     const dispatch = createEventDispatcher();
     
-    export let template: NodeTemplate;
-    export let config: Record<string, unknown> = {};
+    interface Props {
+        template: NodeTemplate;
+        config?: Record<string, unknown>;
+    }
+
+    let { template, config = {} }: Props = $props();
 
     // Param values vary by param.type below: boolean, number, string,
     // string_list (string[]), or null when a numeric field is cleared.
     type TransformParamValue = string | number | boolean | string[] | null;
-    $: params = (config.params ?? {}) as Record<string, TransformParamValue>;
+    let params = $derived((config.params ?? {}) as Record<string, TransformParamValue>);
 
     function updateParam(name: string, value: TransformParamValue) {
             dispatch('configchange', {...config, params: { ...params, [name]: value}})
@@ -32,7 +36,7 @@
                             const v = params[param.name] ?? param.default ?? false;
                             return typeof v === 'boolean' ? v : false;
                         })()}
-                        on:change={(e) => updateParam(param.name, e.currentTarget.checked)}
+                        onchange={(e) => updateParam(param.name, e.currentTarget.checked)}
                         class="rounded border-gray-300 dark:border-gray-600"
                     />
                 </label>
@@ -41,11 +45,11 @@
                     type="number"
                     value={params[param.name]?? param.default ?? ''}
                     placeholder={param.required ? 'required' : 'optional'}
-                    on:input={(e) => {
+                    oninput={(e) => {
                         const v = e.currentTarget.value;
                         updateParam(param.name, v === '' ? null : Number(v));
                     }}
-                    class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-none"
+                    class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-hidden"
                 />
             {:else if param.type === 'string_list'}
                 <textarea
@@ -54,15 +58,15 @@
                         return Array.isArray(v) ? v.join('\n') : '';
                     })()}
                     placeholder={param.required ? 'required (one per line)' : 'optional (one per line)'}
-                    on:input={(e) => updateParam(param.name, e.currentTarget.value.split('\n').filter(s => s.trim() !== ''))}
+                    oninput={(e) => updateParam(param.name, e.currentTarget.value.split('\n').filter(s => s.trim() !== ''))}
                     rows="3"
-                    class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-none resize-y"
-                />
+                    class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-hidden resize-y"
+></textarea>
             {:else if param.type === 'select'}
                 <select
                     value={params[param.name] ?? param.default ?? ''}
-                    on:change={(e) => updateParam(param.name, e.currentTarget.value)}
-                    class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-none"
+                    onchange={(e) => updateParam(param.name, e.currentTarget.value)}
+                    class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-hidden"
                 >
                     {#each param.options ?? [] as opt (opt)}
                         <option value={opt}>{opt}</option>
@@ -73,8 +77,8 @@
 					type="text"
 					value={params[param.name] ?? param.default ?? ''}
 					placeholder={param.required ? 'required' : 'optional'}
-					on:input={(e) => updateParam(param.name, e.currentTarget.value)}
-					class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-none"
+					oninput={(e) => updateParam(param.name, e.currentTarget.value)}
+					class="w-full rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-[11px] text-gray-700 dark:text-gray-300 outline-hidden"
 				/>
             {/if}
         </div>

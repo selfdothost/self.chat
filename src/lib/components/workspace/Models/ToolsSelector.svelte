@@ -4,11 +4,10 @@
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
 	import { getContext, onMount } from 'svelte';
 
-	export let tools = [];
 
-	let _tools = {};
+	let _tools = $state({});
 
-	export let selectedToolIds = [];
+	let { tools = [], selectedToolIds = $bindable([]) } = $props();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -59,8 +58,8 @@
 						<div class="self-center flex items-center">
 							<Checkbox
 								state={_tools[tool].selected ? 'checked' : 'unchecked'}
-								on:change={(e) => {
-									_tools[tool].selected = e.detail === 'checked';
+								onChange={(detail) => {
+									_tools[tool].selected = detail === 'checked';
 									selectedToolIds = Object.keys(_tools).filter((t) => _tools[t].selected);
 								}}
 							/>

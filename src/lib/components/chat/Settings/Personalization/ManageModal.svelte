@@ -13,28 +13,33 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
+	interface Props {
+		show?: boolean;
+	}
 
-	let memories = [];
-	let loading = true;
+	let { show = $bindable(false) }: Props = $props();
 
-	let showAddMemoryModal = false;
-	let showEditMemoryModal = false;
+	let memories = $state([]);
+	let loading = $state(true);
 
-	let selectedMemory = null;
+	let showAddMemoryModal = $state(false);
+	let showEditMemoryModal = $state(false);
+
+	let selectedMemory = $state(null);
 
 	// `memories` and `loading` are part of this block's own condition, but
 	// this is a deliberate fetch-once guard: whatever getMemories() resolves
 	// to, `loading` always becomes false afterward, which permanently
 	// disables the condition -- it can't re-fire, so this isn't a loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (show && memories.length === 0 && loading) {
-		(async () => {
-			memories = await getMemories(localStorage.token);
-			loading = false;
-		})();
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+
+	$effect(() => {
+		if (show && memories.length === 0 && loading) {
+			(async () => {
+				memories = await getMemories(localStorage.token);
+				loading = false;
+			})();
+		}
+	});
 </script>
 
 <Modal size="xl" bind:show>
@@ -43,7 +48,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Memory')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -76,7 +81,7 @@
 										<th scope="col" class="px-3 py-2 hidden md:flex">
 											{$i18n.t('Last Modified')}
 										</th>
-										<th scope="col" class="px-3 py-2 text-right" />
+										<th scope="col" class="px-3 py-2 text-right"></th>
 									</tr>
 								</thead>
 								<tbody>
@@ -99,7 +104,7 @@
 													<Tooltip content="Edit">
 														<button
 															class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-															on:click={() => {
+															onclick={() => {
 																selectedMemory = memory;
 																showEditMemoryModal = true;
 															}}
@@ -124,7 +129,7 @@
 													<Tooltip content="Delete">
 														<button
 															class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-															on:click={async () => {
+															onclick={async () => {
 																const res = await deleteMemoryById(
 																	localStorage.token,
 																	memory.id
@@ -174,13 +179,13 @@
 			<div class="flex text-sm font-medium gap-1.5">
 				<button
 					class=" px-3.5 py-1.5 font-medium hover:bg-black/5 dark:hover:bg-white/5 outline outline-1 outline-gray-300 dark:outline-gray-800 rounded-3xl"
-					on:click={() => {
+					onclick={() => {
 						showAddMemoryModal = true;
 					}}>{$i18n.t('Add Memory')}</button
 				>
 				<button
 					class=" px-3.5 py-1.5 font-medium text-red-500 hover:bg-black/5 dark:hover:bg-white/5 outline outline-1 outline-red-300 dark:outline-red-800 rounded-3xl"
-					on:click={async () => {
+					onclick={async () => {
 						const res = await deleteMemoriesByUserId(localStorage.token).catch((error) => {
 							toast.error(error);
 							return null;
@@ -199,7 +204,7 @@
 
 <AddMemoryModal
 	bind:show={showAddMemoryModal}
-	on:save={async () => {
+	onSave={async () => {
 		memories = await getMemories(localStorage.token);
 	}}
 />
@@ -207,7 +212,7 @@
 <EditMemoryModal
 	bind:show={showEditMemoryModal}
 	memory={selectedMemory}
-	on:save={async () => {
+	onSave={async () => {
 		memories = await getMemories(localStorage.token);
 	}}
 />

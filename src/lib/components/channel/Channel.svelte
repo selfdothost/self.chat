@@ -16,24 +16,25 @@
 	import EllipsisVertical from '../icons/EllipsisVertical.svelte';
 	import Thread from './Thread.svelte';
 
-	export let id = '';
+	interface Props {
+		id?: string;
+	}
 
-	let scrollEnd = true;
-	let messagesContainerElement = null;
+	let { id = '' }: Props = $props();
 
-	let top = false;
+	let scrollEnd = $state(true);
+	let messagesContainerElement = $state(null);
 
-	let channel = null;
-	let messages = null;
+	let top = $state(false);
 
-	let threadId = null;
+	let channel = $state(null);
+	let messages = $state(null);
 
-	let typingUsers = [];
+	let threadId = $state(null);
+
+	let typingUsers = $state([]);
 	let typingUsersTimeout = {};
 
-	$: if (id) {
-		initHandler();
-	}
 
 	const scrollToBottom = () => {
 		if (messagesContainerElement) {
@@ -44,7 +45,7 @@
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const initHandler = async () => {
 		top = false;
 		messages = null;
@@ -171,7 +172,7 @@
 	};
 
 	let mediaQuery;
-	let largeScreen = false;
+	let largeScreen = $state(false);
 
 	onMount(() => {
 		if ($chatId) {
@@ -197,6 +198,11 @@
 	onDestroy(() => {
 		$socket?.off('channel-events', channelEventHandler);
 	});
+	$effect(() => {
+		if (id) {
+			initHandler();
+		}
+	});
 </script>
 
 <svelte:head>
@@ -219,7 +225,7 @@
 						class=" pb-2.5 max-w-full z-10 scrollbar-hidden w-full h-full pt-6 flex-1 flex flex-col-reverse overflow-auto"
 						id="messages-container"
 						bind:this={messagesContainerElement}
-						on:scroll={(_e) => {
+						onscroll={(_e) => {
 							scrollEnd = Math.abs(messagesContainerElement.scrollTop) <= 50;
 						}}
 					>
@@ -267,7 +273,7 @@
 			{#if threadId !== null}
 				<Drawer
 					show={threadId !== null}
-					on:close={() => {
+					onClose={() => {
 						threadId = null;
 					}}
 				>
@@ -286,7 +292,7 @@
 			<PaneResizer
 				class="relative flex w-[3px] items-center justify-center bg-background group bg-gray-50 dark:bg-gray-850"
 			>
-				<div class="z-10 flex h-7 w-5 items-center justify-center rounded-sm">
+				<div class="z-10 flex h-7 w-5 items-center justify-center rounded-xs">
 					<EllipsisVertical className="size-4 invisible group-hover:visible" />
 				</div>
 			</PaneResizer>

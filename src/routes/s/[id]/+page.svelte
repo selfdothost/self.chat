@@ -21,46 +21,31 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let loaded = false;
+	let loaded = $state(false);
 
-	let autoScroll = true;
+	let autoScroll = $state(true);
 
 	// let chatId = $page.params.id;
-	let selectedModels = [''];
+	let selectedModels = $state(['']);
 
-	let chat = null;
-	let user = null;
+	let chat = $state(null);
+	let user = $state(null);
 
-	let title = '';
+	let title = $state('');
 	let files = [];
 
-	let messages = [];
-	let history = {
+	let history = $state({
 		messages: {},
 		currentId: null
-	};
+	});
+	let messages = $derived(createMessagesList(history, history.currentId));
 	// This is a read-only shared-chat view (no composer) -- bind:prompt just
 	// needs a target, and mergeResponses/chatActionHandler are never invoked
 	// since there's no message-editing/action UI here.
-	let prompt = '';
+	let prompt = $state('');
 
-	$: messages = createMessagesList(history, history.currentId);
 
-	// Assignment runs inside an async IIFE triggered by this block; `loaded`
-	// isn't part of the block's own condition ($page.params.id), so setting
-	// it can't retrigger this reactive statement -- not an infinite loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if ($page.params.id) {
-		(async () => {
-			if (await loadSharedChat()) {
-				await tick();
-				loaded = true;
-			} else {
-				await goto(resolve('/'));
-			}
-		})();
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+	 
 
 	//////////////////////////
 	// Web functions
@@ -122,6 +107,18 @@
 			goto(resolve('/(app)/c/[id]', { id: res.id }));
 		}
 	};
+	$effect(() => {
+		if ($page.params.id) {
+			(async () => {
+				if (await loadSharedChat()) {
+					await tick();
+					loaded = true;
+				} else {
+					await goto(resolve('/'));
+				}
+			})();
+		}
+	});
 </script>
 
 <svelte:head>
@@ -175,12 +172,12 @@
 			</div>
 
 			<div
-				class="absolute bottom-0 right-0 left-0 flex justify-center w-full bg-gradient-to-b from-transparent to-gray-900"
+				class="absolute bottom-0 right-0 left-0 flex justify-center w-full bg-linear-to-b from-transparent to-gray-900"
 			>
 				<div class="pb-5">
 					<button
 						class="px-4 py-2 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
-						on:click={cloneSharedChat}
+						onclick={cloneSharedChat}
 					>
 						{$i18n.t('Clone Chat')}
 					</button>

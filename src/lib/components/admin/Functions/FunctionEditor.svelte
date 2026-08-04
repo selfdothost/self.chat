@@ -1,9 +1,10 @@
 <script>
-	import { getContext, createEventDispatcher, tick } from 'svelte';
+	import { preventDefault } from 'svelte/legacy';
+
+	import { getContext, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
-	const dispatch = createEventDispatcher();
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
@@ -14,37 +15,46 @@
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
 	import { config } from '$lib/stores';
 
-	let formElement = null;
-	let showConfirm = false;
+	let formElement = $state(null);
+	let showConfirm = $state(false);
 
-	export let edit = false;
-	export let clone = false;
 
-	export let id = '';
-	export let name = '';
-	export let meta = {
+	/**
+	 * @typedef {Object} Props
+	 * @property {boolean} [edit]
+	 * @property {boolean} [clone]
+	 * @property {string} [id]
+	 * @property {string} [name]
+	 * @property {any} [meta]
+	 * @property {string} [content]
+	 * @property {import('$lib/types').AnyFn} [onSave]
+	 */
+
+	/** @type {Props} */
+	let {
+		edit = false,
+		clone = false,
+		id = $bindable(''),
+		name = $bindable(''),
+		meta = $bindable({
 		description: ''
-	};
-	export let content = '';
-	let _content = '';
+	}),
+		content = $bindable(''),
+		onSave = () => {}
+	} = $props();
+	let _content = $state('');
 
-	$: if (content) {
-		updateContent();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const updateContent = () => {
 		_content = content;
 	};
 
-	$: if (name && !edit && !clone) {
-		id = name.replace(/\s+/g, '_').toLowerCase();
-	}
 
-	let codeEditor;
+	let codeEditor = $state();
 	let boilerplate = `"""
 title: Example Filter
 author: your_name
@@ -115,7 +125,7 @@ class Filter:
 `;
 
 	const saveHandler = async () => {
-		dispatch('save', {
+		onSave({
 			id,
 			name,
 			meta,
@@ -141,6 +151,16 @@ class Filter:
 			}
 		}
 	};
+	$effect(() => {
+		if (content) {
+			updateContent();
+		}
+	});
+	$effect(() => {
+		if (name && !edit && !clone) {
+			id = name.replace(/\s+/g, '_').toLowerCase();
+		}
+	});
 </script>
 
 <div class=" flex flex-col justify-between w-full overflow-y-auto h-full">
@@ -148,21 +168,21 @@ class Filter:
 		<form
 			bind:this={formElement}
 			class=" flex flex-col max-h-[100dvh] h-full"
-			on:submit|preventDefault={() => {
+			onsubmit={preventDefault(() => {
 				// Always confirm before running unsandboxed code, on both create
 				// and edit -- editing an existing function's code is exactly when a
 				// dangerous payload could be introduced, not just at creation.
 				showConfirm = true;
-			}}
+			})}
 		>
 			<div class="flex flex-col flex-1 overflow-auto h-0 rounded-lg">
 				<div class="w-full mb-2 flex flex-col gap-0.5">
 					<div class="flex w-full items-center">
-						<div class=" flex-shrink-0 mr-2">
+						<div class=" shrink-0 mr-2">
 							<Tooltip content={$i18n.t('Back')}>
 								<button
 									class="w-full text-left text-sm py-1.5 px-1 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
-									on:click={() => {
+									onclick={() => {
 										goto(resolve('/(app)/admin/functions'));
 									}}
 									type="button"
@@ -175,7 +195,7 @@ class Filter:
 						<div class="flex-1">
 							<Tooltip content={$i18n.t('e.g. My Filter')} placement="top-start">
 								<input
-									class="w-full text-2xl font-medium bg-transparent outline-none font-primary"
+									class="w-full text-2xl font-medium bg-transparent outline-hidden font-primary"
 									type="text"
 									placeholder={$i18n.t('Function Name')}
 									bind:value={name}
@@ -191,13 +211,13 @@ class Filter:
 
 					<div class=" flex gap-2 px-1 items-center">
 						{#if edit}
-							<div class="text-sm text-gray-500 flex-shrink-0">
+							<div class="text-sm text-gray-500 shrink-0">
 								{id}
 							</div>
 						{:else}
 							<Tooltip className="w-full" content={$i18n.t('e.g. my_filter')} placement="top-start">
 								<input
-									class="w-full text-sm disabled:text-gray-500 bg-transparent outline-none"
+									class="w-full text-sm disabled:text-gray-500 bg-transparent outline-hidden"
 									type="text"
 									placeholder={$i18n.t('Function ID')}
 									bind:value={id}
@@ -213,7 +233,7 @@ class Filter:
 							placement="top-start"
 						>
 							<input
-								class="w-full text-sm bg-transparent outline-none"
+								class="w-full text-sm bg-transparent outline-hidden"
 								type="text"
 								placeholder={$i18n.t('Function Description')}
 								bind:value={meta.description}
@@ -229,10 +249,10 @@ class Filter:
 						value={content}
 						lang="python"
 						{boilerplate}
-						on:change={(e) => {
-							_content = e.detail.value;
+						onChange={(detail) => {
+							_content = detail.value;
 						}}
-						on:save={async () => {
+						onSave={async () => {
 							if (formElement) {
 								formElement.requestSubmit();
 							}
@@ -269,7 +289,7 @@ class Filter:
 
 <ConfirmDialog
 	bind:show={showConfirm}
-	on:confirm={() => {
+	onConfirm={() => {
 		submitHandler();
 	}}
 >

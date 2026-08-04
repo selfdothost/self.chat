@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
@@ -15,21 +17,35 @@
 	import { resolve } from '$app/paths';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
-	export let onSubmit: AnyFn = () => {};
-	export let onUpdate: AnyFn = () => {};
 
-	export let channel = null;
-	export let edit = false;
-
-	let name = '';
-	let accessControl = null;
-
-	let loading = false;
-
-	$: if (name) {
-		name = name.replace(/\s/g, '-').toLocaleLowerCase();
+	interface Props {
+		show?: boolean;
+		onSubmit?: AnyFn;
+		onUpdate?: AnyFn;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		channel?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		edit?: boolean;
 	}
+
+	let {
+		show = $bindable(false),
+		onSubmit = () => {},
+		onUpdate = () => {},
+		channel = null,
+		edit = false
+	}: Props = $props();
+
+	let name = $state('');
+	let accessControl = $state(null);
+
+	let loading = $state(false);
+
+	$effect(() => {
+		if (name) {
+			name = name.replace(/\s/g, '-').toLocaleLowerCase();
+		}
+	});
 
 	const submitHandler = async () => {
 		loading = true;
@@ -46,11 +62,13 @@
 		accessControl = channel.access_control;
 	};
 
-	$: if (channel) {
-		init();
-	}
+	$effect(() => {
+		if (channel) {
+			init();
+		}
+	});
 
-	let showDeleteConfirmDialog = false;
+	let showDeleteConfirmDialog = $state(false);
 
 	const deleteHandler = async () => {
 		showDeleteConfirmDialog = false;
@@ -84,7 +102,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -107,16 +125,16 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit|preventDefault={() => {
+					onsubmit={preventDefault(() => {
 						submitHandler();
-					}}
+					})}
 				>
 					<div class="flex flex-col w-full mt-2">
 						<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Channel Name')}</div>
 
 						<div class="flex-1">
 							<input
-								class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+								class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 								type="text"
 								bind:value={name}
 								placeholder={$i18n.t('new-channel')}
@@ -138,7 +156,7 @@
 							<button
 								class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-black/90 dark:text-white bg-white text-black hover:bg-gray-100 transition rounded-full flex flex-row space-x-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									showDeleteConfirmDialog = true;
 								}}
 							>
@@ -198,7 +216,7 @@
 	bind:show={showDeleteConfirmDialog}
 	message={$i18n.t('Are you sure you want to delete this channel?')}
 	confirmLabel={$i18n.t('Delete')}
-	on:confirm={() => {
+	onConfirm={() => {
 		deleteHandler();
 	}}
 />

@@ -10,10 +10,16 @@
 	import { updateUserSettings } from '$lib/apis/users';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let selectedModels = [''];
-	export let disabled = false;
 
-	export let showSetDefault = true;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		selectedModels?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		disabled?: boolean;
+		showSetDefault?: boolean;
+	}
+
+	let { selectedModels = $bindable(['']), disabled = false, showSetDefault = true }: Props = $props();
 
 	const saveDefaultModel = async () => {
 		const hasEmptyModel = selectedModels.filter((it) => it === '');
@@ -27,16 +33,30 @@
 		toast.success($i18n.t('Default model updated'));
 	};
 
-	$: if (selectedModels.length > 0 && $models.length > 0) {
-		selectedModels = selectedModels.map((model) =>
-			$models.map((m) => m.id).includes(model) ? model : ''
-		);
-	}
+	$effect(() => {
+		if (selectedModels.length > 0 && $models.length > 0) {
+			const availableIds = new Set($models.map((m) => m.id));
+			const revalidated = selectedModels.map((model) => (availableIds.has(model) ? model : ''));
+
+			// Only write when a selection actually changed. This effect READS
+			// selectedModels and WRITES it, and `.map()` returns a fresh array
+			// every run -- so an unconditional assignment re-triggers the
+			// effect's own dependency forever. Svelte 5 aborts that with
+			// effect_update_depth_exceeded, which tears down the reactive graph
+			// for the whole chat route: the DOM still paints but nothing is
+			// wired, so the page looks fine and ignores every click.
+			// The legacy run() wrapper this was converted from tolerated the
+			// self-write; $effect does not. Guard, don't revert.
+			if (revalidated.some((model, i) => model !== selectedModels[i])) {
+				selectedModels = revalidated;
+			}
+		}
+	});
 </script>
 
 <div class="flex flex-col w-full items-start">
 	<!-- no stable id on these entries; slots can repeat '' placeholders, so index is fine -->
-	{#each selectedModels as selectedModel, selectedModelIdx (selectedModelIdx)}
+	{#each selectedModels as _selectedModel, selectedModelIdx (selectedModelIdx)}
 		<div class="flex w-full max-w-fit">
 			<div class="overflow-hidden w-full">
 				<div class="mr-1 max-w-full">
@@ -51,7 +71,7 @@
 						showTemporaryChatControl={$user.role === 'user'
 							? ($user?.permissions?.chat?.temporary ?? true)
 							: true}
-						bind:value={selectedModel}
+						bind:value={selectedModels[selectedModelIdx]}
 					/>
 				</div>
 			</div>
@@ -64,7 +84,7 @@
 						<button
 							class=" "
 							{disabled}
-							on:click={() => {
+							onclick={() => {
 								selectedModels = [...selectedModels, ''];
 							}}
 							aria-label="Add Model"
@@ -89,7 +109,7 @@
 					<Tooltip content={$i18n.t('Remove Model')}>
 						<button
 							{disabled}
-							on:click={() => {
+							onclick={() => {
 								selectedModels.splice(selectedModelIdx, 1);
 								selectedModels = selectedModels;
 							}}
@@ -115,6 +135,6 @@
 
 {#if showSetDefault}
 	<div class=" absolute text-left mt-[1px] ml-1 text-[0.7rem] text-gray-500 font-primary">
-		<button on:click={saveDefaultModel}> {$i18n.t('Set as default')}</button>
+		<button onclick={saveDefaultModel}> {$i18n.t('Set as default')}</button>
 	</div>
 {/if}

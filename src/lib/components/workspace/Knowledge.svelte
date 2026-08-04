@@ -33,31 +33,35 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import Dropdown from '../common/Dropdown.svelte';
 
-	let loaded = false;
+	let loaded = $state(false);
 
-	let query = '';
-	let selectedItem = null;
-	let showDeleteConfirm = false;
-	let showAddMenu = false;
+	let query = $state('');
+	let selectedItem = $state(null);
+	let showDeleteConfirm = $state(false);
+	let showAddMenu = $state(false);
 
-	let fuse = null;
+	let fuse = $state(null);
 
-	let knowledgeBases = [];
-	let filteredItems = [];
+	let knowledgeBases = $state([]);
+	let filteredItems = $state([]);
 
-	$: if (knowledgeBases) {
-		fuse = new Fuse(knowledgeBases, {
-			keys: ['name', 'description']
-		});
-	}
+	$effect(() => {
+		if (knowledgeBases) {
+			fuse = new Fuse(knowledgeBases, {
+				keys: ['name', 'description']
+			});
+		}
+	});
 
-	$: if (fuse) {
-		filteredItems = query
-			? fuse.search(query).map((e) => {
-					return e.item;
-				})
-			: knowledgeBases;
-	}
+	$effect(() => {
+		if (fuse) {
+			filteredItems = query
+				? fuse.search(query).map((e) => {
+						return e.item;
+					})
+				: knowledgeBases;
+		}
+	});
 
 	const deleteHandler = async (item) => {
 		const res = await deleteKnowledgeById(localStorage.token, item.id).catch((e) => {
@@ -86,7 +90,7 @@
 {#if loaded}
 	<DeleteConfirmDialog
 		bind:show={showDeleteConfirm}
-		on:confirm={() => {
+		onConfirm={() => {
 			deleteHandler(selectedItem);
 		}}
 	/>
@@ -95,7 +99,7 @@
 		<div class="flex justify-between items-center">
 			<div class="flex md:self-center text-xl font-medium px-0.5 items-center">
 				{$i18n.t('Knowledge')}
-				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 				<span class="text-lg font-medium text-gray-500 dark:text-gray-300"
 					>{filteredItems.length}</span
 				>
@@ -108,7 +112,7 @@
 					<Search className="size-3.5" />
 				</div>
 				<input
-					class=" w-full text-sm py-1 rounded-r-xl outline-none bg-transparent"
+					class=" w-full text-sm py-1 rounded-r-xl outline-hidden bg-transparent"
 					bind:value={query}
 					placeholder={$i18n.t('Search Knowledge')}
 				/>
@@ -126,38 +130,40 @@
 						<Plus className="size-3.5" />
 					</button>
 
-					<div slot="content">
-						<DropdownMenuContent
-							class="w-full max-w-56 rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
-							sideOffset={4}
-							side="bottom"
-							align="end"
-						>
-							<DropdownMenu.Item
-								class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-								onSelect={() => {
-									goto(resolve('/(app)/workspace/knowledge/create'));
-								}}
+					{#snippet content()}
+										<div >
+							<DropdownMenuContent
+								class="w-full max-w-56 rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow"
+								sideOffset={4}
+								side="bottom"
+								align="end"
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-									<path d="M10.75 16.82A7.462 7.462 0 0115 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0018 15.06v-11a.75.75 0 00-.546-.721A9.006 9.006 0 0015 3a8.963 8.963 0 00-4.25 1.065V16.82zM9.25 4.065A8.963 8.963 0 005 3c-.85 0-1.673.118-2.454.339A.75.75 0 002 4.06v11a.75.75 0 00.954.721A7.506 7.506 0 015 15.5c1.579 0 3.042.487 4.25 1.32V4.065z" />
-								</svg>
-								<div class="flex items-center">{$i18n.t('Create Knowledge Base')}</div>
-							</DropdownMenu.Item>
+								<DropdownMenu.Item
+									class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+									onSelect={() => {
+										goto(resolve('/(app)/workspace/knowledge/create'));
+									}}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+										<path d="M10.75 16.82A7.462 7.462 0 0115 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0018 15.06v-11a.75.75 0 00-.546-.721A9.006 9.006 0 0015 3a8.963 8.963 0 00-4.25 1.065V16.82zM9.25 4.065A8.963 8.963 0 005 3c-.85 0-1.673.118-2.454.339A.75.75 0 002 4.06v11a.75.75 0 00.954.721A7.506 7.506 0 015 15.5c1.579 0 3.042.487 4.25 1.32V4.065z" />
+									</svg>
+									<div class="flex items-center">{$i18n.t('Create Knowledge Base')}</div>
+								</DropdownMenu.Item>
 
-							<DropdownMenu.Item
-								class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
-								onSelect={() => {
-									goto(resolve('/(app)/workspace/knowledge/dataset/create'));
-								}}
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-									<path fill-rule="evenodd" d="M10 1c-1.828 0-3.623.149-5.371.435a.75.75 0 00-.629.74v.01c0 2.458.82 4.775 2.293 6.612A10.95 10.95 0 009.25 11.3V17h-2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-2.5v-5.7a10.95 10.95 0 002.957-2.503A10.969 10.969 0 0016 2.185v-.01a.75.75 0 00-.629-.74A33.118 33.118 0 0010 1zM7.544 7.159A9.47 9.47 0 015.5 2.57c1.466-.17 2.967-.258 4.5-.258s3.034.088 4.5.258a9.47 9.47 0 01-2.044 4.589A9.45 9.45 0 0110 9.465a9.45 9.45 0 01-2.456-2.306z" clip-rule="evenodd" />
-								</svg>
-								<div class="flex items-center">{$i18n.t('Add Dataset')}</div>
-							</DropdownMenu.Item>
-						</DropdownMenuContent>
-					</div>
+								<DropdownMenu.Item
+									class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+									onSelect={() => {
+										goto(resolve('/(app)/workspace/knowledge/dataset/create'));
+									}}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+										<path fill-rule="evenodd" d="M10 1c-1.828 0-3.623.149-5.371.435a.75.75 0 00-.629.74v.01c0 2.458.82 4.775 2.293 6.612A10.95 10.95 0 009.25 11.3V17h-2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-2.5v-5.7a10.95 10.95 0 002.957-2.503A10.969 10.969 0 0016 2.185v-.01a.75.75 0 00-.629-.74A33.118 33.118 0 0010 1zM7.544 7.159A9.47 9.47 0 015.5 2.57c1.466-.17 2.967-.258 4.5-.258s3.034.088 4.5.258a9.47 9.47 0 01-2.044 4.589A9.45 9.45 0 0110 9.465a9.45 9.45 0 01-2.456-2.306z" clip-rule="evenodd" />
+									</svg>
+									<div class="flex items-center">{$i18n.t('Add Dataset')}</div>
+								</DropdownMenu.Item>
+							</DropdownMenuContent>
+						</div>
+									{/snippet}
 				</Dropdown>
 			</div>
 		</div>
@@ -167,7 +173,7 @@
 		{#each filteredItems as item (item.id)}
 			<button
 				class=" flex space-x-4 cursor-pointer text-left w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-850 transition rounded-xl"
-				on:click={() => {
+				onclick={() => {
 					if (item?.meta?.document) {
 						toast.error(
 							$i18n.t(
@@ -191,7 +197,7 @@
 
 						<div class=" flex self-center -mr-1 translate-y-1">
 							<ItemMenu
-								on:delete={() => {
+								onDelete={() => {
 									selectedItem = item;
 									showDeleteConfirm = true;
 								}}

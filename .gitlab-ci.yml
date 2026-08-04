@@ -74,15 +74,27 @@ pipeline:validate:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
 
-# --- lint: advisory, runs on the bare scaffold too --------------------------
+# --- lint: svelte-check type check. BLOCKING (no longer advisory) ------------
 lint:
   stage: lint
   image: node:22-alpine3.20
+  variables:
+    # Skip Cypress's postinstall binary download -- this job never runs Cypress,
+    # but plain `npm ci` installs it as a devDependency regardless, and its
+    # binary fetch (download.cypress.io/cdn.cypress.io) has been an unreliable
+    # single point of failure blocking lint/test entirely (self.chat CI incident,
+    # 2026-08-03: 5+ retries needed purely from this, on a live prod-fix MR).
+    CYPRESS_INSTALL_BINARY: "0"
+    # Same story for onnxruntime-node's postinstall: it unconditionally tries to
+    # fetch a GPU (CUDA) runtime .nupkg from api.nuget.org even though this job
+    # never runs any ONNX/embedding code. "skip" is the documented value
+    # (see onnxruntime-node/script/install-utils.js parseInstallFlag()) --
+    # confirmed against the exact installed version (1.24.3) via unpkg.
+    ONNXRUNTIME_NODE_INSTALL: "skip"
   before_script:
     - npm ci
   script:
-    - npm run lint:types   # svelte-check; advisory until the UI settles
-  allow_failure: true
+    - npm run lint:types   # svelte-check — now gating; a type error fails the MR
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: [src/**/*, package.json, package-lock.json, tsconfig.json, .gitlab-ci.yml]
@@ -96,6 +108,11 @@ lint:
 lint:eslint:
   stage: lint
   image: node:22-alpine3.20
+  variables:
+    # See lint job's comment: skips Cypress's and onnxruntime-node's unreliable
+    # postinstall fetches, neither of which this job needs.
+    CYPRESS_INSTALL_BINARY: "0"
+    ONNXRUNTIME_NODE_INSTALL: "skip"
   before_script:
     - npm ci
   script:
@@ -110,15 +127,20 @@ lint:eslint:
 test:unit:
   stage: test
   image: node:22-alpine3.20
+  variables:
+    # See lint job's comment: skips Cypress's and onnxruntime-node's unreliable
+    # postinstall fetches, neither of which this job needs.
+    CYPRESS_INSTALL_BINARY: "0"
+    ONNXRUNTIME_NODE_INSTALL: "skip"
   before_script:
     - npm ci
   script:
     - npm run test:frontend -- --run
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes: [src/**/*, package.json, package-lock.json]
+      changes: [src/**/*, package.json, package-lock.json, .gitlab-ci.yml]
     - if: '$CI_COMMIT_BRANCH == "main"'
-      changes: [src/**/*, package.json, package-lock.json]
+      changes: [src/**/*, package.json, package-lock.json, .gitlab-ci.yml]
 
 # --- build: static SvelteKit bundle -> nginx image — MR gate (build, NO push) -
 # Heavy build (npm ci + vite build, 6GB heap). Runs when the app, deps, or the
@@ -140,7 +162,7 @@ build:web:
       --export-cache "type=registry,ref=${CI_REGISTRY_IMAGE}/cache,mode=max"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
+      changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*, .gitlab-ci.yml]
 
 # --- publish: build + push :sha / :latest (main only) ---
 publish:web:
@@ -163,7 +185,7 @@ publish:web:
       --output "$OUT"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-      changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*]
+      changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*, .gitlab-ci.yml]
 
 # --- e2e: Cypress specs against a live self.ai API (sqlite, ephemeral) ------
 # selfshipyard/selfai/self.chat#5 — the 4 specs under cypress/e2e/ need a real

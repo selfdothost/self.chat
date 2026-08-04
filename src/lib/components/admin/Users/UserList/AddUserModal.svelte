@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher } from 'svelte';
 	import { getContext } from 'svelte';
 	import { addUser } from '$lib/apis/auths';
 
@@ -11,33 +13,39 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let show = false;
+	interface Props {
+		show?: boolean;
+		onSave?: AnyFn;
+	}
 
-	let loading = false;
-	let tab = '';
-	let inputFiles;
+	let { show = $bindable(false), onSave = () => {} }: Props = $props();
 
-	let _user = {
+	let loading = $state(false);
+	let tab = $state('');
+	let inputFiles: FileList | undefined = $state();
+
+	let _user = $state({
 		name: '',
 		email: '',
 		password: '',
 		role: 'user'
-	};
+	});
 
-	$: if (show) {
-		_user = {
-			name: '',
-			email: '',
-			password: '',
-			role: 'user'
-		};
-	}
+	$effect(() => {
+		if (show) {
+			_user = {
+				name: '',
+				email: '',
+				password: '',
+				role: 'user'
+			};
+		}
+	});
 
 	const submitHandler = async () => {
 		const stopLoading = () => {
-			dispatch('save');
+			onSave();
 			loading = false;
 		};
 
@@ -127,7 +135,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Add User')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -148,15 +156,15 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit|preventDefault={() => {
+					onsubmit={preventDefault(() => {
 						submitHandler();
-					}}
+					})}
 				>
 					<div class="flex text-center text-sm font-medium rounded-full bg-transparent/10 p-1 mb-2">
 						<button
 							class="w-full rounded-full p-1.5 {tab === '' ? 'bg-gray-50 dark:bg-gray-850' : ''}"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								tab = '';
 							}}>{$i18n.t('Form')}</button
 						>
@@ -166,7 +174,7 @@
 								? 'bg-gray-50 dark:bg-gray-850'
 								: ''}"
 							type="button"
-							on:click={() => {
+							onclick={() => {
 								tab = 'import';
 							}}>{$i18n.t('CSV Import')}</button
 						>
@@ -178,7 +186,7 @@
 
 								<div class="flex-1">
 									<select
-										class="w-full capitalize rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-none"
+										class="w-full capitalize rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
 										bind:value={_user.role}
 										placeholder={$i18n.t('Enter Your Role')}
 										required
@@ -195,7 +203,7 @@
 
 								<div class="flex-1">
 									<input
-										class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
 										type="text"
 										bind:value={_user.name}
 										placeholder={$i18n.t('Enter Your Full Name')}
@@ -212,7 +220,7 @@
 
 								<div class="flex-1">
 									<input
-										class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
 										type="email"
 										bind:value={_user.email}
 										placeholder={$i18n.t('Enter Your Email')}
@@ -226,7 +234,7 @@
 
 								<div class="flex-1">
 									<input
-										class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
 										type="password"
 										bind:value={_user.password}
 										placeholder={$i18n.t('Enter Your Password')}
@@ -248,7 +256,7 @@
 									<button
 										class="w-full text-sm font-medium py-3 bg-transparent hover:bg-gray-100 border border-dashed dark:border-gray-800 dark:hover:bg-gray-850 text-center rounded-xl"
 										type="button"
-										on:click={() => {
+										onclick={() => {
 											document.getElementById('upload-user-csv-input')?.click();
 										}}
 									>

@@ -4,8 +4,12 @@
 	import MagnifyingGlass from '$lib/components/icons/MagnifyingGlass.svelte';
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 
-	export let status = { urls: [], query: '' };
-	let state = false;
+	interface Props {
+		status?: { urls: string[]; query: string };
+	}
+
+	let { status = { urls: [], query: '' } }: Props = $props();
+	let state = $state(false);
 </script>
 
 <Collapsible bind:open={state} className="w-full space-y-1">

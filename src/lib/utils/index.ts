@@ -10,6 +10,34 @@ import { TTS_RESPONSE_SPLIT } from '$lib/types';
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A FastAPI `detail` is not always a string. self.ai#35's GPU-window lease
+// checkpoint refuses local generation with a STRUCTURED detail --
+//   {"detail": "GPU dedicated to the active training window ...",
+//    "gpu_locked_by": "training"}
+// -- deliberately, so a caller can tell "GPU policy" from "llamolotl is down".
+// Every call site here reached for that value inside a template literal, which
+// renders an object as the useless "[object Object]", so the one error the
+// server took care to make readable was the one the user could not read.
+// Returns the human sentence when there is one, and never "[object Object]".
+export const errorDetailToMessage = (detail: unknown, fallback: string): string => {
+	if (detail === null || detail === undefined) return fallback;
+	if (typeof detail === 'string') return detail;
+	if (typeof detail === 'object') {
+		// The structured shape: an inner `detail` carries the human sentence,
+		// the sibling keys (gpu_locked_by, gpu_status_unknown) are for machines.
+		const inner = (detail as Record<string, unknown>).detail;
+		if (typeof inner === 'string') return inner;
+		const message = (detail as Record<string, unknown>).message;
+		if (typeof message === 'string') return message;
+		try {
+			return JSON.stringify(detail);
+		} catch {
+			return fallback;
+		}
+	}
+	return String(detail);
+};
+
 function escapeRegExp(string: string): string {
 	return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

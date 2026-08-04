@@ -4,13 +4,15 @@
 	import DOMPurify from 'dompurify';
 
 	import { marked } from 'marked';
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 
-	const dispatch = createEventDispatcher();
+	interface Props {
+		onClick?: AnyFn;
+		title?: string;
+		content: string;
+	}
 
-	export let onClick: AnyFn = () => {};
-	export let title: string = 'HI';
-	export let content: string;
+	let { onClick = () => {}, title = 'HI', content }: Props = $props();
 
 	onMount(() => {
 		if (!navigator.userActivation.hasBeenActive) {
@@ -33,12 +35,11 @@
 
 <button
 	class="flex gap-2.5 text-left min-w-[var(--width)] w-full dark:bg-gray-850 dark:text-white bg-white text-black border border-gray-50 dark:border-gray-800 rounded-xl px-3.5 py-3.5"
-	on:click={() => {
+	onclick={() => {
 		onClick();
-		dispatch('closeToast');
 	}}
 >
-	<div class="flex-shrink-0 self-top -translate-y-0.5">
+	<div class="shrink-0 self-top -translate-y-0.5">
 		<img src="/static/favicon.png" alt="favicon" class="size-7 rounded-full" />
 	</div>
 

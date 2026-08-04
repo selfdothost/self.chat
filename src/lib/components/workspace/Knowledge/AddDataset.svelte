@@ -1,4 +1,6 @@
 <script>
+	import { preventDefault } from 'svelte/legacy';
+
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { getContext } from 'svelte';
@@ -10,17 +12,17 @@
 	import { knowledge } from '$lib/stores';
 	import AccessControl from '../common/AccessControl.svelte';
 
-	let loading = false;
+	let loading = $state(false);
 
-	let name = '';
-	let description = '';
-	let hfPath = '';
-	let accessControl = null;
+	let name = $state('');
+	let description = $state('');
+	let hfPath = $state('');
+	let accessControl = $state(null);
 
 	// HuggingFace auto-fill state
-	let fetchingInfo = false;
-	let detectedFormat = '';
-	let infoError = '';
+	let fetchingInfo = $state(false);
+	let detectedFormat = $state('');
+	let infoError = $state('');
 
 	const FORMAT_LABELS = {
 		alpaca: 'Alpaca (instruction / output)',
@@ -94,7 +96,7 @@
 <div class="w-full max-h-full">
 	<button
 		class="flex space-x-1"
-		on:click={() => {
+		onclick={() => {
 			goto(resolve('/(app)/workspace/knowledge'));
 		}}
 	>
@@ -117,9 +119,9 @@
 
 	<form
 		class="flex flex-col max-w-lg mx-auto mt-10 mb-10"
-		on:submit|preventDefault={() => {
+		onsubmit={preventDefault(() => {
 			submitHandler();
-		}}
+		})}
 	>
 		<div class=" w-full flex flex-col justify-center">
 			<div class=" text-2xl font-medium font-primary mb-2.5">
@@ -132,7 +134,7 @@
 
 					<div class="w-full mt-1">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							type="text"
 							bind:value={name}
 							placeholder={$i18n.t('Auto-filled from HuggingFace if left blank')}
@@ -145,11 +147,11 @@
 
 					<div class=" w-full mt-1">
 						<textarea
-							class="w-full resize-none rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+							class="w-full resize-none rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 							rows="3"
 							bind:value={description}
 							placeholder={$i18n.t('Auto-filled from HuggingFace if left blank')}
-						/>
+						></textarea>
 					</div>
 				</div>
 
@@ -158,10 +160,10 @@
 
 					<div class=" w-full mt-1">
 						<input
-							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none font-mono"
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden font-mono"
 							type="text"
 							bind:value={hfPath}
-							on:blur={fetchHfInfo}
+							onblur={fetchHfInfo}
 							placeholder={$i18n.t('e.g. tatsu-lab/alpaca')}
 							required
 						/>

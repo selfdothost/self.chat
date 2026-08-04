@@ -13,28 +13,48 @@
 	import EllipsisVertical from '../icons/EllipsisVertical.svelte';
 	import Artifacts from './Artifacts.svelte';
 
-	export let history;
-	export let models = [];
 
-	export let chatId = null;
 
-	export let chatFiles = [];
-	export let params = {};
 
-	export let eventTarget: EventTarget;
-	export let submitPrompt: AnyFn;
-	export let stopResponse: AnyFn;
-	export let showMessage: AnyFn;
-	export let files;
-	export let modelId;
 
-	export let pane = null;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		history: any;
+		models?: any;
+		chatId?: any;
+		chatFiles?: any;
+		params?: any;
+		eventTarget: EventTarget;
+		submitPrompt: AnyFn;
+		stopResponse: AnyFn;
+		showMessage: AnyFn;
+		files: any;
+		modelId: any;
+		pane?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
+
+	// `models` accepted (part of the public props contract) but not read
+	// internally by this component.
+	let {
+		history = $bindable(),
+		chatId = null,
+		chatFiles = $bindable([]),
+		params = $bindable({}),
+		eventTarget,
+		submitPrompt,
+		stopResponse,
+		showMessage,
+		files = $bindable(),
+		modelId,
+		pane = $bindable(null)
+	}: Props = $props();
 
 	let mediaQuery;
-	let largeScreen = false;
-	let dragged = false;
+	let largeScreen = $state(false);
+	let dragged = $state(false);
 
-	let minSize = 0;
+	let minSize = $state(0);
 
 	export const openPane = () => {
 		if (parseInt(localStorage?.chatControlsSize)) {
@@ -128,9 +148,11 @@
 		}
 	};
 
-	$: if (!chatId) {
-		closeHandler();
-	}
+	$effect(() => {
+		if (!chatId) {
+			closeHandler();
+		}
+	});
 </script>
 
 <SvelteFlowProvider>
@@ -138,7 +160,7 @@
 		{#if $showControls}
 			<Drawer
 				show={$showControls}
-				on:close={() => {
+				onClose={() => {
 					showControls.set(false);
 				}}
 			>
@@ -158,7 +180,7 @@
 								{modelId}
 								{chatId}
 								{eventTarget}
-								on:close={() => {
+								onClose={() => {
 									showControls.set(false);
 								}}
 							/>
@@ -177,7 +199,7 @@
 						/>
 					{:else}
 						<Controls
-							on:close={() => {
+							onClose={() => {
 								showControls.set(false);
 							}}
 							bind:chatFiles
@@ -192,7 +214,7 @@
 
 		{#if $showControls}
 			<PaneResizer class="relative flex w-2 items-center justify-center bg-background group">
-				<div class="z-10 flex h-7 w-5 items-center justify-center rounded-sm">
+				<div class="z-10 flex h-7 w-5 items-center justify-center rounded-xs">
 					<EllipsisVertical className="size-4 invisible group-hover:visible" />
 				</div>
 			</PaneResizer>
@@ -202,8 +224,6 @@
 			bind:ref={pane}
 			defaultSize={0}
 			onResize={(size) => {
-				console.log('size', size, minSize);
-
 				if ($showControls && pane.isExpanded()) {
 					if (size < minSize) {
 						pane.resize(minSize);
@@ -238,7 +258,7 @@
 									{modelId}
 									{chatId}
 									{eventTarget}
-									on:close={() => {
+									onClose={() => {
 										showControls.set(false);
 									}}
 								/>
@@ -263,7 +283,7 @@
 							/>
 						{:else}
 							<Controls
-								on:close={() => {
+								onClose={() => {
 									showControls.set(false);
 								}}
 								bind:chatFiles

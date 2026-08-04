@@ -5,10 +5,8 @@
 	import { toast } from 'svelte-sonner';
 	import { marked } from 'marked';
 
-	import { onMount, getContext, tick, createEventDispatcher } from 'svelte';
+	import { onMount, getContext, tick } from 'svelte';
 	import { fade } from 'svelte/transition';
-
-	const dispatch = createEventDispatcher();
 
 	import { config, user, models as _models, temporaryChatEnabled } from '$lib/stores';
 	import type { Model } from '$lib/stores';
@@ -22,28 +20,53 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let transparentBackground = false;
 
-	export let createMessagePair: AnyFn;
-	export let stopResponse: AnyFn;
 
-	export let autoScroll = false;
 
-	export let atSelectedModel: Model | undefined;
-	export let selectedModels: string[];
 
-	export let history;
 
-	export let prompt = '';
-	export let files = [];
 
-	export let selectedToolIds = [];
-	export let webSearchEnabled = false;
-	export let deepResearchEnabled = false;
-	export let webCrawlEnabled = false;
-	export let webCrawlKbId = '';
+	interface Props {
+		transparentBackground?: boolean;
+		createMessagePair: AnyFn;
+		stopResponse: AnyFn;
+		autoScroll?: boolean;
+		atSelectedModel: Model | undefined;
+		selectedModels: string[];
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		history: any;
+		prompt?: string;
+		files?: any;
+		selectedToolIds?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		webSearchEnabled?: boolean;
+		deepResearchEnabled?: boolean;
+		webCrawlEnabled?: boolean;
+		webCrawlKbId?: string;
+		onUpload?: AnyFn;
+		onSubmit?: AnyFn;
+	}
 
-	let models = [];
+	let {
+		transparentBackground = false,
+		createMessagePair,
+		stopResponse,
+		autoScroll = $bindable(false),
+		atSelectedModel = $bindable(),
+		selectedModels,
+		history,
+		prompt = $bindable(''),
+		files = $bindable([]),
+		selectedToolIds = $bindable([]),
+		webSearchEnabled = $bindable(false),
+		deepResearchEnabled = $bindable(false),
+		webCrawlEnabled = $bindable(false),
+		webCrawlKbId = $bindable(''),
+		onUpload = () => {},
+		onSubmit = () => {}
+	}: Props = $props();
+
+	let models = $derived(selectedModels.map((id) => $_models.find((m) => m.id === id)));
 
 	const selectSuggestionPrompt = async (p) => {
 		let text = p;
@@ -82,13 +105,13 @@
 		await tick();
 	};
 
-	let selectedModelIdx = 0;
+	let selectedModelIdx = $state(0);
 
-	$: if (selectedModels.length > 0) {
-		selectedModelIdx = models.length - 1;
-	}
-
-	$: models = selectedModels.map((id) => $_models.find((m) => m.id === id));
+	$effect(() => {
+		if (selectedModels.length > 0) {
+			selectedModelIdx = models.length - 1;
+		}
+	});
 
 	onMount(() => {});
 </script>
@@ -111,7 +134,7 @@
 	>
 		<div class="w-full flex flex-col justify-center items-center">
 			<div class="flex flex-row justify-center gap-3 sm:gap-3.5 w-fit px-5">
-				<div class="flex flex-shrink-0 justify-center">
+				<div class="flex shrink-0 justify-center">
 					<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
 						<!-- compare mode lets the user pick the same model into more than one slot; index is the only stable disambiguator -->
 						{#each models as model, modelIdx (modelIdx)}
@@ -122,7 +145,7 @@
 								placement="top"
 							>
 								<button
-									on:click={() => {
+									onclick={() => {
 										selectedModelIdx = modelIdx;
 									}}
 								>
@@ -214,10 +237,10 @@
 					{createMessagePair}
 					placeholder={$i18n.t('How can I help you today?')}
 					on:upload={(e) => {
-						dispatch('upload', e.detail);
+						onUpload(e.detail);
 					}}
 					on:submit={(e) => {
-						dispatch('submit', e.detail);
+						onSubmit(e.detail);
 					}}
 				/>
 			</div>
@@ -229,8 +252,8 @@
 				suggestionPrompts={models[selectedModelIdx]?.info?.meta?.suggestion_prompts ??
 					$config?.default_prompt_suggestions ??
 					[]}
-				on:select={(e) => {
-					selectSuggestionPrompt(e.detail);
+				onSelect={(detail) => {
+					selectSuggestionPrompt(detail);
 				}}
 			/>
 		</div>

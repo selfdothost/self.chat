@@ -4,11 +4,22 @@
 
 	import Tags from '../common/Tags.svelte';
 
-	export let tags;
-	export let deleteTag: AnyFn;
-	export let addTag: AnyFn;
 
-	export let show = false;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		tags: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		deleteTag: AnyFn;
+		addTag: AnyFn;
+		show?: boolean;
+	}
+
+	let {
+		tags,
+		deleteTag,
+		addTag,
+		show = $bindable(false)
+	}: Props = $props();
 </script>
 
 <Modal bind:show size="xs">

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
@@ -7,10 +9,10 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let show = false;
-	let currentPassword = '';
-	let newPassword = '';
-	let newPasswordConfirm = '';
+	let show = $state(false);
+	let currentPassword = $state('');
+	let newPassword = $state('');
+	let newPasswordConfirm = $state('');
 
 	const updatePasswordHandler = async () => {
 		if (newPassword === newPasswordConfirm) {
@@ -40,16 +42,16 @@
 
 <form
 	class="flex flex-col text-sm"
-	on:submit|preventDefault={() => {
+	onsubmit={preventDefault(() => {
 		updatePasswordHandler();
-	}}
+	})}
 >
 	<div class="flex justify-between items-center text-sm">
 		<div class="  font-medium">{$i18n.t('Change Password')}</div>
 		<button
 			class=" text-xs font-medium text-gray-500"
 			type="button"
-			on:click={() => {
+			onclick={() => {
 				show = !show;
 			}}>{show ? $i18n.t('Hide') : $i18n.t('Show')}</button
 		>
@@ -62,7 +64,7 @@
 
 				<div class="flex-1">
 					<input
-						class="w-full bg-transparent dark:text-gray-300 outline-none placeholder:opacity-30"
+						class="w-full bg-transparent dark:text-gray-300 outline-hidden placeholder:opacity-30"
 						type="password"
 						bind:value={currentPassword}
 						placeholder={$i18n.t('Enter your current password')}
@@ -77,7 +79,7 @@
 
 				<div class="flex-1">
 					<input
-						class="w-full bg-transparent text-sm dark:text-gray-300 outline-none placeholder:opacity-30"
+						class="w-full bg-transparent text-sm dark:text-gray-300 outline-hidden placeholder:opacity-30"
 						type="password"
 						bind:value={newPassword}
 						placeholder={$i18n.t('Enter your new password')}
@@ -92,7 +94,7 @@
 
 				<div class="flex-1">
 					<input
-						class="w-full bg-transparent text-sm dark:text-gray-300 outline-none placeholder:opacity-30"
+						class="w-full bg-transparent text-sm dark:text-gray-300 outline-hidden placeholder:opacity-30"
 						type="password"
 						bind:value={newPasswordConfirm}
 						placeholder={$i18n.t('Confirm your new password')}

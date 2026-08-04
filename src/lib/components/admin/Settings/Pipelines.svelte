@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { AnyFn } from '$lib/types';
 
 	import { toast } from 'svelte-sonner';
@@ -23,23 +25,27 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let saveHandler: AnyFn;
+	interface Props {
+		saveHandler: AnyFn;
+	}
 
-	let downloading = false;
-	let uploading = false;
+	let { saveHandler }: Props = $props();
 
-	let pipelineFiles;
+	let downloading = $state(false);
+	let uploading = $state(false);
 
-	let PIPELINES_LIST = null;
-	let selectedPipelinesUrlIdx = '';
+	let pipelineFiles: FileList | null | undefined = $state();
 
-	let pipelines = null;
+	let PIPELINES_LIST = $state(null);
+	let selectedPipelinesUrlIdx = $state('');
 
-	let valves = null;
-	let valves_spec = null;
-	let selectedPipelineIdx = null;
+	let pipelines = $state(null);
 
-	let pipelineDownloadUrl = '';
+	let valves = $state(null);
+	let valves_spec = $state(null);
+	let selectedPipelineIdx = $state(null);
+
+	let pipelineDownloadUrl = $state('');
 
 	const updateHandler = async () => {
 		const pipeline = pipelines[selectedPipelineIdx];
@@ -203,9 +209,9 @@
 
 <form
 	class="flex flex-col h-full justify-between space-y-3 text-sm"
-	on:submit|preventDefault={async () => {
+	onsubmit={preventDefault(async () => {
 		updateHandler();
-	}}
+	})}
 >
 	<div class="overflow-y-scroll scrollbar-hidden h-full">
 		{#if PIPELINES_LIST !== null}
@@ -220,10 +226,10 @@
 					<div class="flex gap-2">
 						<div class="flex-1">
 							<select
-								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								bind:value={selectedPipelinesUrlIdx}
 								placeholder={$i18n.t('Select a pipeline url')}
-								on:change={async () => {
+								onchange={async () => {
 									await tick();
 									await setPipelines();
 								}}
@@ -259,7 +265,7 @@
 							<button
 								class="w-full text-sm font-medium py-2 bg-transparent hover:bg-gray-100 border border-dashed dark:border-gray-800 dark:hover:bg-gray-850 text-center rounded-xl"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									document.getElementById('pipelines-upload-input')?.click();
 								}}
 							>
@@ -272,7 +278,7 @@
 						</div>
 						<button
 							class="px-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-							on:click={() => {
+							onclick={() => {
 								uploadPipelineHandler();
 							}}
 							disabled={uploading}
@@ -334,14 +340,14 @@
 					<div class="flex w-full">
 						<div class="flex-1 mr-2">
 							<input
-								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								placeholder={$i18n.t('Enter Github Raw URL')}
 								bind:value={pipelineDownloadUrl}
 							/>
 						</div>
 						<button
 							class="px-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-							on:click={() => {
+							onclick={() => {
 								addPipelineHandler();
 							}}
 							disabled={downloading}
@@ -418,10 +424,10 @@
 								<div class="flex gap-2">
 									<div class="flex-1">
 										<select
-											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 											bind:value={selectedPipelineIdx}
 											placeholder={$i18n.t('Select a pipeline')}
-											on:change={async () => {
+											onchange={async () => {
 												await tick();
 												await getValves(selectedPipelineIdx);
 											}}
@@ -436,7 +442,7 @@
 
 									<button
 										class="px-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-										on:click={() => {
+										onclick={() => {
 											deletePipelineHandler();
 										}}
 										type="button"
@@ -470,7 +476,7 @@
 													<button
 														class="p-1 px-3 text-xs flex rounded transition"
 														type="button"
-														on:click={() => {
+														onclick={() => {
 															valves[property] = (valves[property] ?? null) === null ? '' : null;
 														}}
 													>
@@ -488,7 +494,7 @@
 														<div class=" flex-1">
 															{#if valves_spec.properties[property]?.enum ?? null}
 																<select
-																	class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+																	class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 																	bind:value={valves[property]}
 																>
 																	{#each valves_spec.properties[property].enum as option (option)}
@@ -509,7 +515,7 @@
 																</div>
 															{:else}
 																<input
-																	class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+																	class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 																	type="text"
 																	placeholder={valves_spec.properties[property].title}
 																	bind:value={valves[property]}

@@ -1,8 +1,14 @@
 <script lang="ts">
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
-	export let className = 'size-8';
-	export let src = `${WEBUI_BASE_URL}/static/favicon.png`;
+	interface Props {
+		className?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		src?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
+
+	let { className = 'size-8', src = `${WEBUI_BASE_URL}/static/favicon.png` }: Props = $props();
 </script>
 
 <img

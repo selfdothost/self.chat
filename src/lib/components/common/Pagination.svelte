@@ -4,9 +4,13 @@
 	import ChevronLeft from '../icons/ChevronLeft.svelte';
 	import ChevronRight from '../icons/ChevronRight.svelte';
 
-	export let page = 0;
-	export let count = 0;
-	export let perPage = 20;
+	interface Props {
+		page?: number;
+		count?: number;
+		perPage?: number;
+	}
+
+	let { page = $bindable(0), count = 0, perPage = 20 }: Props = $props();
 </script>
 
 <div class="flex justify-center">

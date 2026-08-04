@@ -10,12 +10,12 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import EllipsisVertical from '$lib/components/icons/EllipsisVertical.svelte';
 
-	export let modelIds = [];
+	let { modelIds = $bindable([]) } = $props();
 
 	// Untyped (`= null` with no annotation) made `modelListElement.children`
 	// resolve to `any`, which in turn made Array.from(...)'s element type
 	// infer as `unknown` below instead of `Element`.
-	let modelListElement: HTMLDivElement | null = null;
+	let modelListElement: HTMLDivElement | null = $state(null);
 
 	const positionChangeHandler = () => {
 		const modelList = Array.from(modelListElement.children).map((child) =>

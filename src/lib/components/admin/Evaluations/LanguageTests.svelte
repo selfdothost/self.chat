@@ -35,25 +35,25 @@
 
 	// ── View state ─────────────────────────────────────────────────────
 	type ViewMode = 'summary' | 'model-runs' | 'run-details';
-	let viewMode: ViewMode = 'summary';
+	let viewMode: ViewMode = $state('summary');
 
 	// Summary
-	let summaryModels: SummaryModel[] = [];
-	let benchmarkNames: string[] = [];
-	let summaryLoading = true;
-	let summarySortKey = 'model';
-	let summarySortAsc = true;
+	let summaryModels: SummaryModel[] = $state([]);
+	let benchmarkNames: string[] = $state([]);
+	let summaryLoading = $state(true);
+	let summarySortKey = $state('model');
+	let summarySortAsc = $state(true);
 
 	// Model runs view
-	let selectedModelName = '';
-	let modelRuns: RunSummary[] = [];
-	let modelRunsLoading = false;
+	let selectedModelName = $state('');
+	let modelRuns: RunSummary[] = $state([]);
+	let modelRunsLoading = $state(false);
 
 	// Run detail view — uses LiveEvalView
-	let activeDetailJob: EvalJob | null = null;
+	let activeDetailJob: EvalJob | null = $state(null);
 
 	// ── Derived ────────────────────────────────────────────────────────
-	$: sortedSummary = [...summaryModels].sort((a, b) => {
+	let sortedSummary = $derived([...summaryModels].sort((a, b) => {
 		let va: string | number, vb: string | number;
 		if (summarySortKey === 'model') {
 			va = a.model.toLowerCase();
@@ -68,7 +68,7 @@
 		if (va < vb) return summarySortAsc ? -1 : 1;
 		if (va > vb) return summarySortAsc ? 1 : -1;
 		return 0;
-	});
+	}));
 
 	// ── Actions ────────────────────────────────────────────────────────
 	async function loadSummary() {
@@ -186,7 +186,7 @@
 		{#if viewMode === 'model-runs'}
 			<button
 				class="flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mr-2"
-				on:click={goBackToSummary}
+				onclick={goBackToSummary}
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
 					<path fill-rule="evenodd" d="M9.78 4.22a.75.75 0 0 1 0 1.06L7.06 8l2.72 2.72a.75.75 0 1 1-1.06 1.06L5.47 8.53a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
@@ -221,7 +221,7 @@
 						<th
 							scope="col"
 							class="px-3 py-1.5 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
-							on:click={() => toggleSummarySort('model')}
+							onclick={() => toggleSummarySort('model')}
 						>
 							<div class="flex items-center gap-1">
 								Model
@@ -234,7 +234,7 @@
 							<th
 								scope="col"
 								class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white capitalize"
-								on:click={() => toggleSummarySort(bm)}
+								onclick={() => toggleSummarySort(bm)}
 							>
 								<div class="flex items-center justify-end gap-1">
 									{formatBenchmarkName(bm)}
@@ -247,7 +247,7 @@
 						<th
 							scope="col"
 							class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
-							on:click={() => toggleSummarySort('average')}
+							onclick={() => toggleSummarySort('average')}
 						>
 							<div class="flex items-center justify-end gap-1">
 								Average
@@ -262,7 +262,7 @@
 					{#each sortedSummary as row (row.model)}
 						<tr
 							class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 cursor-pointer"
-							on:click={() => selectModel(row.model)}
+							onclick={() => selectModel(row.model)}
 						>
 							<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
 								{row.model}
@@ -315,7 +315,7 @@
 					{#each modelRuns as run (run.id)}
 						<tr
 							class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 cursor-pointer"
-							on:click={() => selectRunDetail(run)}
+							onclick={() => selectRunDetail(run)}
 						>
 							<td class="px-3 py-2 font-mono text-gray-900 dark:text-white">
 								{run.id}
@@ -343,6 +343,6 @@
 {:else if viewMode === 'run-details'}
 	<!-- ── Run Detail View — uses unified LiveEvalView ────────── -->
 	{#if activeDetailJob}
-		<LiveEvalView job={activeDetailJob} on:back={goBackToModelRuns} />
+		<LiveEvalView job={activeDetailJob} onBack={goBackToModelRuns} />
 	{/if}
 {/if}

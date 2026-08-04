@@ -12,15 +12,13 @@
 	import UserCircleSolid from '$lib/components/icons/UserCircleSolid.svelte';
 	import GroupModal from './EditGroupModal.svelte';
 
-	export let users = [];
-	export let group = {
+
+	let { users = [], group = {
 		name: 'Admins',
 		user_ids: [1, 2, 3]
-	};
+	}, setGroups = () => {} } = $props();
 
-	export let setGroups = () => {};
-
-	let showEdit = false;
+	let showEdit = $state(false);
 
 	const updateHandler = async (_group) => {
 		const res = await updateGroupById(localStorage.token, group.id, _group).catch((error) => {
@@ -58,7 +56,7 @@
 
 <button
 	class="flex items-center gap-3 justify-between px-1 text-xs w-full transition"
-	on:click={() => {
+	onclick={() => {
 		showEdit = true;
 	}}
 >

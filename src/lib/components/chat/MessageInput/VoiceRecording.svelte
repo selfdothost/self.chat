@@ -2,23 +2,33 @@
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher, tick, getContext, onMount, onDestroy } from 'svelte';
+	import { tick, getContext, onMount, onDestroy } from 'svelte';
 	import { config, settings } from '$lib/stores';
 	import { blobToFile } from '$lib/utils';
+	import type { AnyFn } from '$lib/types';
 
 	import { transcribeAudio } from '$lib/apis/audio';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	const dispatch = createEventDispatcher();
+	interface Props {
+		recording?: boolean;
+		className?: string;
+		onConfirm?: AnyFn;
+		onCancel?: AnyFn;
+	}
 
-	export let recording = false;
-	export let className = ' p-2.5 w-full max-w-full';
+	let {
+		recording = $bindable(false),
+		className = ' p-2.5 w-full max-w-full',
+		onConfirm = () => {},
+		onCancel = () => {}
+	}: Props = $props();
 
-	let loading = false;
+	let loading = $state(false);
 	let confirmed = false;
 
-	let durationSeconds = 0;
+	let durationSeconds = $state(0);
 	let durationCounter = null;
 
 	let transcription = '';
@@ -34,18 +44,7 @@
 		durationSeconds = 0;
 	};
 
-	// startRecording eventually sets `recording = false` itself (see the
-	// mediaRecorder.onstop handler below), but only asynchronously in response
-	// to an external browser event -- not synchronously in this block. That
-	// flip runs the else branch (stopRecording), which never calls
-	// startRecording again, so this is a one-shot toggle, not a loop.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (recording) {
-		startRecording();
-	} else {
-		stopRecording();
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+	 
 
 	const formatSeconds = (seconds) => {
 		const minutes = Math.floor(seconds / 60);
@@ -63,7 +62,7 @@
 	const MIN_DECIBELS = -45;
 	let VISUALIZER_BUFFER_LENGTH = 300;
 
-	let visualizerData = Array(VISUALIZER_BUFFER_LENGTH).fill(0);
+	let visualizerData = $state(Array(VISUALIZER_BUFFER_LENGTH).fill(0));
 
 	// Function to calculate the RMS level from time domain data
 	const calculateRMS = (data: Uint8Array) => {
@@ -150,14 +149,14 @@
 
 		if (res) {
 			console.log(res);
-			dispatch('confirm', res);
+			onConfirm(res);
 		}
 	};
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const startRecording = async () => {
 		startDurationCounter();
 
@@ -193,7 +192,7 @@
 				// actually stopped -- not a synchronous re-entrant call from the
 				// `$: if (recording)` block above. Flips the toggle to its "off"
 				// state, which runs stopRecording (no further recursion).
-				// eslint-disable-next-line svelte/infinite-reactive-loop
+				 
 				recording = false;
 			}
 		};
@@ -240,7 +239,7 @@
 					console.log('recognition ended');
 
 					confirmRecording();
-					dispatch('confirm', { text: transcription });
+					onConfirm({ text: transcription });
 					confirmed = false;
 					loading = false;
 				};
@@ -249,7 +248,7 @@
 				speechRecognition.onerror = function (event) {
 					console.log(event);
 					toast.error($i18n.t(`Speech recognition error: {{error}}`, { error: event.error }));
-					dispatch('cancel');
+					onCancel();
 
 					stopRecording();
 				};
@@ -295,7 +294,7 @@
 	};
 
 	let resizeObserver;
-	let containerWidth;
+	let containerWidth = $state();
 
 	onMount(() => {
 		// listen to width changes
@@ -317,6 +316,18 @@
 		// remove resize observer
 		resizeObserver.disconnect();
 	});
+	// startRecording eventually sets `recording = false` itself (see the
+	// mediaRecorder.onstop handler below), but only asynchronously in response
+	// to an external browser event -- not synchronously in this block. That
+	// flip runs the else branch (stopRecording), which never calls
+	// startRecording again, so this is a one-shot toggle, not a loop.
+	$effect(() => {
+		if (recording) {
+			startRecording();
+		} else {
+			stopRecording();
+		}
+	});
 </script>
 
 <div
@@ -336,9 +347,9 @@
 
 
              rounded-full"
-			on:click={async () => {
+			onclick={async () => {
 				stopRecording();
-				dispatch('cancel');
+				onCancel();
 			}}
 		>
 			<svg
@@ -365,7 +376,7 @@
 			{#each visualizerData.slice().reverse() as rms, rmsIdx (rmsIdx)}
 				<div class="flex items-center h-full">
 					<div
-						class="w-[2px] flex-shrink-0
+						class="w-[2px] shrink-0
                     
                     {loading
 							? ' bg-gray-500 dark:bg-gray-400   '
@@ -373,7 +384,7 @@
                     
                     inline-block h-full"
 						style="height: {Math.min(100, Math.max(14, rms * 100))}%;"
-					/>
+					></div>
 				</div>
 			{/each}
 		</div>
@@ -488,7 +499,7 @@
 				<button
 					type="button"
 					class="p-1.5 bg-indigo-500 text-white dark:bg-indigo-500 dark:text-blue-950 rounded-full"
-					on:click={async () => {
+					onclick={async () => {
 						await confirmRecording();
 					}}
 				>

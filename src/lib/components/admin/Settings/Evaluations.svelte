@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import { models, user } from '$lib/stores';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 
-	const dispatch = createEventDispatcher();
 	import { getModels } from '$lib/apis';
 	import { getConfig, updateConfig } from '$lib/apis/evaluations';
 
@@ -18,8 +20,14 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let config = null;
-	let showAddModel = false;
+	interface Props {
+		onSave?: AnyFn;
+	}
+
+	let { onSave = () => {} }: Props = $props();
+
+	let config = $state(null);
+	let showAddModel = $state(false);
 
 	const submitHandler = async () => {
 		config = await updateConfig(localStorage.token, config).catch((err) => {
@@ -77,10 +85,10 @@
 
 <form
 	class="flex flex-col h-full justify-between text-sm"
-	on:submit|preventDefault={() => {
+	onsubmit={preventDefault(() => {
 		submitHandler();
-		dispatch('save');
-	}}
+		onSave();
+	})}
 >
 	<div class="overflow-y-scroll scrollbar-hidden h-full">
 		{#if config !== null}
@@ -108,7 +116,7 @@
 								<button
 									class="p-1"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										showAddModel = true;
 									}}
 								>

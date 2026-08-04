@@ -34,30 +34,30 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let shiftKey = false;
-	let loaded = false;
+	let shiftKey = $state(false);
+	let loaded = $state(false);
 
-	let toolsImportInputElement: HTMLInputElement;
-	let importFiles;
+	let toolsImportInputElement: HTMLInputElement = $state();
+	let importFiles: FileList | undefined = $state();
 
-	let showConfirm = false;
-	let query = '';
+	let showConfirm = $state(false);
+	let query = $state('');
 
-	let showManifestModal = false;
-	let showValvesModal = false;
-	let selectedTool = null;
+	let showManifestModal = $state(false);
+	let showValvesModal = $state(false);
+	let selectedTool = $state(null);
 
-	let showDeleteConfirm = false;
+	let showDeleteConfirm = $state(false);
 
-	let tools = [];
-	let filteredItems;
-
-	$: filteredItems = tools.filter(
+	let tools = $state([]);
+	let filteredItems = $derived(tools.filter(
 		(t) =>
 			query === '' ||
 			t.name.toLowerCase().includes(query.toLowerCase()) ||
 			t.id.toLowerCase().includes(query.toLowerCase())
-	);
+	));
+
+	
 
 	const cloneHandler = async (tool) => {
 		const _tool = await getToolById(localStorage.token, tool.id).catch((error) => {
@@ -157,7 +157,7 @@
 		<div class="flex justify-between items-center">
 			<div class="flex md:self-center text-xl font-medium px-0.5 items-center">
 				{$i18n.t('Tools')}
-				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 				<span class="text-lg font-medium text-gray-500 dark:text-gray-300"
 					>{filteredItems.length}</span
 				>
@@ -170,7 +170,7 @@
 					<Search className="size-3.5" />
 				</div>
 				<input
-					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
+					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
 					bind:value={query}
 					placeholder={$i18n.t('Search Tools')}
 				/>
@@ -217,7 +217,7 @@
 									<div class="line-clamp-1">
 										{tool.name}
 
-										<span class=" text-gray-500 text-xs font-medium flex-shrink-0">{tool.id}</span>
+										<span class=" text-gray-500 text-xs font-medium shrink-0">{tool.id}</span>
 									</div>
 								</div>
 							</Tooltip>
@@ -252,7 +252,7 @@
 							<button
 								class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									deleteHandler(tool);
 								}}
 							>
@@ -265,7 +265,7 @@
 								<button
 									class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										selectedTool = tool;
 										showManifestModal = true;
 									}}
@@ -279,7 +279,7 @@
 							<button
 								class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									selectedTool = tool;
 									showValvesModal = true;
 								}}
@@ -345,7 +345,7 @@
 					type="file"
 					accept=".json"
 					hidden
-					on:change={() => {
+					onchange={() => {
 						console.log(importFiles);
 						showConfirm = true;
 					}}
@@ -353,7 +353,7 @@
 
 				<button
 					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 transition"
-					on:click={() => {
+					onclick={() => {
 						toolsImportInputElement.click();
 					}}
 				>
@@ -377,7 +377,7 @@
 
 				<button
 					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 transition"
-					on:click={async () => {
+					onclick={async () => {
 						const _tools = await exportTools(localStorage.token).catch((error) => {
 							toast.error(error);
 							return null;
@@ -416,7 +416,7 @@
 	<DeleteConfirmDialog
 		bind:show={showDeleteConfirm}
 		title={$i18n.t('Delete tool?')}
-		on:confirm={() => {
+		onConfirm={() => {
 			deleteHandler(selectedTool);
 		}}
 	>
@@ -430,7 +430,7 @@
 
 	<ConfirmDialog
 		bind:show={showConfirm}
-		on:confirm={() => {
+		onConfirm={() => {
 			const reader = new FileReader();
 			reader.onload = async (event) => {
 				// Named to avoid shadowing the outer `_tools` store import --

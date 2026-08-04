@@ -1,6 +1,54 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* Explicit source scan, matching the old v3 content config (everything
+   under src with html, js, svelte, ts extensions). v4's automatic content
+   detection would likely cover this on its own, but this repo sits inside a
+   larger monorepo-like tree of sibling worktrees/build output on disk, so
+   being explicit here removes any ambiguity instead of trusting the
+   heuristic scanner blindly. NB: do not put the literal glob in this comment
+   as ".{...}{star}{star}/{star}" -- the slash-star sequence closes the CSS
+   comment early and breaks strict PostCSS parsing (e.g. via @reference). */
+@source './**/*.{html,js,svelte,ts}';
+
+@plugin '@tailwindcss/typography';
+
+/* See tailwind.config.js: the typography plugin's DEFAULT.css.pre/code overrides (used to stop
+   the plugin styling code blocks, since this app renders its own highlight.js-based code
+   blocks) have no CSS-first @theme equivalent and still require a JS config bridged in here. */
+@config '../tailwind.config.js';
+
+/* v3's `darkMode: 'class'` — v4 defaults to `prefers-color-scheme` and requires this to be
+   restated explicitly to keep the app's manual light/dark/OLED theme toggle (which sets a
+   `.dark` class on <html>, see src/lib/components/chat/Settings/General.svelte) working. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* CSS-first equivalent of tailwind.config.js's old `theme.extend.colors.gray`. Shades
+   800/850/900/950 are intentionally left as plain values here (not wrapped in
+   var(--color-gray-800, #333) like the old JS config needed) — in v4, every @theme color is
+   *already* emitted as a real CSS custom property that utilities reference via var(), so
+   General.svelte's runtime `document.documentElement.style.setProperty('--color-gray-800', ...)`
+   OLED-theme override keeps working natively without the old fallback-var() workaround. */
+@theme {
+	--color-gray-50: #f9f9f9;
+	--color-gray-100: #ececec;
+	--color-gray-200: #e3e3e3;
+	--color-gray-300: #cdcdcd;
+	--color-gray-400: #b4b4b4;
+	--color-gray-500: #9b9b9b;
+	--color-gray-600: #676767;
+	--color-gray-700: #4e4e4e;
+	--color-gray-800: #333;
+	--color-gray-850: #262626;
+	--color-gray-900: #171717;
+	--color-gray-950: #0d0d0d;
+
+	/* v3's `theme.extend.padding['safe-bottom']`. v4 has no separate padding-only namespace
+	   (see NOTE in tailwind.config.js) — --spacing-* now also makes `m-safe-bottom`,
+	   `gap-safe-bottom`, etc. available, not just `p*-safe-bottom`. The only current usage in
+	   this codebase is `pb-safe-bottom` (AdvancedParams.svelte), so this is a widening with no
+	   observed behavior change today, but flagging it since it isn't a literal 1:1 mapping. */
+	--spacing-safe-bottom: env(safe-area-inset-bottom);
+}
 
 @layer base {
 	html,
@@ -12,5 +60,25 @@
 
 	pre {
 		white-space: pre-wrap;
+	}
+}
+
+/* Webkit-scrollbar hiding for arbitrary elements. Used as a markup class
+   (class="scrollbar-hidden") in several components AND via @apply from
+   app.css's .cm-scroller (CodeMirror), so it must be a real utility — v4
+   @apply can't reference a plain CSS class. Mirrors the old app.css rules:
+   scrollbar thumb hidden by default, revealed on active/focus/hover, corner
+   always hidden. */
+@utility scrollbar-hidden {
+	&::-webkit-scrollbar-thumb {
+		visibility: hidden;
+	}
+	&:active::-webkit-scrollbar-thumb,
+	&:focus::-webkit-scrollbar-thumb,
+	&:hover::-webkit-scrollbar-thumb {
+		visibility: visible;
+	}
+	&::-webkit-scrollbar-corner {
+		display: none;
 	}
 }

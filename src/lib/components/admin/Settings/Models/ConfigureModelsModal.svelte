@@ -1,4 +1,6 @@
 <script>
+	import { preventDefault } from 'svelte/legacy';
+
 	import { toast } from 'svelte-sonner';
 
 	import { getContext, onMount } from 'svelte';
@@ -17,21 +19,24 @@
 	import Minus from '$lib/components/icons/Minus.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
 
-	export let show = false;
-	export let initHandler = () => {};
+	/**
+	 * @typedef {Object} Props
+	 * @property {boolean} [show]
+	 * @property {any} [initHandler]
+	 */
 
-	let config = null;
+	/** @type {Props} */
+	let { show = $bindable(false), initHandler = () => {} } = $props();
 
-	let selectedModelId = '';
-	let defaultModelIds = [];
-	let modelIds = [];
+	let config = $state(null);
 
-	let loading = false;
-	let showResetModal = false;
+	let selectedModelId = $state('');
+	let defaultModelIds = $state([]);
+	let modelIds = $state([]);
 
-	$: if (show) {
-		init();
-	}
+	let loading = $state(false);
+	let showResetModal = $state(false);
+
 
 	const init = async () => {
 		config = await getModelsConfig(localStorage.token);
@@ -78,6 +83,11 @@
 	onMount(async () => {
 		init();
 	});
+	$effect(() => {
+		if (show) {
+			init();
+		}
+	});
 </script>
 
 <ConfirmDialog
@@ -101,7 +111,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -123,9 +133,9 @@
 				{#if config}
 					<form
 						class="flex flex-col w-full"
-						on:submit|preventDefault={() => {
+						onsubmit={preventDefault(() => {
 							submitHandler();
-						}}
+						})}
 					>
 						<div>
 							<div class="flex flex-col w-full">
@@ -152,10 +162,10 @@
 												<div class=" text-sm flex-1 py-1 rounded-lg">
 													{$models.find((model) => model.id === modelId)?.name}
 												</div>
-												<div class="flex-shrink-0">
+												<div class="shrink-0">
 													<button
 														type="button"
-														on:click={() => {
+														onclick={() => {
 															defaultModelIds = defaultModelIds.filter(
 																(_, idx) => idx !== modelIdx
 															);
@@ -179,7 +189,7 @@
 									<select
 										class="w-full py-1 text-sm rounded-lg bg-transparent {selectedModelId
 											? ''
-											: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
+											: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 										bind:value={selectedModelId}
 									>
 										<option value="">{$i18n.t('Select a model')}</option>
@@ -193,7 +203,7 @@
 									<div>
 										<button
 											type="button"
-											on:click={() => {
+											onclick={() => {
 												if (selectedModelId === '') {
 													return;
 												}
@@ -218,7 +228,7 @@
 								<button
 									class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-gray-950 dark:text-white bg-white text-black hover:bg-gray-100 transition rounded-full flex flex-row space-x-1 items-center"
 									type="button"
-									on:click={() => {
+									onclick={() => {
 										showResetModal = true;
 									}}
 								>

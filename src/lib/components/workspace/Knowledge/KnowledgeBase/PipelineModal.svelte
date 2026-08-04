@@ -1,28 +1,41 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 
     import Modal from '$lib/components/common/Modal.svelte';
 
     const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let show = false;
-	export let title = 'Save the Pipeline';
-	export let mode: 'save' | 'load' = 'save';
-	export let pipelineConfigs: { id: string; name: string }[] = [];
+	interface Props {
+		show?: boolean;
+		title?: string;
+		mode?: 'save' | 'load';
+		pipelineConfigs?: { id: string; name: string }[];
+		onConfirm?: AnyFn;
+	}
+
+	let {
+		show = $bindable(false),
+		title = 'Save the Pipeline',
+		mode = 'save',
+		pipelineConfigs = [],
+		onConfirm = () => {}
+	}: Props = $props();
 
 	
 
-    let name = 'Untitled';
-	let selectedConfigId: string | null = null;
-	let searchQuery = '';
+    let name = $state('Untitled');
+	let selectedConfigId: string | null = $state(null);
+	let searchQuery = $state('');
 
-	$: filteredConfigs = pipelineConfigs.filter(c =>
+	let filteredConfigs = $derived(pipelineConfigs.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
-	);
+	));
 
 
     const closeModal = () => {
@@ -38,13 +51,13 @@
 				toast.error($i18n.t('Please select a pipeline from the list'));
 				return;
 			}
-			dispatch('confirm', { fileId: selectedConfigId });
+			onConfirm({ fileId: selectedConfigId });
 		} else if (mode ==='save') {
 			if (name.trim() === '') {
             	toast.error($i18n.t('Cannot Submit an unnamed pipeline'));
             	return;
         	}
-        	dispatch('confirm', {name: name.trim()})
+        	onConfirm({name: name.trim()})
 		}
         closeModal()
     };
@@ -59,7 +72,7 @@
 				{$i18n.t(title)}
 			</div>
 		</div>
-	    <form class="flex flex-col gap-4" on:submit|preventDefault={submitPipelineHandler}>
+	    <form class="flex flex-col gap-4" onsubmit={preventDefault(submitPipelineHandler)}>
 			{#if mode === 'load'}
 				<div>
 	    			<div class="mb-1 text-xs text-gray-500">{$i18n.t('Load a Pipeline')}</div>
@@ -67,7 +80,7 @@
 	    				type="text"
 	    				bind:value={searchQuery}
 	    				placeholder="Search.."
-	    				class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+	    				class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 	    				autocomplete="off"
 	    			/>
 	    		</div>
@@ -76,7 +89,7 @@
 					<button
 	    				type="button"
 	    				class="text-left px-3 py-2 rounded-lg text-sm w-full {selectedConfigId === config.id ? 'bg-black text-white dark:bg-white dark:text-black' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"
-	    				on:click={ () => selectedConfigId = config.id }
+	    				onclick={() => selectedConfigId = config.id}
 	    			>
 	    				{config.name}
 	    			</button>
@@ -92,7 +105,7 @@
 	    				type="text"
 	    				bind:value={name}
 	    				placeholder="Untitled"
-	    				class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-none border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+	    				class="w-full rounded-xl bg-transparent px-3 py-2 text-sm outline-hidden border border-gray-200 dark:border-gray-700 disabled:opacity-50"
 	    				autocomplete="off"
 	    			/>
 	    		</div>
@@ -101,7 +114,7 @@
 	    			<button
 	    				type="button"
 	    				class="px-3.5 py-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-	    				on:click={closeModal}
+	    				onclick={closeModal}
 	    			>
 	    				{$i18n.t('Cancel')}
 	    			</button>

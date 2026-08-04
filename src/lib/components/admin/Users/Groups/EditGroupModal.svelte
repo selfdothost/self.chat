@@ -13,26 +13,44 @@
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
 	import { getModScopes, type ModScopesResponse } from '$lib/apis/mods';
 
-	export let onSubmit: AnyFn = () => {};
-	export let onDelete: AnyFn = () => {};
 
-	export let show = false;
-	export let edit = false;
 
-	export let users = [];
-	export let group = null;
 
-	export let custom = true;
 
-	export let tabs = ['general', 'permissions', 'users'];
 
-	let selectedTab = 'general';
-	let loading = false;
+	let selectedTab = $state('general');
+	let loading = $state(false);
 
-	export let name = '';
-	export let description = '';
 
-	export let permissions = {
+	interface Props {
+		onSubmit?: AnyFn;
+		onDelete?: AnyFn;
+		show?: boolean;
+		edit?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		users?: any;
+		group?: any;
+		custom?: boolean;
+		tabs?: any;
+		name?: string;
+		description?: string;
+		permissions?: any;
+		userIds?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
+
+	let {
+		onSubmit = () => {},
+		onDelete = () => {},
+		show = $bindable(false),
+		edit = false,
+		users = [],
+		group = null,
+		custom = true,
+		tabs = ['general', 'permissions', 'users'],
+		name = $bindable(''),
+		description = $bindable(''),
+		permissions = $bindable({
 		workspace: {
 			models: false,
 			knowledge: false,
@@ -47,14 +65,15 @@
 			edit: true,
 			temporary: true
 		}
-	};
-	export let userIds = [];
+	}),
+		userIds = $bindable([])
+	}: Props = $props();
 
 	// Fetched once per modal mount (admin-only endpoint) -- shared by both
 	// surfaces this modal renders (Default Permissions when custom=false, a
 	// real Group's Permissions tab when custom=true), since both pass through
 	// the same <Permissions> instance.
-	let modScopes: ModScopesResponse[] = [];
+	let modScopes: ModScopesResponse[] = $state([]);
 
 	const submitHandler = async () => {
 		loading = true;
@@ -96,9 +115,11 @@
 		}
 	};
 
-	$: if (show) {
-		init();
-	}
+	$effect(() => {
+		if (show) {
+			init();
+		}
+	});
 
 	onMount(async () => {
 		console.log(tabs);
@@ -124,7 +145,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -145,7 +166,7 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit={(e) => {
+					onsubmit={(e) => {
 						e.preventDefault();
 						submitHandler();
 					}}
@@ -161,7 +182,7 @@
 									'general'
 										? ''
 										: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-									on:click={() => {
+									onclick={() => {
 										selectedTab = 'general';
 									}}
 									type="button"
@@ -190,7 +211,7 @@
 									'permissions'
 										? ''
 										: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-									on:click={() => {
+									onclick={() => {
 										selectedTab = 'permissions';
 									}}
 									type="button"
@@ -208,7 +229,7 @@
 									'users'
 										? ''
 										: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-									on:click={() => {
+									onclick={() => {
 										selectedTab = 'users';
 									}}
 									type="button"
@@ -288,7 +309,7 @@
 							<button
 								class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-gray-900 dark:text-white bg-white text-black hover:bg-gray-100 transition rounded-full flex flex-row space-x-1 items-center"
 								type="button"
-								on:click={() => {
+								onclick={() => {
 									onDelete();
 									show = false;
 								}}

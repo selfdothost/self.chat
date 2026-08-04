@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import { toast } from 'svelte-sonner';
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { onMount, getContext } from 'svelte';
 
 	import { getBackendConfig } from '$lib/apis';
 	import {
@@ -25,34 +26,38 @@
 
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
-	export let saveHandler: () => void;
+	interface Props {
+		saveHandler: () => void;
+	}
+
+	let { saveHandler }: Props = $props();
 
 	// Audio
-	let TTS_OPENAI_API_BASE_URL = '';
-	let TTS_OPENAI_API_KEY = '';
-	let TTS_API_KEY = '';
-	let TTS_ENGINE = '';
-	let TTS_MODEL = '';
-	let TTS_VOICE = '';
-	let TTS_SPLIT_ON: TTS_RESPONSE_SPLIT = TTS_RESPONSE_SPLIT.PUNCTUATION;
-	let TTS_AZURE_SPEECH_REGION = '';
-	let TTS_AZURE_SPEECH_OUTPUT_FORMAT = '';
+	let TTS_OPENAI_API_BASE_URL = $state('');
+	let TTS_OPENAI_API_KEY = $state('');
+	let TTS_API_KEY = $state('');
+	let TTS_ENGINE = $state('');
+	let TTS_MODEL = $state('');
+	let TTS_VOICE = $state('');
+	let TTS_SPLIT_ON: TTS_RESPONSE_SPLIT = $state(TTS_RESPONSE_SPLIT.PUNCTUATION);
+	let TTS_AZURE_SPEECH_REGION = $state('');
+	let TTS_AZURE_SPEECH_OUTPUT_FORMAT = $state('');
 
-	let STT_OPENAI_API_BASE_URL = '';
-	let STT_OPENAI_API_KEY = '';
-	let STT_ENGINE = '';
-	let STT_MODEL = '';
-	let STT_WHISPER_MODEL = '';
+	let STT_OPENAI_API_BASE_URL = $state('');
+	let STT_OPENAI_API_KEY = $state('');
+	let STT_ENGINE = $state('');
+	let STT_MODEL = $state('');
+	let STT_WHISPER_MODEL = $state('');
 
-	let STT_WHISPER_MODEL_LOADING = false;
+	let STT_WHISPER_MODEL_LOADING = $state(false);
 
 	// `voices` holds either the browser's real SpeechSynthesisVoice[] (webapi
 	// engine, keyed by .voiceURI) or the backend TTS engine's /voices response
 	// (openai/elevenlabs/azure, keyed by .id) depending on TTS_ENGINE — the
 	// shape genuinely varies at runtime based on which branch getVoices() takes.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let voices: any[] = [];
-	let models: Awaited<ReturnType<typeof _getModels>>['models'] = [];
+	let voices: any[] = $state([]);
+	let models: Awaited<ReturnType<typeof _getModels>>['models'] = $state([]);
 
 	// The admin-enabled (curated) self-hosted TTS voice set — cavekit-audio-admin-
 	// surface R1's "options offered are the admin-enabled set".
@@ -68,7 +73,7 @@
 	// options offered here are consistent with downstream voice selection by
 	// construction. It backs the default-voice selector in the openai/elevenlabs/
 	// azure branches.
-	let enabledVoices: Awaited<ReturnType<typeof getSelectableVoices>> = [];
+	let enabledVoices: Awaited<ReturnType<typeof getSelectableVoices>> = $state([]);
 
 	// Whether the curated set above has been fetched at least once. `[]` is a
 	// legitimate result (the aggregation covers self-hosted TTS connections only,
@@ -76,10 +81,10 @@
 	// indistinguishable from "not loaded yet" without this flag. The orphan
 	// detection below needs the distinction: before the first fetch resolves,
 	// every stored voice would look absent from the set.
-	let enabledVoicesLoaded = false;
+	let enabledVoicesLoaded = $state(false);
 
 	// Whether the voice curation modal is open (cavekit-audio-admin-surface R2).
-	let showVoiceCurationModal = false;
+	let showVoiceCurationModal = $state(false);
 
 	const getModels = async () => {
 		if (TTS_ENGINE === '') {
@@ -173,11 +178,11 @@
 	// the reasoning and its unit tests; empty string means "no orphan".
 	//
 	// The curated branches (openai/elevenlabs/azure) offer /voices/selectable.
-	$: curatedOrphanVoice = orphanVoiceValue(
+	let curatedOrphanVoice = $derived(orphanVoiceValue(
 		TTS_VOICE,
 		enabledVoices.map(({ id }) => id),
 		enabledVoicesLoaded
-	);
+	));
 
 	// The Web API branch offers the visitor's own browser voices instead — a
 	// voiceURI stored from one machine's browser routinely does not exist on
@@ -185,11 +190,11 @@
 	// the list is populated, because speechSynthesis.getVoices() is polled and
 	// starts empty; `voices` also holds a non-browser shape on other engines,
 	// which the engine check keeps out.
-	$: browserOrphanVoice = orphanVoiceValue(
+	let browserOrphanVoice = $derived(orphanVoiceValue(
 		TTS_VOICE,
 		voices.map((voice) => voice.voiceURI),
 		TTS_ENGINE === '' && voices.length > 0
-	);
+	));
 
 	const updateConfigHandler = async () => {
 		const res = await updateAudioConfig(localStorage.token, {
@@ -259,10 +264,9 @@
 
 <form
 	class="flex flex-col h-full justify-between space-y-3 text-sm"
-	on:submit|preventDefault={async () => {
+	onsubmit={preventDefault(async () => {
 		await updateConfigHandler();
-		dispatch('save');
-	}}
+	})}
 >
 	<div class=" space-y-3 overflow-y-scroll scrollbar-hidden h-full">
 		<div class="flex flex-col gap-3">
@@ -273,7 +277,7 @@
 					<div class=" self-center text-xs font-medium">{$i18n.t('Speech-to-Text Engine')}</div>
 					<div class="flex items-center relative">
 						<select
-							class="dark:bg-gray-900 cursor-pointer w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+							class="dark:bg-gray-900 cursor-pointer w-fit pr-8 rounded px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 							bind:value={STT_ENGINE}
 							placeholder="Select an engine"
 						>
@@ -288,7 +292,7 @@
 					<div>
 						<div class="mt-1 flex gap-2 mb-1">
 							<input
-								class="flex-1 w-full bg-transparent outline-none"
+								class="flex-1 w-full bg-transparent outline-hidden"
 								placeholder={$i18n.t('API Base URL')}
 								bind:value={STT_OPENAI_API_BASE_URL}
 								required
@@ -306,13 +310,13 @@
 							<div class="flex-1">
 								<input
 									list="model-list"
-									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 									bind:value={STT_MODEL}
 									placeholder="Select a model"
 								/>
 
 								<datalist id="model-list">
-									<option value="whisper-1" />
+									<option value="whisper-1"></option>
 								</datalist>
 							</div>
 						</div>
@@ -324,7 +328,7 @@
 						<div class="flex w-full">
 							<div class="flex-1 mr-2">
 								<input
-									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 									placeholder={$i18n.t('Set whisper model')}
 									bind:value={STT_WHISPER_MODEL}
 								/>
@@ -332,7 +336,7 @@
 
 							<button
 								class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-								on:click={() => {
+								onclick={() => {
 									sttModelUpdateHandler();
 								}}
 								disabled={STT_WHISPER_MODEL_LOADING}
@@ -411,10 +415,10 @@
 					<div class=" self-center text-xs font-medium">{$i18n.t('Text-to-Speech Engine')}</div>
 					<div class="flex items-center relative">
 						<select
-							class=" dark:bg-gray-900 w-fit pr-8 cursor-pointer rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+							class=" dark:bg-gray-900 w-fit pr-8 cursor-pointer rounded px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 							bind:value={TTS_ENGINE}
 							placeholder="Select a mode"
-							on:change={async (e) => {
+							onchange={async (e) => {
 								await updateConfigHandler();
 								await getVoices();
 								await getModels();
@@ -441,7 +445,7 @@
 					<div>
 						<div class="mt-1 flex gap-2 mb-1">
 							<input
-								class="flex-1 w-full bg-transparent outline-none"
+								class="flex-1 w-full bg-transparent outline-hidden"
 								placeholder={$i18n.t('API Base URL')}
 								bind:value={TTS_OPENAI_API_BASE_URL}
 								required
@@ -454,7 +458,7 @@
 					<div>
 						<div class="mt-1 flex gap-2 mb-1">
 							<input
-								class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								placeholder={$i18n.t('API Key')}
 								bind:value={TTS_API_KEY}
 								required
@@ -465,13 +469,13 @@
 					<div>
 						<div class="mt-1 flex gap-2 mb-1">
 							<input
-								class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								placeholder={$i18n.t('API Key')}
 								bind:value={TTS_API_KEY}
 								required
 							/>
 							<input
-								class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+								class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 								placeholder={$i18n.t('Azure Region')}
 								bind:value={TTS_AZURE_SPEECH_REGION}
 								required
@@ -500,7 +504,7 @@
 						<div class="flex w-full">
 							<div class="flex-1">
 								<select
-									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 									bind:value={TTS_VOICE}
 								>
 									<option value="" selected={TTS_VOICE !== ''}>{$i18n.t('Default')}</option>
@@ -532,13 +536,13 @@
 							<div class="flex-1">
 								<input
 									list="model-list"
-									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 									bind:value={TTS_MODEL}
 									placeholder="CMU ARCTIC speaker embedding name"
 								/>
 
 								<datalist id="model-list">
-									<option value="tts-1" />
+									<option value="tts-1"></option>
 								</datalist>
 							</div>
 						</div>
@@ -584,7 +588,7 @@
 									<button
 										class=" text-xs px-2 py-0.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition"
 										type="button"
-										on:click={() => {
+										onclick={() => {
 											showVoiceCurationModal = true;
 										}}
 									>
@@ -603,7 +607,7 @@
 										TTS_VOICE on load.
 									-->
 									<select
-										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 										aria-label={$i18n.t('TTS Voice')}
 										bind:value={TTS_VOICE}
 									>
@@ -640,14 +644,14 @@
 								<div class="flex-1">
 									<input
 										list="tts-model-list"
-										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 										bind:value={TTS_MODEL}
 										placeholder="Select a model"
 									/>
 
 									<datalist id="tts-model-list">
 										{#each models as model (model.id)}
-											<option value={model.id} class="bg-gray-50 dark:bg-gray-700" />
+											<option value={model.id} class="bg-gray-50 dark:bg-gray-700"></option>
 										{/each}
 									</datalist>
 								</div>
@@ -672,7 +676,7 @@
 									<button
 										class=" text-xs px-2 py-0.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition"
 										type="button"
-										on:click={() => {
+										onclick={() => {
 											showVoiceCurationModal = true;
 										}}
 									>
@@ -691,7 +695,7 @@
 										TTS_VOICE on load.
 									-->
 									<select
-										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 										aria-label={$i18n.t('TTS Voice')}
 										bind:value={TTS_VOICE}
 									>
@@ -728,14 +732,14 @@
 								<div class="flex-1">
 									<input
 										list="tts-model-list"
-										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 										bind:value={TTS_MODEL}
 										placeholder="Select a model"
 									/>
 
 									<datalist id="tts-model-list">
 										{#each models as model (model.id)}
-											<option value={model.id} class="bg-gray-50 dark:bg-gray-700" />
+											<option value={model.id} class="bg-gray-50 dark:bg-gray-700"></option>
 										{/each}
 									</datalist>
 								</div>
@@ -760,7 +764,7 @@
 									<button
 										class=" text-xs px-2 py-0.5 rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition"
 										type="button"
-										on:click={() => {
+										onclick={() => {
 											showVoiceCurationModal = true;
 										}}
 									>
@@ -779,7 +783,7 @@
 										TTS_VOICE on load.
 									-->
 									<select
-										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 										aria-label={$i18n.t('TTS Voice')}
 										bind:value={TTS_VOICE}
 									>
@@ -824,7 +828,7 @@
 								<div class="flex-1">
 									<input
 										list="tts-model-list"
-										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-none"
+										class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
 										bind:value={TTS_AZURE_SPEECH_OUTPUT_FORMAT}
 										placeholder="Select a output format"
 									/>
@@ -840,7 +844,7 @@
 					<div class="self-center text-xs font-medium">{$i18n.t('Response splitting')}</div>
 					<div class="flex items-center relative">
 						<select
-							class="dark:bg-gray-900 w-fit pr-8 cursor-pointer rounded px-2 p-1 text-xs bg-transparent outline-none text-right"
+							class="dark:bg-gray-900 w-fit pr-8 cursor-pointer rounded px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 							aria-label="Select how to split message text for TTS requests"
 							bind:value={TTS_SPLIT_ON}
 						>

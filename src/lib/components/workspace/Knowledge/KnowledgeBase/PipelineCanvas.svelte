@@ -1,3 +1,4 @@
+<!-- @migration-task Error while migrating Svelte code: Can't migrate code with afterUpdate. Please migrate by hand. -->
 <script lang="ts">
 	import { createEventDispatcher, afterUpdate } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -599,7 +600,7 @@
 			        type="text"
 			        bind:value={nodeSearch}
 			        placeholder="Search nodes…"
-			        class="w-full rounded-lg px-2 py-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 outline-none"
+			        class="w-full rounded-lg px-2 py-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 outline-hidden"
 			        on:click|stopPropagation
 			    />
 			</div>
@@ -620,7 +621,7 @@
 						class="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition text-left"
 						on:click={() => addNode(nt.type, nt.label, nt.headerColor, nt.template)}
 					>
-						<span class="w-2 h-2 rounded-full flex-shrink-0 {nt.headerColor}"></span>
+						<span class="w-2 h-2 rounded-full shrink-0 {nt.headerColor}"></span>
 						<span class="font-medium text-gray-700 dark:text-gray-200">{nt.label}</span>
 						<span class="text-gray-400 text-[11px] truncate">{nt.description}</span>
 				</button>

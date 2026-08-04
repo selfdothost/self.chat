@@ -1129,6 +1129,10 @@ export interface ModelMeta {
 	// heterogeneous, not a single fixed shape.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	knowledge?: any[];
+	// Attribution for community-shared models (Placeholder.svelte's "By ..."
+	// byline), set by the backend when a model was imported/shared, not on
+	// locally-created ones.
+	user?: { name?: string; username?: string; community?: boolean };
 }
 
 // Spread into request payloads / bound to AdvancedParams.svelte's open-ended

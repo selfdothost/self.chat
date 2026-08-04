@@ -1,8 +1,6 @@
 <script lang="ts">
 	import type { AnyFn } from '$lib/types';
-	import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-
-	const dispatch = createEventDispatcher();
+	import { onMount, onDestroy } from 'svelte';
 
 	import ChevronDown from '../icons/ChevronDown.svelte';
 	import ChevronRight from '../icons/ChevronRight.svelte';
@@ -10,21 +8,41 @@
 	import Tooltip from './Tooltip.svelte';
 	import Plus from '../icons/Plus.svelte';
 
-	export let open = true;
 
-	export let name = '';
-	export let collapsible = true;
 
-	export let onAddLabel: string = '';
-	export let onAdd: null | AnyFn = null;
 
-	export let dragAndDrop = true;
 
-	export let className = '';
+	interface Props {
+		open?: boolean;
+		name?: string;
+		collapsible?: boolean;
+		onAddLabel?: string;
+		onAdd?: null | AnyFn;
+		dragAndDrop?: boolean;
+		className?: string;
+		children?: import('svelte').Snippet;
+		onImport?: AnyFn;
+		onDrop?: AnyFn;
+		onChange?: AnyFn;
+	}
 
-	let folderElement;
+	let {
+		open = $bindable(true),
+		name = '',
+		collapsible = true,
+		onAddLabel = '',
+		onAdd = null,
+		dragAndDrop = true,
+		className = '',
+		children,
+		onImport = () => {},
+		onDrop: onDropProp = () => {},
+		onChange = () => {}
+	}: Props = $props();
 
-	let draggedOver = false;
+	let folderElement: HTMLDivElement | undefined = $state();
+
+	let draggedOver = $state(false);
 
 	const onDragOver = (e: DragEvent) => {
 		e.preventDefault();
@@ -36,7 +54,7 @@
 		e.preventDefault();
 		e.stopPropagation();
 
-		if (folderElement.contains(e.target)) {
+		if (folderElement.contains(e.target as Node)) {
 			console.log('Dropped on the Button');
 
 			if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
@@ -55,7 +73,7 @@
 									const fileContent = JSON.parse(event.target.result as string);
 									console.log('Parsed JSON Content: ', fileContent);
 									open = true;
-									dispatch('import', fileContent);
+									onImport(fileContent);
 								} catch (error) {
 									console.error('Error parsing JSON file:', error);
 								}
@@ -73,7 +91,7 @@
 						const data = JSON.parse(dataTransfer);
 
 						console.log(data);
-						dispatch('drop', data);
+						onDropProp(data);
 					}
 				}
 			}
@@ -111,7 +129,7 @@
 <div bind:this={folderElement} class="relative {className}">
 	{#if draggedOver}
 		<div
-			class="absolute top-0 left-0 w-full h-full rounded-sm bg-gray-100/50 dark:bg-gray-700/20 bg-opacity-50 dark:bg-opacity-10 z-50 pointer-events-none touch-none"
+			class="absolute top-0 left-0 w-full h-full rounded-xs bg-gray-100/50 dark:bg-gray-700/20 z-50 pointer-events-none touch-none"
 		></div>
 	{/if}
 
@@ -121,7 +139,7 @@
 			className="w-full "
 			buttonClassName="w-full"
 			on:change={(e) => {
-				dispatch('change', e.detail);
+				onChange(e.detail);
 			}}
 		>
 			<div
@@ -144,7 +162,7 @@
 				{#if onAdd}
 					<button
 						class="absolute z-10 right-2 self-center flex items-center"
-						on:pointerup={(e) => {
+						onpointerup={(e) => {
 							e.stopPropagation();
 							onAdd();
 						}}
@@ -158,11 +176,13 @@
 				{/if}
 			</div>
 
-			<div slot="content" class="w-full">
-				<slot></slot>
-			</div>
+			{#snippet content()}
+						<div  class="w-full">
+					{@render children?.()}
+				</div>
+					{/snippet}
 		</Collapsible>
 	{:else}
-		<slot></slot>
+		{@render children?.()}
 	{/if}
 </div>

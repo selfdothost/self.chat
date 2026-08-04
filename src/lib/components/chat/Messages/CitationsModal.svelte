@@ -8,12 +8,23 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let show = false;
-	export let citation;
-	export let showPercentage = false;
-	export let showRelevance = true;
+	interface Props {
+		show?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		citation: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		showPercentage?: boolean;
+		showRelevance?: boolean;
+	}
 
-	let mergedDocuments = [];
+	let {
+		show = $bindable(false),
+		citation,
+		showPercentage = false,
+		showRelevance = true
+	}: Props = $props();
+
+	let mergedDocuments = $state([]);
 
 	function calculatePercentage(distance: number) {
 		if (distance < 0) return 0;
@@ -31,21 +42,23 @@
 		return 'bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200';
 	}
 
-	$: if (citation) {
-		mergedDocuments = citation.document?.map((c, i) => {
-			return {
-				source: citation.source,
-				document: c,
-				metadata: citation.metadata?.[i],
-				distance: citation.distances?.[i]
-			};
-		});
-		if (mergedDocuments.every((doc) => doc.distance !== undefined)) {
-			mergedDocuments = mergedDocuments.sort(
-				(a, b) => (b.distance ?? Infinity) - (a.distance ?? Infinity)
-			);
+	$effect(() => {
+		if (citation) {
+			mergedDocuments = citation.document?.map((c, i) => {
+				return {
+					source: citation.source,
+					document: c,
+					metadata: citation.metadata?.[i],
+					distance: citation.distances?.[i]
+				};
+			});
+			if (mergedDocuments.every((doc) => doc.distance !== undefined)) {
+				mergedDocuments = mergedDocuments.sort(
+					(a, b) => (b.distance ?? Infinity) - (a.distance ?? Infinity)
+				);
+			}
 		}
-	}
+	});
 </script>
 
 <Modal size="lg" bind:show>
@@ -56,7 +69,7 @@
 			</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -92,7 +105,7 @@
 							>
 								<div class="text-sm dark:text-gray-400 flex items-center gap-2 w-fit">
 									<a
-										class="hover:text-gray-500 hover:dark:text-gray-100 underline flex-grow"
+										class="hover:text-gray-500 hover:dark:text-gray-100 underline grow"
 										href={document?.metadata?.file_id
 											? `${WEBUI_API_BASE_URL}/files/${document?.metadata?.file_id}/content${document?.metadata?.page !== undefined ? `#page=${document.metadata.page + 1}` : ''}`
 											: document.source?.url?.includes('http')

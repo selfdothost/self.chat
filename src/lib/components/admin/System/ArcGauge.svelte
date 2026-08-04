@@ -1,30 +1,39 @@
 <script lang="ts">
-	export let percent: number = 0;
-	export let label: string = '';
-	export let size: number = 160;
-	export let strokeWidth: number = 12;
+	interface Props {
+		percent?: number;
+		label?: string;
+		size?: number;
+		strokeWidth?: number;
+	}
 
-	$: clampedPercent = Math.min(100, Math.max(0, percent));
+	let {
+		percent = 0,
+		label = '',
+		size = 160,
+		strokeWidth = 12
+	}: Props = $props();
+
+	let clampedPercent = $derived(Math.min(100, Math.max(0, percent)));
 
 	// Arc geometry: semicircle from left to right
-	$: r = (size - strokeWidth) / 2;
-	$: cx = size / 2;
-	$: cy = size / 2;
+	let r = $derived((size - strokeWidth) / 2);
+	let cx = $derived(size / 2);
+	let cy = $derived(size / 2);
 
 	// SVG arc path (semicircle, left to right)
-	$: arcPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+	let arcPath = $derived(`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`);
 
 	// stroke-dasharray/offset for fill
-	$: arcLength = Math.PI * r;
-	$: dashOffset = arcLength * (1 - clampedPercent / 100);
+	let arcLength = $derived(Math.PI * r);
+	let dashOffset = $derived(arcLength * (1 - clampedPercent / 100));
 
 	// Color based on percentage
-	$: color =
-		clampedPercent >= 85
+	let color =
+		$derived(clampedPercent >= 85
 			? '#ef4444' // red-500
 			: clampedPercent >= 60
 				? '#eab308' // yellow-500
-				: '#22c55e'; // green-500
+				: '#22c55e'); // green-500
 </script>
 
 <div class="flex flex-col items-center">

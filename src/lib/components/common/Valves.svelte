@@ -1,6 +1,5 @@
 <script>
-	import { getContext, createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { getContext } from 'svelte';
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
@@ -22,9 +21,16 @@
 	 * @property {string[]} [required]
 	 */
 
-	/** @type {ValvesSpec | null} */
-	export let valvesSpec = null;
-	export let valves = {};
+	
+	/**
+	 * @typedef {Object} Props
+	 * @property {ValvesSpec | null} [valvesSpec]
+	 * @property {any} [valves]
+	 * @property {import('$lib/types').AnyFn} [onChange]
+	 */
+
+	/** @type {Props} */
+	let { valvesSpec = null, valves = $bindable({}), onChange = () => {} } = $props();
 </script>
 
 {#if valvesSpec && Object.keys(valvesSpec?.properties ?? {}).length}
@@ -42,13 +48,13 @@
 				<button
 					class="p-1 px-3 text-xs flex rounded transition"
 					type="button"
-					on:click={() => {
+					onclick={() => {
 						valves[property] =
 							(valves[property] ?? null) === null
 								? (valvesSpec.properties[property]?.default ?? '')
 								: null;
 
-						dispatch('change');
+						onChange();
 					}}
 				>
 					{#if (valves[property] ?? null) === null}
@@ -71,10 +77,10 @@
 					<div class=" flex-1">
 						{#if valvesSpec.properties[property]?.enum ?? null}
 							<select
-								class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none border border-gray-100 dark:border-gray-800"
+								class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden border border-gray-100 dark:border-gray-800"
 								bind:value={valves[property]}
-								on:change={() => {
-									dispatch('change');
+								onchange={() => {
+									onChange();
 								}}
 							>
 								{#each valvesSpec.properties[property].enum as option (option)}
@@ -92,22 +98,22 @@
 								<div class=" pr-2">
 									<Switch
 										bind:state={valves[property]}
-										on:change={() => {
-											dispatch('change');
+										onChange={() => {
+											onChange();
 										}}
 									/>
 								</div>
 							</div>
 						{:else}
 							<input
-								class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-none border border-gray-100 dark:border-gray-800"
+								class="w-full rounded-lg py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden border border-gray-100 dark:border-gray-800"
 								type="text"
 								placeholder={valvesSpec.properties[property].title}
 								bind:value={valves[property]}
 								autocomplete="off"
 								required
-								on:change={() => {
-									dispatch('change');
+								onchange={() => {
+									onChange();
 								}}
 							/>
 						{/if}

@@ -2,19 +2,26 @@
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import Bolt from '$lib/components/icons/Bolt.svelte';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let suggestionPrompts = [];
-	export let className = '';
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		suggestionPrompts?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		className?: string;
+		onSelect?: AnyFn;
+	}
 
-	let prompts;
+	let { suggestionPrompts = [], className = '', onSelect = () => {} }: Props = $props();
 
-	$: prompts = (suggestionPrompts ?? [])
+	let prompts = $derived((suggestionPrompts ?? [])
 		.reduce((acc, current) => [...acc, ...[current]], [])
-		.sort(() => Math.random() - 0.5);
+		.sort(() => Math.random() - 0.5));
+
+	
 </script>
 
 {#if prompts.length > 0}
@@ -28,8 +35,8 @@
 	{#each prompts as prompt, _promptIdx (prompt.content)}
 		<button
 			class="flex flex-col flex-1 shrink-0 w-full justify-between px-3 py-2 rounded-xl bg-transparent hover:bg-black/5 dark:hover:bg-white/5 transition group"
-			on:click={() => {
-				dispatch('select', prompt.content);
+			onclick={() => {
+				onSelect(prompt.content);
 			}}
 		>
 			<div class="flex flex-col text-left">

@@ -13,26 +13,21 @@
 
 	import { oneDark } from '@codemirror/theme-one-dark';
 
-	import { onMount, createEventDispatcher, getContext, tick } from 'svelte';
+	import { onMount, getContext, tick } from 'svelte';
 
 	import { formatPythonCode } from '$lib/apis/utils';
 	import { toast } from 'svelte-sonner';
+	import type { AnyFn } from '$lib/types';
 
-	const dispatch = createEventDispatcher();
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let boilerplate = '';
-	export let value = '';
 	let _value = '';
 
-	$: if (value) {
-		updateValue();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const updateValue = () => {
 		if (_value !== value) {
 			_value = value;
@@ -44,8 +39,23 @@
 		}
 	};
 
-	export let id = '';
-	export let lang = '';
+	interface Props {
+		boilerplate?: string;
+		value?: string;
+		id?: string;
+		lang?: string;
+		onChange?: AnyFn;
+		onSave?: AnyFn;
+	}
+
+	let {
+		boilerplate = '',
+		value = $bindable(''),
+		id = '',
+		lang = '',
+		onChange = () => {},
+		onSave = () => {}
+	}: Props = $props();
 
 	let codeEditor;
 
@@ -81,7 +91,7 @@
 				});
 
 				_value = formattedCode;
-				dispatch('change', { value: _value });
+				onChange({ value: _value });
 				await tick();
 
 				toast.success($i18n.t('Code formatted successfully'));
@@ -100,21 +110,18 @@
 		EditorView.updateListener.of((e) => {
 			if (e.docChanged) {
 				_value = e.state.doc.toString();
-				dispatch('change', { value: _value });
+				onChange({ value: _value });
 			}
 		}),
 		editorTheme.of([]),
 		editorLanguage.of([])
 	];
 
-	$: if (lang) {
-		setLanguage();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const setLanguage = async () => {
 		const language = await getLang();
 		if (language && codeEditor) {
@@ -183,7 +190,7 @@
 		const keydownHandler = async (e) => {
 			if ((e.ctrlKey || e.metaKey) && e.key === 's') {
 				e.preventDefault();
-				dispatch('save');
+				onSave();
 			}
 
 			// Format code when Ctrl + Shift + F is pressed
@@ -200,6 +207,16 @@
 			document.removeEventListener('keydown', keydownHandler);
 		};
 	});
+	$effect(() => {
+		if (value) {
+			updateValue();
+		}
+	});
+	$effect(() => {
+		if (lang) {
+			setLanguage();
+		}
+	});
 </script>
 
-<div id="code-textarea-{id}" class="h-full w-full" />
+<div id="code-textarea-{id}" class="h-full w-full"></div>

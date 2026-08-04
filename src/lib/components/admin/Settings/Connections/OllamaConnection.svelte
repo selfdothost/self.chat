@@ -12,22 +12,36 @@
 	import Wrench from '$lib/components/icons/Wrench.svelte';
 	import ManageOllamaModal from './ManageOllamaModal.svelte';
 
-	export let onDelete = () => {};
 	// Called with the updated connection object from AddConnectionModal's
 	// onSubmit handler below -- a bare `() => {}` (0-arg) type doesn't match
-	// that call.
-	export let onSubmit: AnyFn = () => {};
+	
 
-	export let url = '';
-	export let idx = 0;
 	// Config bag round-tripped through AddConnectionModal, which also reads
 	// generic fields (prefix_id, model_ids, ...) off it for any connection
 	// type -- only `key`/`enable` are read directly in this file.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let config: { key?: string; enable?: boolean; [key: string]: any } = {};
+	
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		onDelete?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		// that call.
+		onSubmit?: AnyFn;
+		url?: string;
+		idx?: number;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		config?: { key?: string; enable?: boolean; [key: string]: any };
+	}
 
-	let showManageModal = false;
-	let showConfigModal = false;
+	let {
+		onDelete = () => {},
+		onSubmit = () => {},
+		url = $bindable(''),
+		idx = 0,
+		config = $bindable({})
+	}: Props = $props();
+
+	let showManageModal = $state(false);
+	let showConfigModal = $state(false);
 </script>
 
 <AddConnectionModal
@@ -64,7 +78,7 @@
 		{/if}
 
 		<input
-			class="w-full text-sm bg-transparent outline-none"
+			class="w-full text-sm bg-transparent outline-hidden"
 			placeholder={$i18n.t('Enter URL (e.g. http://localhost:11434)')}
 			bind:value={url}
 		/>
@@ -74,7 +88,7 @@
 		<Tooltip content={$i18n.t('Manage')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showManageModal = true;
 				}}
 				type="button"
@@ -86,7 +100,7 @@
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showConfigModal = true;
 				}}
 				type="button"

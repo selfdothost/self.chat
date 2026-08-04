@@ -4,7 +4,7 @@
 
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { functions, models } from '$lib/stores';
 	import { updateFunctionById, getFunctions, getFunctionById } from '$lib/apis/functions';
 
@@ -17,7 +17,7 @@
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
 
-	let func = null;
+	let func = $state(null);
 
 	const saveHandler = async (data) => {
 		console.log(data);
@@ -61,7 +61,7 @@
 
 	onMount(async () => {
 		console.log('mounted');
-		const id = $page.url.searchParams.get('id');
+		const id = page.url.searchParams.get('id');
 
 		if (id) {
 			func = await getFunctionById(localStorage.token, id).catch((error) => {
@@ -82,8 +82,8 @@
 		name={func.name}
 		meta={func.meta}
 		content={func.content}
-		on:save={(e) => {
-			saveHandler(e.detail);
+		onSave={(detail) => {
+			saveHandler(detail);
 		}}
 	/>
 {:else}

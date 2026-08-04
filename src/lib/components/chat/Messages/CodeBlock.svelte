@@ -18,44 +18,57 @@
 	const i18n: Writable<i18nType> = getContext('i18n');
 	const dispatch = createEventDispatcher();
 
-	export let id = '';
 
-	export let save = false;
-	export let run = true;
 
-	export let token;
-	export let lang = '';
-	export let code = '';
 
-	export let className = 'my-2';
-	export let editorClassName = '';
-	export let stickyButtonsClassName = 'top-8';
-
-	let _code = '';
-	$: if (code) {
-		updateCode();
+	interface Props {
+		id?: string;
+		save?: boolean;
+		run?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		token: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		lang?: string;
+		code?: string;
+		className?: string;
+		editorClassName?: string;
+		stickyButtonsClassName?: string;
 	}
+
+	let {
+		id = '',
+		save = false,
+		run = true,
+		token,
+		lang = '',
+		code = $bindable(''),
+		className = 'my-2',
+		editorClassName = '',
+		stickyButtonsClassName = 'top-8'
+	}: Props = $props();
+
+	let _code = $state('');
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const updateCode = () => {
 		_code = code;
 	};
 
-	let _token = null;
+	let _token = $state(null);
 
-	let mermaidHtml = null;
+	let mermaidHtml = $state(null);
 
-	let executing = false;
+	let executing = $state(false);
 
-	let stdout = null;
-	let stderr = null;
-	let result = null;
+	let stdout = $state(null);
+	let stderr = $state(null);
+	let result = $state(null);
 
-	let copied = false;
-	let saved = false;
+	let copied = $state(false);
+	let saved = $state(false);
 
 	const saveCode = () => {
 		saved = true;
@@ -269,21 +282,10 @@ __builtins__.input = input`);
 		}
 	};
 
-	$: if (token) {
-		if (JSON.stringify(token) !== JSON.stringify(_token)) {
-			_token = token;
-		}
-	}
 
-	$: if (_token) {
-		render();
-	}
 
-	$: dispatch('code', { lang, code });
 
 	onMount(async () => {
-		console.log('codeblock', lang, code);
-
 		if (lang) {
 			dispatch('code', { lang, code });
 		}
@@ -300,6 +302,26 @@ __builtins__.input = input`);
 				securityLevel: 'loose'
 			});
 		}
+	});
+	$effect(() => {
+		if (code) {
+			updateCode();
+		}
+	});
+	$effect(() => {
+		if (token) {
+			if (JSON.stringify(token) !== JSON.stringify(_token)) {
+				_token = token;
+			}
+		}
+	});
+	$effect(() => {
+		if (_token) {
+			render();
+		}
+	});
+	$effect(() => {
+		dispatch('code', { lang, code });
 	});
 </script>
 
@@ -330,7 +352,7 @@ __builtins__.input = input`);
 						{:else if run}
 							<button
 								class="run-code-button bg-none border-none bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition rounded-md px-1.5 py-0.5"
-								on:click={async () => {
+								onclick={async () => {
 									code = _code;
 									await tick();
 									executePython(code);
@@ -342,7 +364,7 @@ __builtins__.input = input`);
 					{#if save}
 						<button
 							class="save-code-button bg-none border-none bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition rounded-md px-1.5 py-0.5"
-							on:click={saveCode}
+							onclick={saveCode}
 						>
 							{saved ? $i18n.t('Saved') : $i18n.t('Save')}
 						</button>
@@ -350,7 +372,7 @@ __builtins__.input = input`);
 
 					<button
 						class="copy-code-button bg-none border-none bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition rounded-md px-1.5 py-0.5"
-						on:click={copyCode}>{copied ? $i18n.t('Copied') : $i18n.t('Copy')}</button
+						onclick={copyCode}>{copied ? $i18n.t('Copied') : $i18n.t('Copy')}</button
 					>
 				</div>
 			</div>
@@ -367,11 +389,11 @@ __builtins__.input = input`);
 					value={code}
 					{id}
 					{lang}
-					on:save={() => {
+					onSave={() => {
 						saveCode();
 					}}
-					on:change={(e) => {
-						_code = e.detail.value;
+					onChange={(detail) => {
+						_code = detail.value;
 					}}
 				/>
 			</div>
@@ -379,7 +401,7 @@ __builtins__.input = input`);
 			<div
 				id="plt-canvas-{id}"
 				class="bg-[#202123] text-white max-w-full overflow-x-auto scrollbar-hidden"
-			/>
+			></div>
 
 			{#if executing}
 				<div class="bg-[#202123] text-white px-4 py-4 rounded-b-lg">

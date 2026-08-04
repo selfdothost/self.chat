@@ -1,25 +1,37 @@
 <script lang="ts">
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import type { AnyFn } from '$lib/types';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { getKnowledgeBaseList } from '$lib/apis/knowledge';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let show = false;
-	/** The currently bound knowledge base id, or '' when unset. */
-	export let kbId = '';
 
-	let loading = false;
-	let loadFailed = false;
+	interface Props {
+		show?: boolean;
+		/** The currently bound knowledge base id, or '' when unset. */
+		kbId?: string;
+		onSave?: AnyFn;
+		onCancel?: AnyFn;
+	}
+
+	let {
+		show = $bindable(false),
+		kbId = $bindable(''),
+		onSave = () => {},
+		onCancel = () => {}
+	}: Props = $props();
+
+	let loading = $state(false);
+	let loadFailed = $state(false);
 	// Local until saved, so cancelling never mutates the bound destination.
-	let selected = '';
-	let knowledgeBases: { id: string; name: string; description?: string }[] = [];
+	let selected = $state('');
+	let knowledgeBases: { id: string; name: string; description?: string }[] = $state([]);
 
 	// Deliberately /knowledge/list, not /knowledge/ — that endpoint filters to
 	// bases the user has WRITE access to. A crawl writes into the base, so a
@@ -40,10 +52,12 @@
 		knowledgeBases = res ?? [];
 	};
 
-	$: if (show) {
-		selected = kbId;
-		load();
-	}
+	$effect(() => {
+		if (show) {
+			selected = kbId;
+			load();
+		}
+	});
 
 	const save = () => {
 		if (!selected) return;
@@ -51,14 +65,14 @@
 		show = false;
 		// The parent turns the toggle on: choosing a destination IS the intent,
 		// so making the user then also find the switch would be busywork.
-		dispatch('save', { kbId: selected });
+		onSave({ kbId: selected });
 	};
 
 	const cancel = () => {
 		show = false;
 		// No selection made -> the parent leaves Web Crawl off. Enabling without
 		// a destination is not a valid state, so we never enter it.
-		dispatch('cancel');
+		onCancel();
 	};
 </script>
 
@@ -78,7 +92,7 @@
 		{:else if loadFailed}
 			<div class="text-sm text-gray-500 dark:text-gray-400 py-4">
 				{$i18n.t('Could not load knowledge bases.')}
-				<button class="underline text-gray-900 dark:text-white" on:click={load}>
+				<button class="underline text-gray-900 dark:text-white" onclick={load}>
 					{$i18n.t('Retry')}
 				</button>
 			</div>
@@ -95,7 +109,7 @@
 						class="w-full text-left px-3 py-2 rounded-xl mb-1 transition border {selected === kb.id
 							? 'border-gray-400 dark:border-gray-500 bg-gray-50 dark:bg-gray-800'
 							: 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50'}"
-						on:click={() => (selected = kb.id)}
+						onclick={() => (selected = kb.id)}
 					>
 						<div class="text-sm font-medium line-clamp-1 text-gray-900 dark:text-white">{kb.name}</div>
 						{#if kb.description}
@@ -111,14 +125,14 @@
 		<div class="flex justify-end gap-2 mt-4">
 			<button
 				class="px-3.5 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white transition"
-				on:click={cancel}
+				onclick={cancel}
 			>
 				{$i18n.t('Cancel')}
 			</button>
 			<button
 				class="px-3.5 py-1.5 text-sm rounded-full bg-black text-white dark:bg-white dark:text-black transition disabled:opacity-50 disabled:cursor-not-allowed"
 				disabled={!selected}
-				on:click={save}
+				onclick={save}
 			>
 				{$i18n.t('Save')}
 			</button>

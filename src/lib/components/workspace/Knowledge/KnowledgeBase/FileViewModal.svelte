@@ -9,8 +9,15 @@
 	// File item shape varies by upload path — accessed dynamically rather than
 	// through one consistent interface, same as the rest of the KnowledgeBase tree.
 	// The parent always coerces `data` to `{ content: '' }` before handing us
-	// a file, so `file.data.content` is safe to bind here.
-	export let file;
+	
+	interface Props {
+		// a file, so `file.data.content` is safe to bind here.
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		file: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
+
+	let { file = $bindable() }: Props = $props();
 
 	// The extracted `data.content` is what's actually chunked/embedded, so it's
 	// meaningful to edit for real text — but for binary types (images, pdf,
@@ -23,13 +30,13 @@
 		'application/javascript'
 	];
 
-	$: contentType = file?.meta?.content_type ?? '';
-	$: isEditable =
-		!contentType || contentType.startsWith('text/') || TEXT_CONTENT_TYPES.includes(contentType);
+	let contentType = $derived(file?.meta?.content_type ?? '');
+	let isEditable =
+		$derived(!contentType || contentType.startsWith('text/') || TEXT_CONTENT_TYPES.includes(contentType));
 </script>
 
 <div
-	class="flex-1 w-full h-full max-h-full text-sm bg-transparent outline-none overflow-y-auto scrollbar-hidden"
+	class="flex-1 w-full h-full max-h-full text-sm bg-transparent outline-hidden overflow-y-auto scrollbar-hidden"
 >
 	{#if isEditable}
 		{#key file.id}

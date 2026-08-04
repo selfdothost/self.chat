@@ -48,38 +48,38 @@
 	// ── View state ─────────────────────────────────────────────────────
 	// 'tabs' = main tabbed view, 'model-runs' = model run list, 'run-details' = single run detail
 	type ViewMode = 'tabs' | 'model-runs' | 'run-details';
-	let viewMode: ViewMode = 'tabs';
+	let viewMode: ViewMode = $state('tabs');
 
 	// Tab state
-	let activeTab = 'general';
-	let benchmarkNames: string[] = [];
+	let activeTab = $state('general');
+	let benchmarkNames: string[] = $state([]);
 
 	// General tab
-	let summaryModels: SummaryModel[] = [];
-	let summaryLoading = true;
-	let summarySortKey = 'model';
-	let summarySortAsc = true;
+	let summaryModels: SummaryModel[] = $state([]);
+	let summaryLoading = $state(true);
+	let summarySortKey = $state('model');
+	let summarySortAsc = $state(true);
 
 	// Benchmark tabs
-	let benchmarkRows: BenchmarkRow[] = [];
-	let benchmarkLoading = false;
-	let benchmarkSortKey = 'model';
-	let benchmarkSortAsc = true;
+	let benchmarkRows: BenchmarkRow[] = $state([]);
+	let benchmarkLoading = $state(false);
+	let benchmarkSortKey = $state('model');
+	let benchmarkSortAsc = $state(true);
 	let loadedBenchmark = '';
 
 	// Model runs view
-	let selectedModelName = '';
-	let modelRuns: RunSummary[] = [];
-	let modelRunsLoading = false;
+	let selectedModelName = $state('');
+	let modelRuns: RunSummary[] = $state([]);
+	let modelRunsLoading = $state(false);
 
 	// Live jobs tracking
-	let runningJobs: EvalJob[] = [];
+	let runningJobs: EvalJob[] = $state([]);
 
 	// Run detail view — delegated to the unified LiveEvalView
-	let activeDetailJob: EvalJob | null = null;
+	let activeDetailJob: EvalJob | null = $state(null);
 
 	// ── Derived ────────────────────────────────────────────────────────
-	$: sortedSummary = [...summaryModels].sort((a, b) => {
+	let sortedSummary = $derived([...summaryModels].sort((a, b) => {
 		let va: string | number, vb: string | number;
 		if (summarySortKey === 'model') {
 			va = a.model.toLowerCase();
@@ -94,9 +94,9 @@
 		if (va < vb) return summarySortAsc ? -1 : 1;
 		if (va > vb) return summarySortAsc ? 1 : -1;
 		return 0;
-	});
+	}));
 
-	$: sortedBenchmarkRows = [...benchmarkRows].sort((a, b) => {
+	let sortedBenchmarkRows = $derived([...benchmarkRows].sort((a, b) => {
 		// Every BenchmarkRow field is either string or number.
 		const va = (a as Record<string, string | number>)[benchmarkSortKey] ?? '';
 		const vb = (b as Record<string, string | number>)[benchmarkSortKey] ?? '';
@@ -105,7 +105,7 @@
 		if (aVal < bVal) return benchmarkSortAsc ? -1 : 1;
 		if (aVal > bVal) return benchmarkSortAsc ? 1 : -1;
 		return 0;
-	});
+	}));
 
 	// ── Actions ────────────────────────────────────────────────────────
 	async function loadSummary() {
@@ -265,7 +265,7 @@
 		{#if viewMode === 'model-runs'}
 			<button
 				class="flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mr-2"
-				on:click={goBackToTabs}
+				onclick={goBackToTabs}
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
 					<path fill-rule="evenodd" d="M9.78 4.22a.75.75 0 0 1 0 1.06L7.06 8l2.72 2.72a.75.75 0 1 1-1.06 1.06L5.47 8.53a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
@@ -293,7 +293,7 @@
 				{activeTab === 'general'
 					? 'border-blue-500 text-blue-600 dark:text-blue-400'
 					: 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'}"
-			on:click={() => selectTab('general')}
+			onclick={() => selectTab('general')}
 		>
 			General
 		</button>
@@ -303,7 +303,7 @@
 					{activeTab === bm
 						? 'border-blue-500 text-blue-600 dark:text-blue-400'
 						: 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'}"
-				on:click={() => selectTab(bm)}
+				onclick={() => selectTab(bm)}
 			>
 				{bm}
 			</button>
@@ -326,7 +326,7 @@
 							<th
 								scope="col"
 								class="px-3 py-1.5 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
-								on:click={() => toggleSummarySort('model')}
+								onclick={() => toggleSummarySort('model')}
 							>
 								<div class="flex items-center gap-1">
 									Model
@@ -339,7 +339,7 @@
 								<th
 									scope="col"
 									class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white capitalize"
-									on:click={() => toggleSummarySort(bm)}
+									onclick={() => toggleSummarySort(bm)}
 								>
 									<div class="flex items-center justify-end gap-1">
 										{bm}
@@ -352,7 +352,7 @@
 							<th
 								scope="col"
 								class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
-								on:click={() => toggleSummarySort('average')}
+								onclick={() => toggleSummarySort('average')}
 							>
 								<div class="flex items-center justify-end gap-1">
 									Average
@@ -367,7 +367,7 @@
 						{#each sortedSummary as row (row.model)}
 							<tr
 								class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 cursor-pointer"
-								on:click={() => selectModel(row.model)}
+								onclick={() => selectModel(row.model)}
 							>
 								<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
 									{row.model}
@@ -410,7 +410,7 @@
 							<th
 								scope="col"
 								class="px-3 py-1.5 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
-								on:click={() => toggleBenchmarkSort('model')}
+								onclick={() => toggleBenchmarkSort('model')}
 							>
 								<div class="flex items-center gap-1">
 									Model
@@ -423,7 +423,7 @@
 								<th
 									scope="col"
 									class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white uppercase"
-									on:click={() => toggleBenchmarkSort(q)}
+									onclick={() => toggleBenchmarkSort(q)}
 								>
 									<div class="flex items-center justify-end gap-1">
 										{q}
@@ -436,7 +436,7 @@
 							<th
 								scope="col"
 								class="px-3 py-1.5 text-right cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
-								on:click={() => toggleBenchmarkSort('total')}
+								onclick={() => toggleBenchmarkSort('total')}
 							>
 								<div class="flex items-center justify-end gap-1">
 									Total
@@ -451,7 +451,7 @@
 						{#each sortedBenchmarkRows as row (row.model)}
 							<tr
 								class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 cursor-pointer"
-								on:click={() => selectModel(row.model)}
+								onclick={() => selectModel(row.model)}
 							>
 								<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
 									{row.model}
@@ -491,8 +491,8 @@
 							class="flex items-center justify-between px-3 py-2 rounded border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/40"
 							role="button"
 							tabindex="0"
-							on:click={() => openLiveJob(job)}
-							on:keydown={(e) => {
+							onclick={() => openLiveJob(job)}
+							onkeydown={(e) => {
 								if (e.key === 'Enter' || e.key === ' ') {
 									e.preventDefault();
 									openLiveJob(job);
@@ -536,7 +536,7 @@
 					{#each modelRuns as run (run.id)}
 						<tr
 							class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs hover:bg-gray-50 dark:hover:bg-gray-850/50 cursor-pointer"
-							on:click={() => selectRunDetail(run)}
+							onclick={() => selectRunDetail(run)}
 						>
 							<td class="px-3 py-2 font-mono text-gray-900 dark:text-white">
 								{run.id}
@@ -566,6 +566,6 @@
 {:else if viewMode === 'run-details'}
 	<!-- ── Run Detail / Live View — unified LiveEvalView ──────────── -->
 	{#if activeDetailJob}
-		<LiveEvalView job={activeDetailJob} on:back={goBackToModelRuns} />
+		<LiveEvalView job={activeDetailJob} onBack={goBackToModelRuns} />
 	{/if}
 {/if}

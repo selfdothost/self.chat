@@ -1,12 +1,15 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import { Switch } from 'bits-ui';
-	export let state = true;
+	import type { AnyFn } from '$lib/types';
+	interface Props {
+		state?: boolean;
+		onChange?: AnyFn;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { state = $bindable(true), onChange = () => {} }: Props = $props();
 
-	// Dispatch only on genuine user interaction (bits-ui's onCheckedChange),
-	// NOT via a `$: dispatch('change', state)` reactive statement. That fired
+	// Call onChange only on genuine user interaction (bits-ui's onCheckedChange),
+	// NOT via a `$: onChange(state)` reactive statement. That fired
 	// on every invalidation of `state`, including a parent simply reassigning
 	// the bound prop (e.g. after refetching a list) -- with no real user
 	// action involved. Confirmed root cause of a production incident: a
@@ -17,7 +20,7 @@
 	// changed the timing/aggressiveness enough to turn this from a latent
 	// bug into an active one.
 	const handleCheckedChange = (checked: boolean) => {
-		dispatch('change', checked);
+		onChange(checked);
 	};
 </script>
 

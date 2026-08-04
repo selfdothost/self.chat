@@ -19,16 +19,30 @@
 	import Spinner from '../common/Spinner.svelte';
 	import { addReaction, deleteMessage, removeReaction, updateMessage } from '$lib/apis/channels';
 
-	export let id = null;
-	export let channel = null;
-	export let messages = [];
-	export let top = false;
-	export let thread = false;
 
-	export let onLoad: AnyFn = () => {};
-	export let onThread: AnyFn = () => {};
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		id?: any;
+		channel?: any;
+		messages?: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		top?: boolean;
+		thread?: boolean;
+		onLoad?: AnyFn;
+		onThread?: AnyFn;
+	}
 
-	let messagesLoading = false;
+	let {
+		id = null,
+		channel = null,
+		messages = $bindable([]),
+		top = false,
+		thread = false,
+		onLoad = () => {},
+		onThread = () => {}
+	}: Props = $props();
+
+	let messagesLoading = $state(false);
 
 	const loadMoreMessages = async () => {
 		// scroll slightly down to disable continuous loading
@@ -49,7 +63,7 @@
 	<div>
 		{#if !top}
 			<Loader
-				on:visible={(_e) => {
+				onVisible={() => {
 					console.log('visible');
 					if (!messagesLoading) {
 						loadMoreMessages();
@@ -188,6 +202,6 @@
 			/>
 		{/each}
 
-		<div class="pb-6" />
+		<div class="pb-6"></div>
 	</div>
 {/if}

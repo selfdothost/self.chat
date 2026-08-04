@@ -1,32 +1,48 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import type { AnyFn } from '$lib/types';
 
-	export let state = 'unchecked';
-	export let indeterminate = false;
+	interface Props {
+		state?: string;
+		indeterminate?: boolean;
+		onChange?: AnyFn;
+	}
 
-	let _state = 'unchecked';
+	// Renamed on destructure: a local variable literally named `state` collides
+	// with the $state rune at runtime (Svelte misreads `$state(...)` as
+	// auto-subscribing to a store named `state`, confirmed by
+	// FolderConfigModal.test.ts's `store_invalid_shape` failure) -- the external
+	// prop name is unaffected, callers still pass `state={...}`.
+	let {
+		state: stateProp = 'unchecked',
+		indeterminate = false,
+		onChange = () => {}
+	}: Props = $props();
 
-	$: _state = state;
+	// _state mirrors the `state` prop but is also toggled locally by clicks
+	// (see the click handler below) -- a writable $derived: reassigning it is a
+	// local override that holds until `stateProp` itself changes again, which
+	// is exactly "re-synced on prop change, but locally toggleable" (Svelte
+	// 5.25+, svelte/prefer-writable-derived).
+	let _state = $derived(stateProp);
 </script>
 
 <button
-	class=" outline -outline-offset-1 outline-[1.5px] outline-gray-200 dark:outline-gray-600 {state !==
+	class=" outline -outline-offset-1 outline-[1.5px] outline-gray-200 dark:outline-gray-600 {stateProp !==
 	'unchecked'
 		? 'bg-black outline-black '
 		: 'hover:outline-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'} text-white transition-all rounded inline-block w-3.5 h-3.5 relative"
-	on:click={() => {
+	onclick={() => {
 		if (_state === 'unchecked') {
 			_state = 'checked';
-			dispatch('change', _state);
+			onChange(_state);
 		} else if (_state === 'checked') {
 			_state = 'unchecked';
 			if (!indeterminate) {
-				dispatch('change', _state);
+				onChange(_state);
 			}
 		} else if (indeterminate) {
 			_state = 'checked';
-			dispatch('change', _state);
+			onChange(_state);
 		}
 	}}
 	type="button"

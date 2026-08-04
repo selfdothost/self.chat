@@ -13,23 +13,29 @@
 	import Clipboard from '../icons/Clipboard.svelte';
 	import Reset from '../icons/Reset.svelte';
 
-	export let className = '';
-	export let svg = '';
-	export let content = '';
-
-	let instance: PanZoom;
-
-	let sceneParentElement: HTMLElement;
-	let sceneElement: HTMLElement;
-
-	$: if (sceneElement) {
-		instance = panzoom(sceneElement, {
-			bounds: true,
-			boundsPadding: 0.1,
-
-			zoomSpeed: 0.065
-		});
+	interface Props {
+		className?: string;
+		svg?: string;
+		content?: string;
 	}
+
+	let { className = '', svg = '', content = '' }: Props = $props();
+
+	let instance: PanZoom = $state();
+
+	let sceneParentElement: HTMLElement = $state();
+	let sceneElement: HTMLElement = $state();
+
+	$effect(() => {
+		if (sceneElement) {
+			instance = panzoom(sceneElement, {
+				bounds: true,
+				boundsPadding: 0.1,
+
+				zoomSpeed: 0.065
+			});
+		}
+	});
 	function resetPanZoomViewport() {
 		console.log('Reset View');
 		instance.moveTo(0, 0);
@@ -49,7 +55,7 @@
 			<Tooltip content={$i18n.t('Copy to clipboard')}>
 				<button
 					class="p-1.5 rounded-lg border border-gray-100 dark:border-none dark:bg-gray-850 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					on:click={() => {
+					onclick={() => {
 						copyToClipboard(content);
 						toast.success($i18n.t('Copied to clipboard'));
 					}}
@@ -62,7 +68,7 @@
 			<Tooltip content={$i18n.t('Reset view')}>
 				<button
 					class="p-1.5 rounded-lg border border-gray-100 dark:border-none dark:bg-gray-850 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					on:click={() => {
+					onclick={() => {
 						resetPanZoomViewport();
 						toast.success($i18n.t('Reset view'));
 					}}

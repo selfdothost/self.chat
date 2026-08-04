@@ -1,4 +1,5 @@
 import { OPENAI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+import { errorDetailToMessage } from '$lib/utils';
 
 export const getOpenAIConfig = async (token: string = '') => {
 	let error = null;
@@ -322,7 +323,9 @@ export const generateOpenAIChatCompletion = async (
 			return res.json();
 		})
 		.catch((err) => {
-			error = `${err?.detail ?? 'Network Problem'}`;
+			// self.ai#35: this is the call the main chat path makes, so it is where
+			// a structured refusal (the GPU-window 503) has to stay readable.
+			error = errorDetailToMessage(err?.detail, 'Network Problem');
 			return null;
 		});
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { stopPropagation } from 'svelte/legacy';
+
 	import dayjs from 'dayjs';
 	import isoWeek from 'dayjs/plugin/isoWeek';
 	import { onMount } from 'svelte';
@@ -9,15 +11,18 @@
 
 	dayjs.extend(isoWeek);
 
-	export let jobs: ScheduledJob[] = [];
+	interface Props {
+		jobs?: ScheduledJob[];
+	}
+
+	let { jobs = [] }: Props = $props();
 
 	// ── Window overlay state ──────────────────────────────────────────────────
-	let windows: JobWindow[] = [];
-	let showWindowModal = false;
-	let editingWindow: JobWindow | null = null;
+	let windows: JobWindow[] = $state([]);
+	let showWindowModal = $state(false);
+	let editingWindow: JobWindow | null = $state(null);
 
-	function handleWindowSaved(event: CustomEvent<JobWindow>) {
-		const saved = event.detail;
+	function handleWindowSaved(saved: JobWindow) {
 		windows = windows.map((w) => (w.id === saved.id ? saved : w));
 	}
 
@@ -50,8 +55,8 @@
 			: 'bg-gray-300/40 text-gray-600 dark:text-gray-400';
 
 	type ViewMode = 'month' | 'week' | 'day';
-	let viewMode: ViewMode = 'month';
-	let current = dayjs();
+	let viewMode: ViewMode = $state('month');
+	let current = $state(dayjs());
 
 	const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 	const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -68,7 +73,7 @@
 	};
 	const goToday = () => { current = dayjs(); };
 
-	$: title = (() => {
+	let title = $derived((() => {
 		if (viewMode === 'month') return current.format('MMMM YYYY');
 		if (viewMode === 'week') {
 			const s = current.startOf('isoWeek');
@@ -78,17 +83,17 @@
 				: `${s.format('MMM D')} – ${e.format('MMM D, YYYY')}`;
 		}
 		return current.format('dddd, MMMM D, YYYY');
-	})();
+	})());
 
-	$: notCurrentPeriod = (() => {
+	let notCurrentPeriod = $derived((() => {
 		const t = dayjs();
 		if (viewMode === 'month') return !current.isSame(t, 'month');
 		if (viewMode === 'week') return !current.startOf('isoWeek').isSame(t.startOf('isoWeek'), 'day');
 		return !current.isSame(t, 'day');
-	})();
+	})());
 
 	// Month grid — weeks starting Monday
-	$: monthWeeks = (() => {
+	let monthWeeks = $derived((() => {
 		if (viewMode !== 'month') return [] as dayjs.Dayjs[][];
 		const start = current.startOf('month').startOf('isoWeek');
 		const end = current.endOf('month').endOf('isoWeek');
@@ -98,25 +103,25 @@
 		const result: dayjs.Dayjs[][] = [];
 		for (let i = 0; i < days.length; i += 7) result.push(days.slice(i, i + 7));
 		return result;
-	})();
+	})());
 
 	// Week columns Mon–Sun
-	$: weekDays = (() => {
+	let weekDays = $derived((() => {
 		if (viewMode === 'month') return [] as dayjs.Dayjs[];
 		if (viewMode === 'week') {
 			const s = current.startOf('isoWeek');
 			return Array.from({ length: 7 }, (_, i) => s.add(i, 'day'));
 		}
 		return [current] as dayjs.Dayjs[];
-	})();
+	})());
 
-	$: jobsByDay = jobs.reduce((acc, job) => {
+	let jobsByDay = $derived(jobs.reduce((acc, job) => {
 		if (job.scheduled_for) {
 			const key = dayjs(job.scheduled_for * 1000).format('YYYY-MM-DD');
 			(acc[key] = acc[key] ?? []).push(job);
 		}
 		return acc;
-	}, {} as Record<string, ScheduledJob[]>);
+	}, {} as Record<string, ScheduledJob[]>));
 
 	const statusDot = (s: string) => ({
 		pending: 'bg-amber-400', scheduled: 'bg-violet-500', queued: 'bg-blue-400',
@@ -143,19 +148,19 @@
 	const VIEW_MODES: ViewMode[] = ['month', 'week', 'day'];
 
 	// Pre-computed lookup: "YYYY-MM-DD-H" → jobs — avoids per-cell filtering in template
-	$: jobsByDayHour = jobs.reduce((acc, job) => {
+	let jobsByDayHour = $derived(jobs.reduce((acc, job) => {
 		if (job.scheduled_for) {
 			const t = dayjs(job.scheduled_for * 1000);
 			const key = `${t.format('YYYY-MM-DD')}-${t.hour()}`;
 			(acc[key] = acc[key] ?? []).push(job);
 		}
 		return acc;
-	}, {} as Record<string, ScheduledJob[]>);
+	}, {} as Record<string, ScheduledJob[]>));
 
 	const formatHour = (h: number) =>
 		h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
 
-	let timeGridEl: HTMLElement | null = null;
+	let timeGridEl: HTMLElement | null = $state(null);
 
 	const setView = (v: ViewMode) => {
 		viewMode = v;
@@ -194,7 +199,7 @@
 		<div class="flex items-center gap-1">
 			<button
 				class="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-				on:click={prev}
+				onclick={prev}
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-500">
 					<path fill-rule="evenodd" d="M9.78 4.22a.75.75 0 0 1 0 1.06L7.06 8l2.72 2.72a.75.75 0 1 1-1.06 1.06L5.47 8.53a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
@@ -202,7 +207,7 @@
 			</button>
 			<button
 				class="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-				on:click={next}
+				onclick={next}
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-500">
 					<path fill-rule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06L7.28 11.78a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
@@ -214,7 +219,7 @@
 			{#if notCurrentPeriod}
 				<button
 					class="ml-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-					on:click={goToday}
+					onclick={goToday}
 				>
 					Today
 				</button>
@@ -227,9 +232,9 @@
 				<button
 					class="px-2.5 py-1 rounded-md text-xs font-medium transition
 						{viewMode === v
-							? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+							? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-xs'
 							: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
-					on:click={() => setView(v)}
+					onclick={() => setView(v)}
 				>
 					{v.charAt(0).toUpperCase() + v.slice(1)}
 				</button>
@@ -263,8 +268,8 @@
 							class="min-h-[80px] p-1.5 border-r border-gray-100 dark:border-gray-800/60 last:border-r-0 text-left
 								{isCurrentMonth ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50' : 'bg-gray-50/60 dark:bg-gray-900/40'}
 								transition"
-							on:click={() => selectSlot(day.format('YYYY-MM-DD'))}
-							on:keydown={(e) => {
+							onclick={() => selectSlot(day.format('YYYY-MM-DD'))}
+							onkeydown={(e) => {
 								if (e.key === 'Enter' || e.key === ' ') {
 									e.preventDefault();
 									selectSlot(day.format('YYYY-MM-DD'));
@@ -288,7 +293,7 @@
 								<button
 									type="button"
 									class="w-full text-left rounded px-1 py-0.5 mb-0.5 text-[10px] truncate font-medium {windowBarColor(w)}"
-									on:click|stopPropagation={() => { editingWindow = w; showWindowModal = true; }}
+									onclick={stopPropagation(() => { editingWindow = w; showWindowModal = true; })}
 								>
 									{w.name}
 								</button>
@@ -365,7 +370,7 @@
 								{isCurrentHour ? 'bg-indigo-50/40 dark:bg-indigo-900/10' : isToday ? 'bg-gray-50/40 dark:bg-gray-850/20' : ''}
 								{slotWindow ? windowBg(slotWindow) : ''}
 								hover:bg-gray-50 dark:hover:bg-gray-800/30 transition"
-							on:click={() => selectSlot(day.format('YYYY-MM-DD'), hour)}
+							onclick={() => selectSlot(day.format('YYYY-MM-DD'), hour)}
 						>
 							{#each slotJobs as job (job.id)}
 								<div class="rounded px-1 py-0.5 text-[10px] truncate {statusPill(job.status)} mb-0.5 flex items-center gap-1">
@@ -381,4 +386,4 @@
 	{/if}
 </div>
 
-<WindowModal bind:show={showWindowModal} window={editingWindow} on:saved={handleWindowSaved} />
+<WindowModal bind:show={showWindowModal} window={editingWindow} onSaved={handleWindowSaved} />

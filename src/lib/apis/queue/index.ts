@@ -10,6 +10,11 @@ export type QueueItem = {
 	created_at: number;
 	label: string;
 	model_id?: string;
+	// Why the job is sitting where it is (self.ai#88). A curation run that
+	// cannot get the GPU stays `queued` carrying the broker's refusal — who is
+	// holding the card and what they said — so a row that never moves explains
+	// itself instead of looking stuck.
+	status_detail?: string;
 };
 
 async function queueFetch<T>(

@@ -9,8 +9,6 @@
 	turndownService.escape = (string) => string;
 
 	import { onMount, onDestroy } from 'svelte';
-	import { createEventDispatcher } from 'svelte';
-	const eventDispatch = createEventDispatcher();
 
 	import { TextSelection } from 'prosemirror-state';
 
@@ -30,20 +28,39 @@
 	// create a lowlight instance with all languages loaded
 	const lowlight = createLowlight(all);
 
-	export let className = 'input-prose';
-	export let placeholder = 'Type here...';
-	export let value = '';
-	export let id = '';
 
-	export let preserveBreaks = false;
-	export let generateAutoCompletion: AnyFn = async () => null;
-	export let autocomplete = false;
-	export let messageInput = false;
-	export let shiftEnter = false;
-	export let largeTextAsFile = false;
+	interface Props {
+		className?: string;
+		placeholder?: string;
+		value?: string;
+		id?: string;
+		preserveBreaks?: boolean;
+		generateAutoCompletion?: AnyFn;
+		autocomplete?: boolean;
+		messageInput?: boolean;
+		shiftEnter?: boolean;
+		largeTextAsFile?: boolean;
+		onKeydown?: AnyFn;
+		onPaste?: AnyFn;
+	}
 
-	let element;
-	let editor;
+	let {
+		className = 'input-prose',
+		placeholder = 'Type here...',
+		value = $bindable(''),
+		id = '',
+		preserveBreaks = false,
+		generateAutoCompletion = async () => null,
+		autocomplete = false,
+		messageInput = false,
+		shiftEnter = false,
+		largeTextAsFile = false,
+		onKeydown = () => {},
+		onPaste = () => {}
+	}: Props = $props();
+
+	let element: HTMLDivElement | undefined = $state();
+	let editor: Editor | undefined = $state();
 
 	// Function to find the next template in the document
 	function findNextTemplate(doc, from = 0) {
@@ -156,7 +173,18 @@
 		editor = new Editor({
 			element: element,
 			extensions: [
-				StarterKit,
+				StarterKit.configure({
+					codeBlock: false,
+					// Default shouldAutoLink treats any bare `word.tld`-shaped text as a
+					// link (no scheme/www required) as long as the "hostname" contains a
+					// dot and isn't a bare IP -- so typing e.g. "self.ai" in a sentence
+					// silently becomes <a href="http://self.ai">, an unrelated domain
+					// (self.chat#21). Require an explicit scheme or "www." before
+					// auto-linking; a real pasted/typed URL still works either way.
+					link: {
+						shouldAutoLink: (url) => /^[a-z][a-z0-9+.-]*:\/\//i.test(url) || /^www\./i.test(url)
+					}
+				}),
 				CodeBlockLowlight.configure({
 					lowlight
 				}),
@@ -214,14 +242,6 @@
 			editorProps: {
 				attributes: { id },
 				handleDOMEvents: {
-					focus: (view, event) => {
-						eventDispatch('focus', { event });
-						return false;
-					},
-					keyup: (view, event) => {
-						eventDispatch('keyup', { event });
-						return false;
-					},
 					keydown: (view, event) => {
 						if (messageInput) {
 							// Handle Tab Key
@@ -236,11 +256,13 @@
 							if (event.key === 'Enter') {
 								// Check if the current selection is inside a structured block (like codeBlock or list)
 								const { state } = view;
-								const { $head } = state.selection;
+								// Svelte reserves the `$` prefix in runes mode, so ProseMirror's
+								// own `$head` (a resolved position) is renamed on destructure.
+								const { $head: head } = state.selection;
 
 								// Recursive function to check ancestors for specific node types
 								const isInside = (nodeTypes: string[]): boolean => {
-									let currentNode = $head;
+									let currentNode = head;
 									while (currentNode) {
 										if (nodeTypes.includes(currentNode.parent.type.name)) {
 											return true;
@@ -271,7 +293,7 @@
 								}
 							}
 						}
-						eventDispatch('keydown', { event });
+						onKeydown({ event });
 						return false;
 					},
 					paste: (view, event) => {
@@ -282,7 +304,7 @@
 								if (largeTextAsFile) {
 									if (plainText.length > PASTED_TEXT_CHARACTER_LIMIT) {
 										// Dispatch paste event to parent component
-										eventDispatch('paste', { event });
+										onPaste({ event });
 										event.preventDefault();
 										return true;
 									}
@@ -301,14 +323,14 @@
 							);
 							if (hasImageFile) {
 								// If there's an image, dispatch the event to the parent
-								eventDispatch('paste', { event });
+								onPaste({ event });
 								event.preventDefault();
 								return true;
 							}
 
 							if (hasImageItem) {
 								// If there's an image item, dispatch the event to the parent
-								eventDispatch('paste', { event });
+								onPaste({ event });
 								event.preventDefault();
 								return true;
 							}
@@ -334,25 +356,27 @@
 	});
 
 	// Update the editor content if the external `value` changes
-	$: if (
-		editor &&
-		value !==
-			turndownService
-				.turndown(
-					(preserveBreaks
-						? editor.getHTML().replace(/<p><\/p>/g, '<br/>')
-						: editor.getHTML()
-					).replace(/ {2,}/g, (m) => m.replace(/ /g, '\u00a0'))
-				)
-				.replace(/\u00a0/g, ' ')
-	) {
-		editor.commands.setContent(
-			marked.parse(value.replaceAll(`\n<br/>`, `<br/>`), {
-				breaks: false
-			})
-		); // Update editor content
-		selectTemplate();
-	}
+	$effect(() => {
+		if (
+			editor &&
+			value !==
+				turndownService
+					.turndown(
+						(preserveBreaks
+							? editor.getHTML().replace(/<p><\/p>/g, '<br/>')
+							: editor.getHTML()
+						).replace(/ {2,}/g, (m) => m.replace(/ /g, '\u00a0'))
+					)
+					.replace(/\u00a0/g, ' ')
+		) {
+			editor.commands.setContent(
+				marked.parse(value.replaceAll(`\n<br/>`, `<br/>`), {
+					breaks: false
+				})
+			); // Update editor content
+			selectTemplate();
+		}
+	});
 </script>
 
-<div bind:this={element} class="relative w-full min-w-full h-full min-h-fit {className}" />
+<div bind:this={element} class="relative w-full min-w-full h-full min-h-fit {className}"></div>

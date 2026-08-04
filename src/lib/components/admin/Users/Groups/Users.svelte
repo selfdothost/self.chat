@@ -9,12 +9,9 @@
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
 	import Badge from '$lib/components/common/Badge.svelte';
 
-	export let users = [];
-	export let userIds = [];
+	let { users = [], userIds = $bindable([]) } = $props();
 
-	let filteredUsers;
-
-	$: filteredUsers = users
+	let filteredUsers = $derived(users
 		.filter((user) => {
 			if (user?.role === 'admin') {
 				return false;
@@ -42,9 +39,11 @@
 
 			// If both are not in the userIds, fallback to alphabetical sorting by name
 			return a.name.localeCompare(b.name);
-		});
+		}));
 
-	let query = '';
+
+	let query = $state('');
+	
 </script>
 
 <div>
@@ -65,7 +64,7 @@
 				</svg>
 			</div>
 			<input
-				class=" w-full text-sm pr-4 rounded-r-xl outline-none bg-transparent"
+				class=" w-full text-sm pr-4 rounded-r-xl outline-hidden bg-transparent"
 				bind:value={query}
 				placeholder={$i18n.t('Search')}
 			/>
@@ -80,8 +79,8 @@
 						<div class="flex items-center">
 							<Checkbox
 								state={userIds.includes(user.id) ? 'checked' : 'unchecked'}
-								on:change={(e) => {
-									if (e.detail === 'checked') {
+								onChange={(detail) => {
+									if (detail === 'checked') {
 										userIds = [...userIds, user.id];
 									} else {
 										userIds = userIds.filter((id) => id !== user.id);

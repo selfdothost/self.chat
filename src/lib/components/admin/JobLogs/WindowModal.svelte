@@ -1,30 +1,35 @@
 <script lang="ts">
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import type { WindowForm, WindowSlot, JobWindow } from '$lib/apis/windows';
 	import { createWindow, updateWindow } from '$lib/apis/windows';
+	import type { AnyFn } from '$lib/types';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let show = false;
-	export let window: JobWindow | null = null; // null = create mode
+	interface Props {
+		show?: boolean;
+		window?: JobWindow | null; // null = create mode
+		onSaved?: AnyFn;
+	}
+
+	let { show = $bindable(false), window = null, onSaved = () => {} }: Props = $props();
 
 	const JOB_TYPES = ['training', 'language-eval', 'code-eval', 'curator'];
 
 	// Form state
-	let name = '';
-	let notes = '';
-	let startDate = '';
-	let startTime = '';
-	let endDate = '';
-	let endTime = '';
-	let preferredJobType = 'training';
-	let enabled = true;
-	let slots: WindowSlot[] = [];
-	let error = '';
-	let saving = false;
+	let name = $state('');
+	let notes = $state('');
+	let startDate = $state('');
+	let startTime = $state('');
+	let endDate = $state('');
+	let endTime = $state('');
+	let preferredJobType = $state('training');
+	let enabled = $state(true);
+	let slots: WindowSlot[] = $state([]);
+	let error = $state('');
+	let saving = $state(false);
 
 	function toLocalInputs(ts: number): { date: string; time: string } {
 		const d = new Date(ts * 1000);
@@ -49,48 +54,51 @@
 			return '';
 		}
 	}
-	let _lastInitKey = ''
-	$: if (show) {
-		const key = `${show}::${window?.id ?? `new`}`
-		if (key !== _lastInitKey) {
-			// Read by this same block on its NEXT invocation (guards against
-			// redundant re-init when `show`/`window.id` haven't actually changed).
-			// ESLint's single-pass analysis can't see reads across repeated
-			// $: re-invocations.
-			// eslint-disable-next-line no-useless-assignment
-			_lastInitKey = key
-			if (window) {
-				name = window.name;
-				notes = window.notes ?? '';
-				preferredJobType = window.preferred_job_type;
-				enabled = window.enabled;
-				slots = window.slots.map((s) => ({ ...s }));
-				const s = toLocalInputs(window.start_at);
-				const e = toLocalInputs(window.end_at);
-				startDate = s.date;
-				startTime = s.time;
-				endDate = e.date;
-				endTime = e.time;
-			} else {
-				name = '';
-				notes = '';
-				preferredJobType = 'training';
-				enabled = true;
-				slots = [];
-				const now = new Date();
-				startDate = now.toLocaleDateString('sv');
-				startTime = now.toTimeString().slice(0, 5);
-				const later = new Date(now.getTime() + 2 * 3600 * 1000);
-				endDate = later.toLocaleDateString('sv');
-				endTime = later.toTimeString().slice(0, 5);
+	let _lastInitKey = $state('')
+	$effect(() => {
+		if (show) {
+			const key = `${show}::${window?.id ?? `new`}`
+			if (key !== _lastInitKey) {
+				// Read by this same block on its NEXT invocation (guards against
+				// redundant re-init when `show`/`window.id` haven't actually changed).
+				// ESLint's single-pass analysis can't see reads across repeated
+				// $: re-invocations.
+				 
+				_lastInitKey = key
+				if (window) {
+					name = window.name;
+					notes = window.notes ?? '';
+					preferredJobType = window.preferred_job_type;
+					enabled = window.enabled;
+					slots = window.slots.map((s) => ({ ...s }));
+					const s = toLocalInputs(window.start_at);
+					const e = toLocalInputs(window.end_at);
+					startDate = s.date;
+					startTime = s.time;
+					endDate = e.date;
+					endTime = e.time;
+				} else {
+					name = '';
+					notes = '';
+					preferredJobType = 'training';
+					enabled = true;
+					slots = [];
+					const now = new Date();
+					startDate = now.toLocaleDateString('sv');
+					startTime = now.toTimeString().slice(0, 5);
+					const later = new Date(now.getTime() + 2 * 3600 * 1000);
+					endDate = later.toLocaleDateString('sv');
+					endTime = later.toTimeString().slice(0, 5);
+				}
 			}
+			error = '';
 		}
-		error = '';
-	}
+	});
 	// Read by the reactive block above on its next invocation, once `show`
 	// becomes true again -- not within this statement itself.
-	// eslint-disable-next-line no-useless-assignment
-	$: if (!show) _lastInitKey = '';
+	$effect(() => {
+		if (!show) _lastInitKey = '';
+	});
 
 	async function save() {
 		error = '';
@@ -114,7 +122,7 @@
 			const result = window
 				? await updateWindow(localStorage.token, window.id, form)
 				: await createWindow(localStorage.token, form);
-			dispatch('saved', result);
+			onSaved(result);
 			show = false;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- caught error shape is heterogeneous (string | { detail } | { message }); narrowing every call site is out of scope here
 		} catch (e: any) {
@@ -154,7 +162,7 @@
 					<label for="window-name" class="block text-xs font-medium mb-1">{$i18n.t('Name')}</label>
 					<input
 						id="window-name"
-						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none focus:ring-1 focus:ring-blue-500"
+						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden focus:ring-1 focus:ring-blue-500"
 						bind:value={name}
 						placeholder={$i18n.t('e.g. Evening GPU Window')}
 					/>
@@ -164,8 +172,8 @@
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label for="window-start-date" class="block text-xs font-medium mb-1">{$i18n.t('Start')}</label>
-						<input id="window-start-date" type="date" bind:value={startDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none" />
-						<input type="time" aria-label={$i18n.t('Start time')} bind:value={startTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none mt-1" />
+						<input id="window-start-date" type="date" bind:value={startDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden" />
+						<input type="time" aria-label={$i18n.t('Start time')} bind:value={startTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden mt-1" />
 					</div>
 					<div>
 						<label for="window-end-date" class="block text-xs font-medium mb-1">
@@ -174,8 +182,8 @@
 								<span class="text-gray-400 font-normal ml-1">({computedDuration()})</span>
 							{/if}
 						</label>
-						<input id="window-end-date" type="date" bind:value={endDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none" />
-						<input type="time" aria-label={$i18n.t('End time')} bind:value={endTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none mt-1" />
+						<input id="window-end-date" type="date" bind:value={endDate} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden" />
+						<input type="time" aria-label={$i18n.t('End time')} bind:value={endTime} class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden mt-1" />
 					</div>
 				</div>
 
@@ -185,7 +193,7 @@
 					<select
 						id="window-preferred-job-type"
 						bind:value={preferredJobType}
-						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none"
+						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden"
 					>
 						{#each JOB_TYPES as t (t)}
 							<option value={t}>{t}</option>
@@ -197,7 +205,7 @@
 				<div>
 					<div class="flex justify-between items-center mb-1">
 						<span class="text-xs font-medium">{$i18n.t('Allowed job types')}</span>
-						<button type="button" class="text-xs text-blue-500 hover:underline" on:click={addSlot}>
+						<button type="button" class="text-xs text-blue-500 hover:underline" onclick={addSlot}>
 							+ {$i18n.t('Add type')}
 						</button>
 					</div>
@@ -209,7 +217,7 @@
 						<div class="flex gap-2 items-start mb-1.5">
 							<select
 								bind:value={slot.job_type}
-								class="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-none flex-1"
+								class="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-hidden flex-1"
 							>
 								{#each JOB_TYPES as t (t)}
 									<option value={t}>{t}</option>
@@ -220,21 +228,21 @@
 									type="number"
 									min="1"
 									bind:value={slot.max_concurrent}
-									class="w-16 text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-none"
+									class="w-16 text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-hidden"
 									title={$i18n.t('Max concurrent')}
 								/>
 								<input
 									type="number"
 									min="0"
 									bind:value={slot.min_remaining_minutes}
-									class="w-16 text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-none"
+									class="w-16 text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-transparent outline-hidden"
 									title={$i18n.t('Min remaining minutes')}
 								/>
 							</div>
 							<button
 								type="button"
 								class="text-red-400 hover:text-red-600 mt-1"
-								on:click={() => removeSlot(i)}
+								onclick={() => removeSlot(i)}
 							>×</button>
 						</div>
 					{/each}
@@ -250,8 +258,8 @@
 						id="window-notes"
 						bind:value={notes}
 						rows="2"
-						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-none resize-none"
-					/>
+						class="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-transparent outline-hidden resize-none"
+					></textarea>
 				</div>
 
 				<!-- Enabled -->
@@ -269,14 +277,14 @@
 				<button
 					type="button"
 					class="px-4 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-					on:click={() => (show = false)}
+					onclick={() => (show = false)}
 				>
 					{$i18n.t('Cancel')}
 				</button>
 				<button
 					type="button"
 					class="px-4 py-1.5 text-sm rounded-lg bg-black text-white dark:bg-white dark:text-black hover:opacity-90 disabled:opacity-50"
-					on:click={save}
+					onclick={save}
 					disabled={saving || !name}
 				>
 					{saving ? $i18n.t('Saving…') : $i18n.t('Save')}

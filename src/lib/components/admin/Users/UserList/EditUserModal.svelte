@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
+	import type { AnyFn } from '$lib/types';
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
-	import { createEventDispatcher } from 'svelte';
 	import { onMount, getContext } from 'svelte';
 
 	import { updateUserById } from '$lib/apis/users';
@@ -11,19 +13,25 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
-	export let show = false;
-	export let selectedUser;
-	export let sessionUser;
+	interface Props {
+		show?: boolean;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		selectedUser: any;
+		sessionUser: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onSave?: AnyFn;
+	}
 
-	let _user = {
+	let { show = $bindable(false), selectedUser, sessionUser, onSave = () => {} }: Props = $props();
+
+	let _user = $state({
 		id: '',
 		profile_image_url: '',
 		name: '',
 		email: '',
 		password: ''
-	};
+	});
 
 	const submitHandler = async () => {
 		const res = await updateUserById(localStorage.token, selectedUser.id, _user).catch((error) => {
@@ -31,7 +39,7 @@
 		});
 
 		if (res) {
-			dispatch('save');
+			onSave();
 			show = false;
 		}
 	};
@@ -50,7 +58,7 @@
 			<div class=" text-lg font-medium self-center">{$i18n.t('Edit User')}</div>
 			<button
 				class="self-center"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -72,9 +80,9 @@
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
 				<form
 					class="flex flex-col w-full"
-					on:submit|preventDefault={() => {
+					onsubmit={preventDefault(() => {
 						submitHandler();
-					}}
+					})}
 				>
 					<div class=" flex items-center rounded-md py-2 px-4 w-full">
 						<div class=" self-center mr-5">
@@ -103,7 +111,7 @@
 
 							<div class="flex-1">
 								<input
-									class="w-full rounded py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-500 outline-none"
+									class="w-full rounded py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
 									type="email"
 									bind:value={_user.email}
 									autocomplete="off"
@@ -118,7 +126,7 @@
 
 							<div class="flex-1">
 								<input
-									class="w-full rounded py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-800 outline-none"
+									class="w-full rounded py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-800 outline-hidden"
 									type="text"
 									bind:value={_user.name}
 									autocomplete="off"
@@ -132,7 +140,7 @@
 
 							<div class="flex-1">
 								<input
-									class="w-full rounded py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-800 outline-none"
+									class="w-full rounded py-2 px-4 text-sm dark:text-gray-300 dark:bg-gray-800 outline-hidden"
 									type="password"
 									bind:value={_user.password}
 									autocomplete="new-password"

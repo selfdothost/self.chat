@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const h = vi.hoisted(() => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let value: any = { params: { id: 'alpha' } };
+	const value: any = { params: { id: 'alpha' } };
 	const page = {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		subscribe(fn: (v: any) => void) {

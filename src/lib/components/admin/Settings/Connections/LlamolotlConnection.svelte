@@ -12,18 +12,29 @@
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import Wrench from '$lib/components/icons/Wrench.svelte';
 
-	export let onDelete: AnyFn = () => {};
-	export let onSubmit: AnyFn = () => {};
 
-	export let url = '';
-	export let idx = 0;
 	// Open-ended connection config bag (key, enable, and whatever else the
 	// backend's connection record carries) -- genuinely dynamic, not a fixed shape.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let config: Record<string, any> = {};
+	
+	interface Props {
+		onDelete?: AnyFn;
+		onSubmit?: AnyFn;
+		url?: string;
+		idx?: number;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		config?: Record<string, any>;
+	}
 
-	let showManageModal = false;
-	let showConfigModal = false;
+	let {
+		onDelete = () => {},
+		onSubmit = () => {},
+		url = $bindable(''),
+		idx = 0,
+		config = $bindable({})
+	}: Props = $props();
+
+	let showManageModal = $state(false);
+	let showConfigModal = $state(false);
 </script>
 
 <AddConnectionModal
@@ -60,7 +71,7 @@
 		{/if}
 
 		<input
-			class="w-full text-sm bg-transparent outline-none"
+			class="w-full text-sm bg-transparent outline-hidden"
 			placeholder={$i18n.t('Enter URL (e.g. http://localhost:8080)')}
 			bind:value={url}
 		/>
@@ -70,7 +81,7 @@
 		<Tooltip content={$i18n.t('Manage')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showManageModal = true;
 				}}
 				type="button"
@@ -82,7 +93,7 @@
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showConfigModal = true;
 				}}
 				type="button"

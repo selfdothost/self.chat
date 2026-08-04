@@ -8,10 +8,16 @@
 	import GpuTotalCard from './GpuTotalCard.svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let resources;
-	export let onViewProcesses: (sortBy: string) => void;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		resources: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onViewProcesses: (sortBy: string) => void;
+	}
 
-	let clockDisplay = '';
+	let { resources, onViewProcesses }: Props = $props();
+
+	let clockDisplay = $state('');
 	let clockInterval: ReturnType<typeof setInterval> | null = null;
 	let serverTimeOffset = 0; // difference between server time and local clock
 	let tzAbbr = '';
@@ -46,9 +52,11 @@
 	});
 
 	// Re-sync when resources update with new server time
-	$: if (resources?.container_time) {
-		syncClock(resources.container_time);
-	}
+	$effect(() => {
+		if (resources?.container_time) {
+			syncClock(resources.container_time);
+		}
+	});
 </script>
 
 {#if resources}

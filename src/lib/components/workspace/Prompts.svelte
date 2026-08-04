@@ -27,22 +27,22 @@
 	import { capitalizeFirstLetter } from '$lib/utils';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	let promptsImportInputElement: HTMLInputElement;
-	let loaded = false;
+	let promptsImportInputElement: HTMLInputElement = $state();
+	let loaded = $state(false);
 
 	// bind:files below hands back the real FileList the browser populates on
 	// the <input type="file"> -- this was `''` (a string), which is why the
 	// indexing/readAsText/reset below never actually worked as intended.
-	let importFiles: FileList | null = null;
-	let query = '';
+	let importFiles: FileList | null = $state(null);
+	let query = $state('');
 
-	let prompts = [];
+	let prompts = $state([]);
 
-	let showDeleteConfirm = false;
-	let deletePrompt = null;
+	let showDeleteConfirm = $state(false);
+	let deletePrompt = $state(null);
 
-	let filteredItems;
-	$: filteredItems = prompts.filter((p) => query === '' || p.command.includes(query));
+	let filteredItems = $derived(prompts.filter((p) => query === '' || p.command.includes(query)));
+	
 
 	const cloneHandler = async (prompt) => {
 		sessionStorage.prompt = JSON.stringify(prompt);
@@ -83,7 +83,7 @@
 	<DeleteConfirmDialog
 		bind:show={showDeleteConfirm}
 		title={$i18n.t('Delete prompt?')}
-		on:confirm={() => {
+		onConfirm={() => {
 			deleteHandler(deletePrompt);
 		}}
 	>
@@ -96,7 +96,7 @@
 		<div class="flex justify-between items-center">
 			<div class="flex md:self-center text-xl font-medium px-0.5 items-center">
 				{$i18n.t('Prompts')}
-				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
+				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 				<span class="text-lg font-medium text-gray-500 dark:text-gray-300"
 					>{filteredItems.length}</span
 				>
@@ -109,7 +109,7 @@
 					<Search className="size-3.5" />
 				</div>
 				<input
-					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
+					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
 					bind:value={query}
 					placeholder={$i18n.t('Search Prompts')}
 				/>
@@ -220,7 +220,7 @@
 					type="file"
 					accept=".json"
 					hidden
-					on:change={() => {
+					onchange={() => {
 						console.log(importFiles);
 
 						const reader = new FileReader();
@@ -257,7 +257,7 @@
 
 				<button
 					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 transition"
-					on:click={() => {
+					onclick={() => {
 						promptsImportInputElement.click();
 					}}
 				>
@@ -281,7 +281,7 @@
 
 				<button
 					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 transition"
-					on:click={async () => {
+					onclick={async () => {
 						// promptsImportInputElement.click();
 						let blob = new Blob([JSON.stringify(prompts)], {
 							type: 'application/json'

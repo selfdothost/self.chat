@@ -3,16 +3,28 @@
 	import type { Writable } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 
-	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { models } from '$lib/stores';
 	import Tags from '$lib/components/common/Tags.svelte';
+	import type { AnyFn } from '$lib/types';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	const dispatch = createEventDispatcher();
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		message: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		show?: boolean;
+		onSave?: AnyFn;
+	}
 
-	export let message;
-	export let show = false;
+	let {
+		// eslint-disable-next-line no-useless-assignment -- $bindable() defaults are reassigned once the parent's real value is observed
+		message = $bindable(),
+		// eslint-disable-next-line no-useless-assignment -- $bindable() defaults are reassigned once the parent's real value is observed
+		show = $bindable(false),
+		onSave = () => {}
+	}: Props = $props();
 
 	let LIKE_REASONS = [
 		'accurate_information',
@@ -34,29 +46,21 @@
 		'other'
 	];
 
-	let tags = [];
+	let tags = $state([]);
 
-	let reasons = [];
-	let selectedReason = null;
-	let comment = '';
+	let reasons = $state([]);
+	let selectedReason = $state(null);
+	let comment = $state('');
 
-	let detailedRating = null;
-	let selectedModel = null;
+	let detailedRating = $state(null);
+	let selectedModel = $state(null);
 
-	$: if (message?.annotation?.rating === 1) {
-		reasons = LIKE_REASONS;
-	} else if (message?.annotation?.rating === -1) {
-		reasons = DISLIKE_REASONS;
-	}
 
-	$: if (message) {
-		init();
-	}
 
 		// Svelte compiles $: blocks in dependency order, not source order --
 	// this is called from an earlier reactive block despite being declared
 	// here. ESLint's static top-down analysis can't see that reordering.
-	// eslint-disable-next-line no-useless-assignment
+	 
 	const init = () => {
 		if (!selectedReason) {
 			selectedReason = message?.annotation?.reason ?? '';
@@ -93,7 +97,7 @@
 		// 	return;
 		// }
 
-		dispatch('save', {
+		onSave({
 			reason: selectedReason,
 			comment: comment,
 			tags: tags.map((tag) => tag.name),
@@ -105,6 +109,18 @@
 		toast.success($i18n.t('Thanks for your feedback!'));
 		show = false;
 	};
+	$effect(() => {
+		if (message?.annotation?.rating === 1) {
+			reasons = LIKE_REASONS;
+		} else if (message?.annotation?.rating === -1) {
+			reasons = DISLIKE_REASONS;
+		}
+	});
+	$effect(() => {
+		if (message) {
+			init();
+		}
+	});
 </script>
 
 {#if message?.arena}
@@ -125,7 +141,7 @@
 		<!-- <div class=" text-sm">{$i18n.t('Tell us more:')}</div> -->
 
 		<button
-			on:click={() => {
+			onclick={() => {
 				show = false;
 			}}
 		>
@@ -152,7 +168,7 @@
 						rating
 							? 'bg-gray-100 dark:bg-gray-800'
 							: ''} transition rounded-full disabled:cursor-not-allowed disabled:text-gray-500 disabled:bg-white disabled:dark:bg-gray-900"
-						on:click={() => {
+						onclick={() => {
 							detailedRating = rating;
 						}}
 						disabled={message?.annotation?.rating === -1 ? rating > 5 : rating < 6}
@@ -185,7 +201,7 @@
 						reason
 							? 'bg-gray-100 dark:bg-gray-800'
 							: ''} transition rounded-xl"
-						on:click={() => {
+						onclick={() => {
 							selectedReason = reason;
 						}}
 					>
@@ -229,10 +245,10 @@
 	<div class="mt-2">
 		<textarea
 			bind:value={comment}
-			class="w-full text-sm px-1 py-2 bg-transparent outline-none resize-none rounded-xl"
+			class="w-full text-sm px-1 py-2 bg-transparent outline-hidden resize-none rounded-xl"
 			placeholder={$i18n.t('Feel free to add specific details')}
 			rows="3"
-		/>
+		></textarea>
 	</div>
 
 	<div class="mt-2 gap-1.5 flex justify-between">
@@ -254,7 +270,7 @@
 
 		<button
 			class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
-			on:click={() => {
+			onclick={() => {
 				saveHandler();
 			}}
 		>

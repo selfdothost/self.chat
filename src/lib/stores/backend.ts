@@ -26,6 +26,12 @@ export type Config = {
 		enable_curator?: boolean;
 		enable_message_rating?: boolean;
 		enable_channels?: boolean;
+		// Optional like its siblings above: the backend only includes it for an
+		// authenticated user (api/selfai_ui/main.py's `if user is not None`
+		// block), so it is genuinely absent from an anonymous /api/config.
+		// Consumers already guard with `!$config?.features?.enable_piston_execution`,
+		// which reads a missing flag as "no sandbox" — the safe default.
+		enable_piston_execution?: boolean;
 		enable_google_drive_integration: boolean;
 		enable_image_generation: boolean;
 		enable_admin_export: boolean;

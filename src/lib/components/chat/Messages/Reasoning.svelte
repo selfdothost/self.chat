@@ -12,20 +12,26 @@
 
 	// Model thinking, carried on its own field so it is never mixed into the answer.
 	// Today only Anthropic models populate it (self.ai#59); every other provider
-	// leaves it empty and this component renders nothing.
-	export let reasoning = '';
+	
 	// Whether the surrounding message is still streaming, so we can show the
-	// thinking as live rather than as a finished artifact.
-	export let done = true;
+	
+	interface Props {
+		// leaves it empty and this component renders nothing.
+		reasoning?: string;
+		// thinking as live rather than as a finished artifact.
+		done?: boolean;
+	}
 
-	let expanded = false;
+	let { reasoning = '', done = true }: Props = $props();
+
+	let expanded = $state(false);
 </script>
 
 {#if reasoning}
 	<div class="mt-1 mb-2 w-full">
 		<button
 			class="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
-			on:click={() => (expanded = !expanded)}
+			onclick={() => (expanded = !expanded)}
 			aria-expanded={expanded}
 		>
 			<LightBlub className="size-3.5" />

@@ -10,19 +10,31 @@
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import AddConnectionModal from './AddConnectionModal.svelte';
 
-	export let onDelete: AnyFn = () => {};
-	export let onSubmit: AnyFn = () => {};
 
-	export let pipeline = false;
 
-	export let url = '';
-	export let key = '';
 	// Per-connection config bag (key/enable/etc.) -- shape varies with the
 	// connection type, mirrors AddConnectionModal's own loose `connection.config`.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let config: Record<string, any> = {};
+	
+	interface Props {
+		onDelete?: AnyFn;
+		onSubmit?: AnyFn;
+		pipeline?: boolean;
+		url?: string;
+		key?: string;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		config?: Record<string, any>;
+	}
 
-	let showConfigModal = false;
+	let {
+		onDelete = () => {},
+		onSubmit = () => {},
+		pipeline = false,
+		url = $bindable(''),
+		key = $bindable(''),
+		config = $bindable({})
+	}: Props = $props();
+
+	let showConfigModal = $state(false);
 </script>
 
 <AddConnectionModal
@@ -58,7 +70,7 @@
 		<div class="flex w-full">
 			<div class="flex-1 relative">
 				<input
-					class=" outline-none w-full bg-transparent {pipeline ? 'pr-8' : ''}"
+					class=" outline-hidden w-full bg-transparent {pipeline ? 'pr-8' : ''}"
 					placeholder={$i18n.t('API Base URL')}
 					bind:value={url}
 					autocomplete="off"
@@ -89,7 +101,7 @@
 			</div>
 
 			<SensitiveInput
-				inputClassName=" outline-none bg-transparent w-full"
+				inputClassName=" outline-hidden bg-transparent w-full"
 				placeholder={$i18n.t('API Key')}
 				bind:value={key}
 			/>
@@ -100,7 +112,7 @@
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
 				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 rounded-lg transition"
-				on:click={() => {
+				onclick={() => {
 					showConfigModal = true;
 				}}
 				type="button"

@@ -10,10 +10,10 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	let selectedTab = 'schedule';
+	let selectedTab = $state('schedule');
 
-	let loaded = false;
-	let jobs: ScheduledJob[] = [];
+	let loaded = $state(false);
+	let jobs: ScheduledJob[] = $state([]);
 
 	onMount(async () => {
 		try {
@@ -43,7 +43,7 @@
 			class="px-0.5 py-1 min-w-fit rounded-lg lg:flex-none flex text-right transition {selectedTab === 'schedule'
 				? ''
 				: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => { selectedTab = 'schedule'; }}
+			onclick={() => { selectedTab = 'schedule'; }}
 		>
 			<div class="self-center mr-2">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
@@ -57,7 +57,7 @@
 			class="px-0.5 py-1 min-w-fit rounded-lg lg:flex-none flex text-right transition {selectedTab === 'windows'
 				? ''
 				: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => { selectedTab = 'windows'; }}
+			onclick={() => { selectedTab = 'windows'; }}
 		>
 			<div class="self-center mr-2">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
@@ -71,7 +71,7 @@
 			class="px-0.5 py-1 min-w-fit rounded-lg lg:flex-none flex text-right transition {selectedTab === 'queue'
 				? ''
 				: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => { selectedTab = 'queue'; }}
+			onclick={() => { selectedTab = 'queue'; }}
 		>
 			<div class="self-center mr-2">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
@@ -85,7 +85,7 @@
 			class="px-0.5 py-1 min-w-fit rounded-lg lg:flex-none flex text-right transition {selectedTab === 'job-logs'
 				? ''
 				: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
-			on:click={() => { selectedTab = 'job-logs'; }}
+			onclick={() => { selectedTab = 'job-logs'; }}
 		>
 			<div class="self-center mr-2">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">

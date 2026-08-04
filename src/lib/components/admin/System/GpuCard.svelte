@@ -6,11 +6,17 @@
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	export let gpu;
-	export let onViewProcesses: (sortBy: string) => void;
+	interface Props {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		gpu: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+		onViewProcesses: (sortBy: string) => void;
+	}
 
-	$: vramPercent =
-		gpu.vram_total_mb > 0 ? (gpu.vram_used_mb / gpu.vram_total_mb) * 100 : 0;
+	let { gpu, onViewProcesses }: Props = $props();
+
+	let vramPercent =
+		$derived(gpu.vram_total_mb > 0 ? (gpu.vram_used_mb / gpu.vram_total_mb) * 100 : 0);
 
 	function formatMb(mb) {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
@@ -41,7 +47,7 @@
 
 	<button
 		class="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition"
-		on:click={() => onViewProcesses('vram_mb')}
+		onclick={() => onViewProcesses('vram_mb')}
 	>
 		{$i18n.t('View Processes')} &rarr;
 	</button>

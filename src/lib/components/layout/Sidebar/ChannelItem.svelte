@@ -9,14 +9,20 @@
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ChannelModal from './ChannelModal.svelte';
 
-	export let onUpdate: AnyFn = () => {};
 
-	export let className = '';
-	export let channel;
+	interface Props {
+		onUpdate?: AnyFn;
+		className?: string;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		channel: any;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
+	}
 
-	let showEditChannelModal = false;
+	let { onUpdate = () => {}, className = '', channel }: Props = $props();
 
-	let itemElement;
+	let showEditChannelModal = $state(false);
+
+	let itemElement = $state();
 </script>
 
 <ChannelModal
@@ -50,7 +56,7 @@
 	<a
 		class=" w-full flex justify-between"
 		href={resolve('/(app)/channels/[id]', { id: channel.id })}
-		on:click={() => {
+		onclick={() => {
 			if ($mobile) {
 				showSidebar.set(false);
 			}
@@ -80,7 +86,7 @@
 	{#if $user?.role === 'admin'}
 		<button
 			class="absolute z-10 right-2 invisible group-hover:visible self-center flex items-center dark:text-gray-300"
-			on:click={(e) => {
+			onclick={(e) => {
 				e.stopPropagation();
 				showEditChannelModal = true;
 			}}

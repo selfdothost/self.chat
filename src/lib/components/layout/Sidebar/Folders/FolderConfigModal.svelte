@@ -2,8 +2,7 @@
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
-
-	import { createEventDispatcher } from 'svelte';
+	import type { AnyFn } from '$lib/types';
 
 	import { models, tools, knowledge as knowledgeCollections, config } from '$lib/stores';
 	import { getTools } from '$lib/apis/tools';
@@ -23,7 +22,6 @@
 	import Knowledge from '$lib/components/workspace/Models/Knowledge.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	// Reserved tool_id standing in for the Web Search toggle (self.ai's
 	// BUILTIN_TOOL_IDS) -- not a row in the tool table, so it's injected here as
@@ -32,29 +30,36 @@
 	const WEB_SEARCH_TOOL_ID = 'web_search';
 
 	// Visibility is a bound boolean -- the same idiom the folder's delete-confirmation
-	// modal uses (FC/R2).
-	export let show = false;
+	
 
 	// The folder whose preset is being configured (used for pre-population in T-003
 	// and persistence in T-004).
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	export let folder: any = null;
+	
+	interface Props {
+		// modal uses (FC/R2).
+		show?: boolean;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		folder?: any;
+		onSave?: AnyFn;
+	}
+
+	let { show = $bindable(false), folder = null, onSave = () => {} }: Props = $props();
 
 	// Picker-bound selection state.
-	let selectedModelId = '';
-	let selectedToolIds: string[] = [];
+	let selectedModelId = $state('');
+	let selectedToolIds: string[] = $state([]);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let selectedKnowledge: any[] = [];
+	let selectedKnowledge: any[] = $state([]);
 
 	// Gate picker rendering until backing option data (and any pre-populated
 	// selections) are ready, so each picker mounts with its full option set and
 	// initial selection in one shot (FC/R2: options populated before/as open).
-	let optionsLoaded = false;
+	let optionsLoaded = $state(false);
 
 	// A single generic error surfaced on a rejected save (FC/R4). Never carries
 	// per-field or missing-vs-inaccessible detail.
-	let saveError = '';
-	let saving = false;
+	let saveError = $state('');
+	let saving = $state(false);
 
 	const saveHandler = async () => {
 		saving = true;
@@ -81,7 +86,7 @@
 		saving = false;
 
 		if (res) {
-			dispatch('save', res);
+			onSave(res);
 			show = false;
 		}
 	};
@@ -126,7 +131,7 @@
 		// `{#if optionsLoaded}` in the template -- the block's own trigger
 		// condition is `show` alone (see the disable/enable note there), so
 		// this can't retrigger loadOptions(); not an infinite loop.
-		// eslint-disable-next-line svelte/infinite-reactive-loop
+		 
 		optionsLoaded = true;
 	};
 
@@ -134,21 +139,21 @@
 	// The block's own condition only reads `show` (not `optionsLoaded`), so it
 	// only re-runs when `show` itself changes -- matching the established
 	// load-on-open pattern in ArchivedChatsModal.svelte/ShareChatModal.svelte.
-	/* eslint-disable svelte/infinite-reactive-loop */
-	$: if (show) {
-		loadOptions();
-	} else {
-		optionsLoaded = false;
-	}
-	/* eslint-enable svelte/infinite-reactive-loop */
+	$effect(() => {
+		if (show) {
+			loadOptions();
+		} else {
+			optionsLoaded = false;
+		}
+	});
 
 	// Web Search only appears as a selectable "tool" when the admin currently has
 	// it enabled system-wide ($config.features.enable_web_search) -- the same gate
 	// InputMenu.svelte's composer toggle uses, and the same gate the backend
 	// enforces on save (self.ai's resolve_tool_ref).
-	$: toolsForSelector = $config?.features?.enable_web_search
+	let toolsForSelector = $derived($config?.features?.enable_web_search
 		? [...$tools, { id: WEB_SEARCH_TOOL_ID, name: $i18n.t('Web Search') }]
-		: $tools;
+		: $tools);
 </script>
 
 <Modal bind:show size="sm">
@@ -170,7 +175,7 @@
 							<button
 								type="button"
 								class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-								on:click={() => {
+								onclick={() => {
 									selectedModelId = '';
 								}}
 							>
@@ -212,7 +217,7 @@
 			<button
 				class="bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white font-medium px-4 py-2 rounded-lg transition"
 				type="button"
-				on:click={() => {
+				onclick={() => {
 					show = false;
 				}}
 			>
@@ -222,7 +227,7 @@
 				class="bg-gray-900 hover:bg-gray-850 text-gray-100 dark:bg-gray-100 dark:hover:bg-white dark:text-gray-800 font-medium px-4 py-2 rounded-lg transition disabled:opacity-50"
 				type="button"
 				disabled={saving || !optionsLoaded}
-				on:click={saveHandler}
+				onclick={saveHandler}
 			>
 				{$i18n.t('Save')}
 			</button>
