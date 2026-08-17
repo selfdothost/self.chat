@@ -20,22 +20,18 @@
 	}
 
 	let { overlay = false, history }: Props = $props();
-	let messages = $state([]);
-
-	let contents: Array<{ type: string; content: string }> = $state([]);
-	let selectedContentIdx = $state(0);
 
 	let copied = $state(false);
 	let iframeElement: HTMLIFrameElement = $state();
 
 
-		// Svelte compiles $: blocks in dependency order, not source order --
-	// this is called from an earlier reactive block despite being declared
-	// here. ESLint's static top-down analysis can't see that reordering.
-	 
-	const getContents = () => {
-		contents = [];
-		messages.forEach((message) => {
+	// Pure: takes the message list and returns the contents. It assigns nothing,
+	// so it cannot take part in a read-write cycle.
+	/* eslint-disable @typescript-eslint/no-explicit-any */
+	const collectContents = (msgs: any[]): Array<{ type: string; content: string }> => {
+		const collected: Array<{ type: string; content: string }> = [];
+
+		(msgs ?? []).forEach((message) => {
 			if (message?.role !== 'user' && message?.content) {
 				const codeBlockContents = message.content.match(/```[\s\S]*?```/g);
 				let codeBlocks = [];
@@ -114,25 +110,36 @@
                         </body>
                         </html>
                     `;
-					contents = [...contents, { type: 'iframe', content: renderedContent }];
+					collected.push({ type: 'iframe', content: renderedContent });
 				} else {
 					// Check for SVG content
 					for (const block of codeBlocks) {
 						if (block.lang === 'svg' || (block.lang === 'xml' && block.code.includes('<svg'))) {
-							contents = [...contents, { type: 'svg', content: block.code }];
+							collected.push({ type: 'svg', content: block.code });
 						}
 					}
 				}
 			}
 		});
 
-		if (contents.length === 0) {
-			showControls.set(false);
-			showArtifacts.set(false);
-		}
-
-		selectedContentIdx = contents ? contents.length - 1 : 0;
+		return collected;
 	};
+	/* eslint-enable @typescript-eslint/no-explicit-any */
+
+	// DERIVED, not assigned from an effect. The previous shape assigned `messages`
+	// and then called getContents(), which read it -- so the effect depended on
+	// what it wrote, and createMessagesList() returns a fresh array every call, so
+	// the identity changed on every run. That is an unbounded re-trigger: Svelte
+	// aborts with effect_update_depth_exceeded and tears down the reactive graph
+	// for the whole subtree (self.chat#33). Because this component mounts only
+	// when the artifact preview opens, the symptom was the entire right-hand rail
+	// going dead at exactly the moment a preview appeared.
+	const messages = $derived(history ? createMessagesList(history, history.currentId) : []);
+	const contents = $derived(collectContents(messages));
+
+	// Writable $derived: follows the newest artifact as the set changes, while
+	// staying assignable so navigateContent() can page back through them.
+	let selectedContentIdx = $derived(contents.length > 0 ? contents.length - 1 : 0);
 
 	function navigateContent(direction: 'prev' | 'next') {
 		console.log(selectedContentIdx);
@@ -191,13 +198,14 @@
 	};
 
 	onMount(() => {});
+
+	// Closing the rail when there is nothing to preview is a genuine side effect,
+	// so it stays in an effect -- but it writes only stores, never anything that
+	// feeds back into `contents`.
 	$effect(() => {
-		if (history) {
-			messages = createMessagesList(history, history.currentId);
-			getContents();
-		} else {
-			messages = [];
-			getContents();
+		if (contents.length === 0) {
+			showControls.set(false);
+			showArtifacts.set(false);
 		}
 	});
 </script>

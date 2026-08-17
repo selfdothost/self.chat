@@ -26,6 +26,10 @@
 		/* eslint-disable @typescript-eslint/no-explicit-any */
 		chat: any;
 		selectedModels: any;
+		/** Forwarded to ModelSelector. Omitted means "every model", which is what
+		 *  this navbar has always shown. Pass-through only -- Navbar does not read
+		 *  it or know what any caller's narrowing means. */
+		modelFilter?: (model: any) => boolean;
 		/* eslint-enable @typescript-eslint/no-explicit-any */
 		showModelSelector?: boolean;
 	}
@@ -35,6 +39,7 @@
 		shareEnabled = false,
 		chat,
 		selectedModels = $bindable(),
+		modelFilter = undefined,
 		showModelSelector = true
 	}: Props = $props();
 
@@ -75,7 +80,7 @@
 			"
 			>
 				{#if showModelSelector}
-					<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
+					<ModelSelector bind:selectedModels {modelFilter} showSetDefault={!shareEnabled} />
 				{/if}
 			</div>
 

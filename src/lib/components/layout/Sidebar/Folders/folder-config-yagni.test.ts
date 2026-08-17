@@ -14,8 +14,8 @@ const foldersApiSrc = readFileSync(resolve(process.cwd(), 'src/lib/apis/folders/
 describe('FC/R6: no new picker/selector components', () => {
 	it('reuses the pre-existing shared pickers by path', () => {
 		expect(modalSrc).toContain('$lib/components/chat/ModelSelector/Selector.svelte');
-		expect(modalSrc).toContain('$lib/components/workspace/Models/ToolsSelector.svelte');
-		expect(modalSrc).toContain('$lib/components/workspace/Models/Knowledge.svelte');
+		expect(modalSrc).toContain('$lib/components/studio/Models/ToolsSelector.svelte');
+		expect(modalSrc).toContain('$lib/components/studio/Models/Knowledge.svelte');
 	});
 
 	it('uses the composer single-model PRIMITIVE, not the wrapper with side effects', () => {

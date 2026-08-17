@@ -1,5 +1,3 @@
-<!-- @migration-task Error while migrating Svelte code: can't migrate `let state: ViewState = 'loading';` to `$state` because there's a variable named state.
-     Rename the variable and try again or migrate by hand. -->
 <script lang="ts">
 	// The ONE generic, id-parameterized route every mod view resolves through
 	// (client R1). There is deliberately no per-mod file under `src/routes/`:
@@ -61,9 +59,14 @@
 		currentUser: SessionUser | undefined;
 	};
 
-	let state: ViewState = 'loading';
-	let tag: string | null = null;
-	let failureKind: FailureKind | null = null;
+	// Renamed from `state`: the $state rune cannot coexist with a variable of
+	// that name, which is the single reason the codemod refused this file.
+	// NOTE the `data-mod-state="..."` attributes below are string literals, not
+	// references to this -- mods-reference.cy.ts asserts on them, so they must
+	// keep their names.
+	let viewState: ViewState = $state('loading');
+	let tag: string | null = $state(null);
+	let failureKind: FailureKind | null = $state(null);
 
 	// R4 real containment (post-CI-finding fix): a custom element's `connectedCallback`
 	// reaction, per the HTML/Custom Elements spec, has its thrown exception REPORTED to
@@ -75,15 +78,21 @@
 	// the correct channel for this class of error. Distinct from the boundary's own
 	// `failed` snippet trigger; both render the SAME contained UI (see `crashed`
 	// snippet below) via two different catch paths for two different error classes.
-	let mountCrashError: unknown = null;
+	let mountCrashError: unknown = $state(null);
 
 	// AC2 (R2) — re-fetch on EACH view-entry. The load is driven by a reactive block
 	// keyed on the route param, NOT a one-time `onMount`. SvelteKit reuses this
 	// component instance across `[id]` changes (the same pattern `(app)/channels/[id]`
 	// relies on), so keying on `$page.params.id` lets SvelteKit's own navigation
 	// lifecycle re-run the load: A → B → A re-fetches A's manifest.
-	$: modId = $page.params.id;
-	$: void enterMod(modId);
+	let modId = $derived($page.params.id);
+
+	// Was `$: void enterMod(modId)`. Reads modId and writes viewState/tag/
+	// failureKind -- it never assigns to what it reads, so it cannot re-trigger
+	// itself (the failure mode that took down the chat route in #33).
+	$effect(() => {
+		void enterMod(modId);
+	});
 
 	// A monotonic token guards against a stale async completion clobbering a newer
 	// view-entry's state (A → B where A resolves last). This is NOT the concurrent
@@ -91,6 +100,9 @@
 	// `loadModBundleDeduped` (T-C03), which wraps `loadModBundle` with an in-flight
 	// `Map<modId, Promise>`. This is only last-write-wins for the view's own display
 	// state; the two guards are complementary and independent.
+	// Deliberately NOT $state: a plain counter used only for last-write-wins
+	// comparison inside async callbacks, never rendered. Making it reactive
+	// would add dependency tracking with no reader.
 	let loadToken = 0;
 
 	// R3 (T-C04): instantiate the mod's custom element and hand it auth/context.
@@ -99,7 +111,7 @@
 		// Because the mount runs from the `mountMod` action attached to the `ready`
 		// branch's container, and Svelte's `{#if}` control flow destroys+recreates a
 		// FRESH container node on every view-entry (each entry passes through
-		// `state = 'loading'` first — see `enterMod`), the host handed here is always
+		// `viewState = 'loading'` first — see `enterMod`), the host handed here is always
 		// an empty, brand-new node. The previous mod's element is torn down by that
 		// `{#if}` destroy (native DOM removal → `disconnectedCallback`), not by this
 		// clear. The clear only guards the pathological case of the same node being
@@ -216,7 +228,7 @@
 		// destroy path immediately, so the new mount is a genuine fresh mount, NOT a
 		// same-tick detach+reattach (which Svelte would deliberately optimise into no
 		// teardown). See the teardown note in `mountMod`.
-		state = 'loading';
+		viewState = 'loading';
 		tag = null;
 		failureKind = null;
 		mountCrashError = null;
@@ -244,7 +256,7 @@
 			// attempt to sniff error-message strings.
 			if (token === loadToken) {
 				failureKind = 'unreachable';
-				state = 'unavailable';
+				viewState = 'unavailable';
 			}
 			return;
 		}
@@ -261,7 +273,7 @@
 			// left as an unhandled rejection here. Just publish `tag` + `state`; the
 			// action does the DOM work once the branch renders.
 			tag = result.tag;
-			state = 'ready';
+			viewState = 'ready';
 			return;
 		}
 
@@ -282,7 +294,7 @@
 			// network-level throw above). A server-side / transient error.
 			failureKind = 'server_error';
 		}
-		state = 'unavailable';
+		viewState = 'unavailable';
 	}
 
 	// The fallback copy, keyed on the (honestly limited) failure distinction.
@@ -313,7 +325,7 @@
 		: ''}"
 	data-mod-view={modId}
 >
-	<!-- Every other top-level section (chat, admin, playground, workspace) reserves
+	<!-- Every other top-level section (chat, admin, playground, studio) reserves
 	     this width when the sidebar is open and renders its own reopen affordance --
 	     this route never had either, so a mod that fills its slot (as crew's own CSS
 	     assumes, up to and including a documented-but-never-wired `sidebar-open`
@@ -327,7 +339,7 @@
 				<button
 					id="sidebar-toggle-button"
 					class="cursor-pointer p-1.5 flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition"
-					on:click={() => {
+					onclick={() => {
 						showSidebar.set(!$showSidebar);
 					}}
 					aria-label="Toggle Sidebar"
@@ -346,7 +358,7 @@
 					class="{$showSidebar
 						? 'md:hidden'
 						: ''} flex cursor-pointer px-2 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-850 transition"
-					on:click={() => goto(resolve('/(app)'))}
+					onclick={() => goto(resolve('/(app)'))}
 					aria-label="New Chat"
 				>
 					<div class="m-auto self-center">
@@ -378,11 +390,11 @@
 	</div>
 
 	<div class="w-full flex-1 min-h-0 flex flex-col">
-	{#if state === 'loading'}
+	{#if viewState === 'loading'}
 		<div class="m-auto text-gray-500 dark:text-gray-400 text-sm" data-mod-state="loading">
 			Loading…
 		</div>
-	{:else if state === 'unavailable'}
+	{:else if viewState === 'unavailable'}
 		<!-- R5: the "mod unavailable" fallback for LOAD-time failure. Contained to this
 		     mod's view slot — it does not break the shell, Sidebar, or any other mod's
 		     nav entry, and its recovery is a soft in-SPA retry (re-running the loader),
@@ -405,7 +417,7 @@
 			<button
 				class="mt-1 rounded-lg bg-gray-100 px-3 py-1 text-xs text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
 				data-mod-retry
-				on:click={() => void enterMod(modId)}
+				onclick={() => void enterMod(modId)}
 			>
 				Try again
 			</button>
@@ -500,7 +512,7 @@
 		<button
 			class="mt-1 rounded-lg bg-gray-100 px-3 py-1 text-xs text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
 			data-mod-reset
-			on:click={() => onReset()}
+			onclick={() => onReset()}
 		>
 			Reload this mod
 		</button>

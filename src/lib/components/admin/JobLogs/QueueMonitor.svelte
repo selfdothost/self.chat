@@ -96,7 +96,8 @@
 			training: $i18n.t('Training'),
 			'language-eval': $i18n.t('Language Eval'),
 			'code-eval': $i18n.t('Code Eval'),
-			curator: $i18n.t('Curation')
+			curator: $i18n.t('Curation'),
+			publish: $i18n.t('Publish')
 		}[t] ?? t);
 
 	let running = $derived(items.filter((i) => i.status === 'running'));

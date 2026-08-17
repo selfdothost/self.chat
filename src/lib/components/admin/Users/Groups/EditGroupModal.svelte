@@ -51,7 +51,7 @@
 		name = $bindable(''),
 		description = $bindable(''),
 		permissions = $bindable({
-		workspace: {
+		studio: {
 			models: false,
 			knowledge: false,
 			prompts: false,
@@ -96,7 +96,7 @@
 			name = group.name;
 			description = group.description;
 			permissions = group?.permissions ?? {
-				workspace: {
+				studio: {
 					models: false,
 					knowledge: false,
 					prompts: false,

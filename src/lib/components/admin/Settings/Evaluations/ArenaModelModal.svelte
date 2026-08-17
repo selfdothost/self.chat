@@ -1,10 +1,9 @@
 <script>
 	import { preventDefault } from 'svelte/legacy';
 
-	import { createEventDispatcher, getContext, onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import { models } from '$lib/stores';
@@ -12,7 +11,7 @@
 	import Minus from '$lib/components/icons/Minus.svelte';
 	import PencilSolid from '$lib/components/icons/PencilSolid.svelte';
 	import { toast } from 'svelte-sonner';
-	import AccessControl from '$lib/components/workspace/common/AccessControl.svelte';
+	import AccessControl from '$lib/components/studio/common/AccessControl.svelte';
 
 
 	// Typed explicitly -- a bare `null` default otherwise narrows to `never`
@@ -24,10 +23,18 @@
 	 * @property {boolean} [show]
 	 * @property {boolean} [edit]
 	 * @property {{ id?: string; name?: string; meta?: { profile_image_url?: string; description?: string; model_ids?: string[]; filter_mode?: string; access_control?: object } } | null} [model]
+	 * @property {import('$lib/types').AnyFn} [onSubmit]
+	 * @property {import('$lib/types').AnyFn} [onDelete]
 	 */
 
 	/** @type {Props} */
-	let { show = $bindable(false), edit = false, model = null } = $props();
+	let {
+		show = $bindable(false),
+		edit = false,
+		model = null,
+		onSubmit = () => {},
+		onDelete = () => {}
+	} = $props();
 
 	let name = $state('');
 	let id = $state('');
@@ -96,7 +103,7 @@
 			}
 		};
 
-		dispatch('submit', model);
+		onSubmit(model);
 		loading = false;
 		show = false;
 
@@ -399,7 +406,7 @@
 								class="px-3.5 py-1.5 text-sm font-medium dark:bg-black dark:hover:bg-gray-950 dark:text-white bg-white text-black hover:bg-gray-100 transition rounded-full flex flex-row space-x-1 items-center"
 								type="button"
 								onclick={() => {
-									dispatch('delete', model);
+									onDelete(model);
 									show = false;
 								}}
 							>

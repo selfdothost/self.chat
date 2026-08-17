@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-
-	const dispatch = createEventDispatcher();
-
 	import { theme } from '$lib/stores';
 	import { Background, Controls, SvelteFlow, BackgroundVariant } from '@xyflow/svelte';
 
-	let { nodes, nodeTypes, edges } = $props();
+	// onNodeClick receives xyflow's node-click payload unchanged -- Overview reads
+	// `.node.data.message.id` off it, so the shape is not ours to flatten.
+	let { nodes, nodeTypes, edges, onNodeClick = () => {} } = $props();
 </script>
 
 <SvelteFlow
@@ -24,7 +22,7 @@
 			: 'light'}
 	nodesConnectable={false}
 	nodesDraggable={false}
-	onnodeclick={(data) => dispatch('nodeclick', data)}
+	onnodeclick={(data) => onNodeClick(data)}
 	oninit={() => {
 		console.log('Flow initialized');
 	}}

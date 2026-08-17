@@ -42,6 +42,10 @@
 	// (SO/R2); persisted across reload via localStorage, same as showPinnedChat.
 	let showFolders = $state(true);
 
+	// Drop-target highlight for the flat unfoldered chat list -- it previously had
+	// no drop handler at all, so dragging a foldered chat there silently did nothing.
+	let unfolderedChatsDraggedOver = $state(false);
+
 	let showCreateChannel = $state(false);
 
 	// Pagination variables
@@ -261,6 +265,53 @@
 		} else if (type === 'add') {
 			initChatList();
 		}
+	};
+
+	const onUnfolderedChatsDragOver = (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		unfolderedChatsDraggedOver = true;
+	};
+
+	const onUnfolderedChatsDragLeave = (e) => {
+		e.preventDefault();
+		unfolderedChatsDraggedOver = false;
+	};
+
+	// Only handles `type: 'chat'` drops -- dropping a folder here to un-nest it is
+	// already covered by the "Folders" section header's own onDrop.
+	const onUnfolderedChatsDrop = async (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		unfolderedChatsDraggedOver = false;
+
+		const dataTransfer = e.dataTransfer?.getData('text/plain');
+		if (!dataTransfer) {
+			return;
+		}
+
+		const { type, id, item } = JSON.parse(dataTransfer);
+		if (type !== 'chat') {
+			return;
+		}
+
+		let chat = await getChatById(localStorage.token, id).catch((_error) => {
+			return null;
+		});
+		if (!chat && item) {
+			chat = await importChat(localStorage.token, item.chat, item?.meta ?? {});
+		}
+
+		if (!chat || !chat.folder_id) {
+			return;
+		}
+
+		await updateChatFolderIdById(localStorage.token, chat.id, null).catch((error) => {
+			toast.error(error);
+			return null;
+		});
+
+		initChatList();
 	};
 
 	// NOTE: `draggedOver` used to track drag-over state here but nothing
@@ -502,11 +553,11 @@
 			</a>
 		</div>
 
-		{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.training || $user?.permissions?.workspace?.tools}
+		{#if $user?.role === 'admin' || $user?.permissions?.studio?.models || $user?.permissions?.studio?.knowledge || $user?.permissions?.studio?.prompts || $user?.permissions?.studio?.training || $user?.permissions?.studio?.tools || $user?.permissions?.studio?.tokenization}
 			<div class="px-1.5 flex justify-center text-gray-800 dark:text-gray-200">
 				<a
 					class="grow flex space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-					href={resolve('/(app)/workspace')}
+					href={resolve('/(app)/studio')}
 					onclick={() => {
 						selectedChatId = null;
 						chatId.set('');
@@ -535,7 +586,7 @@
 					</div>
 
 					<div class="flex self-center">
-						<div class=" self-center font-medium text-sm font-primary">{$i18n.t('Workspace')}</div>
+						<div class=" self-center font-medium text-sm font-primary">{$i18n.t('Studio')}</div>
 					</div>
 				</a>
 			</div>
@@ -642,17 +693,16 @@
 										title={chat.title}
 										{shiftKey}
 										selected={selectedChatId === chat.id}
-										on:select={() => {
+										onSelect={() => {
 											selectedChatId = chat.id;
 										}}
-										on:unselect={() => {
+										onUnselect={() => {
 											selectedChatId = null;
 										}}
-										on:change={async () => {
+										onChange={async () => {
 											initChatList();
 										}}
-										on:tag={(e) => {
-											const { type, name } = e.detail;
+										onTag={({ type, name }) => {
 											tagEventHandler(type, name, chat.id);
 										}}
 									/>
@@ -731,14 +781,13 @@
 				{#if !search && folders}
 					<Folders
 						{folders}
-						on:import={(e) => {
-							const { folderId, items } = e.detail;
+						onImport={({ folderId, items }) => {
 							importChatHandler(items, false, folderId);
 						}}
-						on:update={async (_e) => {
+						onUpdate={async () => {
 							initChatList();
 						}}
-						on:change={async () => {
+						onChange={async () => {
 							initChatList();
 						}}
 					/>
@@ -748,8 +797,19 @@
 			<!-- Flat unfoldered chat list sits OUTSIDE the collapsible Folders
 			     section so the Folders header's collapse toggle never hides it
 			     (SO/R2). It shows only unfoldered chats from the recent-chats
-			     endpoint (SO/R3). -->
-			<div class="px-2 flex-1 flex flex-col overflow-y-auto scrollbar-hidden">
+			     endpoint (SO/R3). Also the drop target that moves a chat OUT of
+			     a folder -- dragging it here clears folder_id. -->
+			<div
+				class="px-2 flex-1 flex flex-col overflow-y-auto scrollbar-hidden relative"
+				ondragover={onUnfolderedChatsDragOver}
+				ondragleave={onUnfolderedChatsDragLeave}
+				ondrop={onUnfolderedChatsDrop}
+			>
+				{#if unfolderedChatsDraggedOver}
+					<div
+						class="absolute top-0 left-0 w-full h-full rounded-xs bg-gray-100/50 dark:bg-gray-700/20 z-50 pointer-events-none touch-none"
+					></div>
+				{/if}
 				<div class="pt-1.5">
 					{#if $chats}
 						{#each $chats as chat, idx (chat.id)}
@@ -788,17 +848,16 @@
 								title={chat.title}
 								{shiftKey}
 								selected={selectedChatId === chat.id}
-								on:select={() => {
+								onSelect={() => {
 									selectedChatId = chat.id;
 								}}
-								on:unselect={() => {
+								onUnselect={() => {
 									selectedChatId = null;
 								}}
-								on:change={async () => {
+								onChange={async () => {
 									initChatList();
 								}}
-								on:tag={(e) => {
-									const { type, name } = e.detail;
+								onTag={({ type, name }) => {
 									tagEventHandler(type, name, chat.id);
 								}}
 							/>

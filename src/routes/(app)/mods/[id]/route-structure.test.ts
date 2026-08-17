@@ -18,8 +18,13 @@ describe('client R2 AC2: the load is keyed reactively on the route param, not on
 	it('derives modId from $page.params.id and triggers the load reactively off it', () => {
 		// SvelteKit reuses this component instance across [id] changes; keying the
 		// load on the reactive param lets navigation re-run it per view-entry.
-		expect(src).toMatch(/\$:\s*modId\s*=\s*\$page\.params\.id/);
-		expect(src).toMatch(/\$:\s*void\s+enterMod\(modId\)/);
+		//
+		// Runes form since the Svelte 5 conversion (self.chat#31). The GUARD is
+		// unchanged -- modId must still derive from the route param, and the load
+		// must still be driven reactively off it rather than once at mount. Only
+		// the syntax that expresses it moved from `$:` to $derived/$effect.
+		expect(src).toMatch(/modId\s*=\s*\$derived\(\s*\$page\.params\.id\s*\)/);
+		expect(src).toMatch(/\$effect\(\s*\(\)\s*=>\s*\{[^}]*enterMod\(modId\)/);
 	});
 
 	it('does not drive the manifest fetch from a one-time onMount', () => {

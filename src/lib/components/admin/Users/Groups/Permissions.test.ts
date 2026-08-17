@@ -11,7 +11,7 @@ const renderPermissions = (props: Record<string, unknown>) =>
 	render(Permissions, { props, context: new Map([['i18n', i18nStore]]) });
 
 const basePermissions = () => ({
-	workspace: {
+	studio: {
 		models: false,
 		knowledge: false,
 		prompts: false,

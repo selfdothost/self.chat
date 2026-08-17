@@ -1,7 +1,17 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 import { getTimeRange } from '$lib/utils';
 
-export const createNewChat = async (token: string, chat: object) => {
+/**
+ * `kind` names the surface that owns the conversation and is what keeps a
+ * tokenization session out of the chat sidebar (and vice versa). Omitted --
+ * every call the chat path makes -- sends exactly the body it always sent, and
+ * the server stores NULL, which is ordinary chat.
+ *
+ * The server validates it against an allowlist (self.ai `KNOWN_CHAT_KINDS`), so
+ * a typo is a 422 rather than a conversation orphaned in a list it can never
+ * appear in.
+ */
+export const createNewChat = async (token: string, chat: object, kind?: string) => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/chats/new`, {
@@ -12,7 +22,10 @@ export const createNewChat = async (token: string, chat: object) => {
 			authorization: `Bearer ${token}`
 		},
 		body: JSON.stringify({
-			chat: chat
+			chat: chat,
+			// Omitted rather than sent as null, so an unconfigured caller's request is
+			// byte-identical to the one it sent before this parameter existed.
+			...(kind ? { kind } : {})
 		})
 	})
 		.then(async (res) => {

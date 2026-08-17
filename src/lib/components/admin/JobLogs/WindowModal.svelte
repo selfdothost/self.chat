@@ -16,7 +16,11 @@
 
 	let { show = $bindable(false), window = null, onSaved = () => {} }: Props = $props();
 
-	const JOB_TYPES = ['training', 'language-eval', 'code-eval', 'curator'];
+	// `publish` is a GPU consumer like the rest (self.ai#136): a merge loads the
+	// base at fp16 on the card, so a publish waits for a window instead of
+	// dispatching on request. Without it in this list no window could name a
+	// publish slot, and publishes queued forever with nothing to schedule them.
+	const JOB_TYPES = ['training', 'language-eval', 'code-eval', 'curator', 'publish'];
 
 	// Form state
 	let name = $state('');

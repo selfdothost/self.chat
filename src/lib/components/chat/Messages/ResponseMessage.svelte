@@ -1,14 +1,13 @@
 <script lang="ts">
 	import type { AnyFn } from '$lib/types';
+	import type { ModelSubstitution } from '$lib/apis/streaming';
 	import { toast } from 'svelte-sonner';
 	import dayjs from 'dayjs';
 
-	import { createEventDispatcher } from 'svelte';
 	import { onMount, tick, getContext } from 'svelte';
 
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
-	const dispatch = createEventDispatcher();
 
 	import { config, models, settings, user } from '$lib/stores';
 	import { synthesizeOpenAISpeech } from '$lib/apis/audio';
@@ -124,6 +123,11 @@
 		feedbackId?: string;
 		parentId?: string;
 		selectedModelId?: string;
+		// Set when the GPU lease checkpoint served a DIFFERENT model than the one
+		// requested, because an eval window already had that one loaded
+		// (self.ai#35). `arena` above also leaves selectedModelId set, so this is
+		// what distinguishes the two -- and what lets the header say why.
+		modelSubstitution?: ModelSubstitution;
 		usage?: unknown;
 	}
 
@@ -163,6 +167,14 @@
 		// rateMessage accepted (part of the public props contract) but not read
 		// internally by this component.
 		actionMessage,
+		// submitMessage is accepted but no longer read here. Its ONLY consumer was
+		// the dead `on:select` handler removed alongside the event dispatcher (see
+		// the note above <ContentRenderer>). The prop is kept so the public contract
+		// and every call site stay unchanged by what is otherwise a mechanical
+		// refactor -- but it is dead all the way down: Chat -> Messages -> Message ->
+		// (ResponseMessage | MultiResponseMessages) threads it to nothing now.
+		// Removing the whole chain is a separate cleanup, filed on self.chat#31.
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		submitMessage,
 		continueResponse,
 		regenerateResponse,
@@ -174,6 +186,26 @@
 	let message: MessageType = $state(JSON.parse(JSON.stringify(history.messages[messageId])));
 
 	let model = $derived($models.find((m) => m.id === message.model));
+
+	// self.ai#35: during an eval window the GPU lease checkpoint serves the model
+	// already loaded for the eval instead of the one that was asked for, rather
+	// than forcing a competing load. The answer genuinely came from a different
+	// model, so the message header names THAT model -- showing the requested one
+	// would attribute an answer to a model that never ran.
+	let substitution = $derived(message?.modelSubstitution ?? null);
+	let servedModel = $derived(
+		substitution ? $models.find((m) => m.id === substitution.served) : undefined
+	);
+	let displayModelName = $derived(
+		substitution
+			? (servedModel?.name ?? substitution.served)
+			: (model?.name ?? message.model)
+	);
+	let requestedModelName = $derived(
+		substitution
+			? ($models.find((m) => m.id === substitution.requested)?.name ?? substitution.requested)
+			: null
+	);
 
 	let edit = $state(false);
 	let editedContent = $state('');
@@ -275,7 +307,7 @@
 			for (const [idx, sentence] of messageContentParts.entries()) {
 				const res = await synthesizeOpenAISpeech(
 					localStorage.token,
-					// A per-model voice (Workspace Model meta.audio.tts_voice) overrides
+					// A per-model voice (Studio Model meta.audio.tts_voice) overrides
 					// the user/global default when this model is the one responding.
 					model?.info?.meta?.audio?.tts_voice ??
 						($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
@@ -545,7 +577,7 @@
 	>
 		<div class={`shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'}`}>
 			<ProfileImage
-				src={model?.info?.meta?.profile_image_url ??
+				src={(substitution ? servedModel : model)?.info?.meta?.profile_image_url ??
 					($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/favicon.png`)}
 				className="size-8"
 			/>
@@ -553,11 +585,53 @@
 
 		<div class="flex-auto w-0 pl-1">
 			<Name>
-				<Tooltip content={model?.name ?? message.model} placement="top-start">
+				<Tooltip
+					content={substitution
+						? $i18n.t(
+								'You asked for {{requested}}. Served by {{served}}, which is already loaded for a running evaluation.',
+								{ requested: requestedModelName, served: displayModelName }
+							)
+						: displayModelName}
+					placement="top-start"
+				>
 					<span class="line-clamp-1">
-						{model?.name ?? message.model}
+						{displayModelName}
 					</span>
 				</Tooltip>
+
+				{#if substitution}
+					<!-- The swap marker. Deliberately quiet: the substitution is a
+					     normal, correct outcome during an eval window, not an error.
+					     The tooltip above carries the explanation. -->
+					<Tooltip
+						content={$i18n.t(
+							'You asked for {{requested}}. Served by {{served}}, which is already loaded for a running evaluation.',
+							{ requested: requestedModelName, served: displayModelName }
+						)}
+						placement="top"
+					>
+						<span
+							class="self-center shrink-0 translate-y-0.5 text-gray-400 dark:text-gray-500 ml-1 -mt-0.5"
+							aria-label={$i18n.t('Model substituted')}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke-width="2"
+								stroke="currentColor"
+								class="size-3.5"
+								aria-hidden="true"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+								/>
+							</svg>
+						</span>
+					</Tooltip>
+				{/if}
 
 				{#if message.timestamp}
 					<span
@@ -792,6 +866,15 @@
 								{:else if message.content && message.error !== true}
 									<!-- always show message contents even if there's an error -->
 									<!-- unless message.error === true which is legacy error handling, where the error message is stored in message.content -->
+									<!-- An `on:select` handler was removed from this element. It was
+									     meant to turn a text selection into an "explain this" / "ask
+									     about this" prompt, and it was ALREADY DEAD: ContentRenderer
+									     never emitted `select` nor forwarded one, and FloatingButtons --
+									     the only thing that could plausibly raise it -- exposes only
+									     `onAdd`. Dropping ContentRenderer's event dispatcher turned it
+									     from silently inert into a type error, which is the only reason
+									     it surfaced. Deleted rather than rewired: making that prompt
+									     actually work is a feature, not part of this refactor. -->
 									<ContentRenderer
 										id={message.id}
 										{history}
@@ -819,27 +902,13 @@
 											addMessages({ modelId, parentId, messages });
 											// eslint-disable-next-line @typescript-eslint/no-explicit-any
 										}) as any}
-										on:update={(e) => {
-											const { raw, oldContent, newContent } = e.detail;
+										onUpdate={({ raw, oldContent, newContent }) => {
 
 											history.messages[message.id].content = history.messages[
 												message.id
 											].content.replace(raw, raw.replace(oldContent, newContent));
 
 											updateChat();
-										}}
-										on:select={(e) => {
-											const { type, content } = e.detail;
-
-											if (type === 'explain') {
-												submitMessage(
-													message.id,
-													`Explain this section to me in more detail\n\n\`\`\`\n${content}\n\`\`\``
-												);
-											} else if (type === 'ask') {
-												const input = e.detail?.input ?? '';
-												submitMessage(message.id, `\`\`\`\n${content}\n\`\`\`\n${input}`);
-											}
 										}}
 									/>
 								{/if}
@@ -1284,17 +1353,14 @@
 												showRateComment = false;
 												regenerateResponse(message);
 
-												(model?.actions ?? []).forEach((action) => {
-													dispatch('action', {
-														id: action.id,
-														event: {
-															id: 'regenerate-response',
-															data: {
-																messageId: message.id
-															}
-														}
-													});
-												});
+												// An 'action' event loop lived here, emitting one event
+												// per model action after a regenerate. NOTHING HAS EVER
+												// LISTENED FOR IT -- there is no `on:action` anywhere in the
+												// tree, and the sibling call path uses the `actionMessage`
+												// callback prop directly (see the action buttons below).
+												// Removed with the dispatcher rather than rewired: wiring it
+												// to actionMessage would RESTORE a feature that has never
+												// run, which is a behaviour change and not a refactor.
 											}}
 										>
 											<svg

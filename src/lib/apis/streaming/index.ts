@@ -8,6 +8,12 @@ type TextStreamUpdate = {
 	sources?: any;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	selectedModelId?: any;
+	// Why the served model differs from the one that was asked for
+	// ({requested, served, reason}). An arena pick and an eval-window
+	// substitution both set selectedModelId, and only this says which happened
+	// (self.ai#35). Rides the SAME event as selectedModelId, so it must be read
+	// off that branch below rather than getting one of its own.
+	modelSubstitution?: ModelSubstitution;
 	// SSE error payload shape varies by backend (string or an error object) —
 	// same reasoning as sources/selectedModelId above.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +22,17 @@ type TextStreamUpdate = {
 	// Model thinking, kept separate from `value` so it is never rendered as the answer.
 	// Only Anthropic models populate this today (self.ai#59).
 	reasoning?: string;
+};
+
+export type ModelSubstitution = {
+	/** The model the user actually asked for. */
+	requested: string;
+	/** The model that answered instead. */
+	served: string;
+	/** Why. Today only 'eval_window' — an eval job already has `served` loaded,
+	 * and forcing a competing load is the load-slot thrash self.ai#35 was filed
+	 * for. Treated as an open set: an unrecognised reason still renders. */
+	reason: string;
 };
 
 type ResponseUsage = {
@@ -85,7 +102,15 @@ async function* openAIStreamToIterator(
 			}
 
 			if (parsedData.selected_model_id) {
-				yield { done: false, value: '', selectedModelId: parsedData.selected_model_id };
+				// model_substitution rides this same event, so it is read here.
+				// Giving it its own `if` would never fire: the `continue` above
+				// consumes the event (self.ai#35).
+				yield {
+					done: false,
+					value: '',
+					selectedModelId: parsedData.selected_model_id,
+					modelSubstitution: parsedData.model_substitution
+				};
 				continue;
 			}
 

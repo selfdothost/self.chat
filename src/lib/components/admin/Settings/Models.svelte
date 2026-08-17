@@ -18,7 +18,7 @@
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 
-	import ModelEditor from '$lib/components/workspace/Models/ModelEditor.svelte';
+	import ModelEditor from '$lib/components/studio/Models/ModelEditor.svelte';
 	import { toast } from 'svelte-sonner';
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ConfigureModelsModal from './Models/ConfigureModelsModal.svelte';
@@ -28,7 +28,7 @@
 
 	let models = $state(null);
 
-	let workspaceModels = null;
+	let studioModels = null;
 	let baseModels = null;
 
 	let filteredModels = $state([]);
@@ -47,16 +47,16 @@
 	};
 
 	const init = async () => {
-		workspaceModels = await getBaseModels(localStorage.token);
+		studioModels = await getBaseModels(localStorage.token);
 		baseModels = await getModels(localStorage.token, true);
 
 		models = baseModels.map((m) => {
-			const workspaceModel = workspaceModels.find((wm) => wm.id === m.id);
+			const studioModel = studioModels.find((wm) => wm.id === m.id);
 
-			if (workspaceModel) {
+			if (studioModel) {
 				return {
 					...m,
-					...workspaceModel
+					...studioModel
 				};
 			} else {
 				return {
@@ -73,7 +73,7 @@
 	const upsertModelHandler = async (model) => {
 		model.base_model_id = null;
 
-		if (workspaceModels.find((m) => m.id === model.id)) {
+		if (studioModels.find((m) => m.id === model.id)) {
 			const res = await updateModelById(localStorage.token, model.id, model).catch((_error) => {
 				return null;
 			});

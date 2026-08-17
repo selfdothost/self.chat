@@ -4,6 +4,7 @@
 	import { Pane, PaneResizer } from 'paneforge';
 
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { browser } from '$app/environment';
 	import { showControls, showCallOverlay, showOverview, showArtifacts } from '$lib/stores';
 
 	import Controls from './Controls/Controls.svelte';
@@ -56,11 +57,49 @@
 
 	let minSize = $state(0);
 
+	// Fallback share of the group for the rail, used until the ResizeObserver has
+	// measured the container. 350px of a ~1400px chat is about a quarter.
+	const FALLBACK_RAIL_SIZE = 25;
+
+	// The rail can already be open before this component exists: ContentRenderer
+	// sits earlier in Chat.svelte's markup, so a message carrying an html/svg block
+	// sets showControls while this pane is still being created, and Chat.svelte's
+	// showControls subscriber has no pane to call openPane() on yet.
+	//
+	// Opening it AFTER the fact means an imperative resize(), and that turned out to
+	// be unreliable in three different ways across three different mount paths --
+	// too early to have a layout (resize() throws an assertion that a promise
+	// callback swallows), undone again by a later pass, or simply never reached.
+	// So the pane is CREATED at the right size instead: paneforge reads defaultSize
+	// when it first lays the group out, which is a single well-defined moment that
+	// does not depend on how this component came to be mounted.
+	//
+	// Deliberately a snapshot, not reactive: this is the pane's starting size, and
+	// every change after that belongs to openPane() / the user dragging the handle.
+	const initialSize = (() => {
+		if (!browser || !$showControls) return 0;
+		if (!window.matchMedia('(min-width: 1024px)').matches) return 0;
+
+		const stored = parseInt(localStorage?.chatControlsSize);
+		return stored > 0 ? stored : FALLBACK_RAIL_SIZE;
+	})();
+
+	// paneforge announces a pane's first layout through callPaneCallbacks: onResize
+	// always, then onCollapse too when that first size equals collapsedSize. That
+	// registration onCollapse is not a user collapse, and honouring it would close
+	// a rail that opened before this component existed -- so it is swallowed once.
+	// A non-zero first layout emits no collapse at all, which is why the swallow is
+	// marked consumed in that case rather than left armed for a real one.
+	let paneLaidOut = $state(false);
+	let registrationCollapseHandled = false;
+
 	export const openPane = () => {
-		if (parseInt(localStorage?.chatControlsSize)) {
-			pane.resize(parseInt(localStorage?.chatControlsSize));
-		} else {
-			pane.resize(minSize);
+		const stored = parseInt(localStorage?.chatControlsSize);
+		const size = stored || minSize;
+		// Never resize to 0 -- that IS a collapse, and it would bounce straight
+		// back through onCollapse and close the rail we are trying to open.
+		if (size > 0) {
+			pane.resize(size);
 		}
 	};
 
@@ -115,11 +154,10 @@
 				// set the minSize to the percentage, must be an integer
 				minSize = Math.floor(percentage);
 
-				if ($showControls) {
-					if (pane && pane.isExpanded() && pane.getSize() < minSize) {
-						pane.resize(minSize);
-					}
-				}
+				// No pane.resize() here. paneforge enforces minSize itself (passed as a
+				// prop below); calling resize() from a resize notification is a
+				// callback that writes what it reads, and Svelte aborts the whole
+				// reactive graph when it will not settle -- see self.chat#33.
 			}
 		});
 
@@ -147,6 +185,34 @@
 			showCallOverlay.set(false);
 		}
 	};
+
+	// The rail can be opened by something that runs BEFORE this component's pane
+	// exists: ContentRenderer sits earlier in Chat.svelte's markup, so a message's
+	// html block flips showControls during the same flush in which this component
+	// is still mounting. Chat.svelte's showControls subscriber fires then, sees a
+	// null controlPane, and skips openPane() -- and never fires again, because the
+	// store is already true. initialSize does not cover it either: that is read at
+	// component init, which is earlier still.
+	//
+	// So catch up here, once the pane exists. `openedRail` is a plain let, not
+	// $state, so it is not a tracked dependency -- this effect reads showControls,
+	// largeScreen and pane, and writes none of them.
+	let openedRail = false;
+	$effect(() => {
+		if (!$showControls) {
+			openedRail = false;
+			return;
+		}
+
+		// paneLaidOut gates on paneforge's first layout. Before that the pane is
+		// absent from the group and resize() throws an assertion -- which is exactly
+		// how !134's catch-up failed. It is $state so this effect re-runs when the
+		// pane registers, covering both orders: rail opened first, or pane first.
+		if (!largeScreen || !pane || !paneLaidOut || openedRail) return;
+
+		openedRail = true;
+		openPane();
+	});
 
 	$effect(() => {
 		if (!chatId) {
@@ -190,10 +256,10 @@
 					{:else if $showOverview}
 						<Overview
 							{history}
-							on:nodeclick={(e) => {
-								showMessage(e.detail.node.data.message);
+							onNodeClick={(detail) => {
+								showMessage(detail.node.data.message);
 							}}
-							on:close={() => {
+							onClose={() => {
 								showControls.set(false);
 							}}
 						/>
@@ -220,23 +286,41 @@
 			</PaneResizer>
 		{/if}
 
+		<!-- paneforge v1 splits these: `bind:ref` gives the pane's <div>, while the
+		     imperative API (resize/collapse/isExpanded/getSize) is exposed as
+		     component exports, i.e. `bind:this`. Binding `ref` here compiles clean
+		     but leaves every pane.resize()/collapse() call throwing on an
+		     HTMLElement -- so the pane never leaves defaultSize={0} and the whole
+		     right-hand rail (Controls, Overview, Artifacts) is invisible. -->
 		<Pane
-			bind:ref={pane}
-			defaultSize={0}
+			bind:this={pane}
+			defaultSize={initialSize}
+			{minSize}
+			collapsedSize={0}
 			onResize={(size) => {
-				if ($showControls && pane.isExpanded()) {
-					if (size < minSize) {
-						pane.resize(minSize);
+				if (!paneLaidOut) {
+					paneLaidOut = true;
+
+					if (size !== 0) {
+						// No registration onCollapse is coming, so the next one is real.
+						registrationCollapseHandled = true;
 					}
 
-					if (size < minSize) {
-						localStorage.chatControlsSize = 0;
-					} else {
-						localStorage.chatControlsSize = size;
-					}
+					return;
+				}
+
+				if ($showControls && pane.isExpanded()) {
+					// Persist only. Re-entering resize() from here is what looped:
+					// minSize is Math.floor()ed while paneforge lays out in floats, so
+					// `size < minSize` could stay true no matter how many times it fired.
+					localStorage.chatControlsSize = size < minSize ? 0 : size;
 				}
 			}}
 			onCollapse={() => {
+				if (!registrationCollapseHandled) {
+					registrationCollapseHandled = true;
+					return;
+				}
 				showControls.set(false);
 			}}
 			collapsible={true}
@@ -268,16 +352,16 @@
 						{:else if $showOverview}
 							<Overview
 								{history}
-								on:nodeclick={(e) => {
-									if (e.detail.node.data.message.favorite) {
-										history.messages[e.detail.node.data.message.id].favorite = true;
+								onNodeClick={(detail) => {
+									if (detail.node.data.message.favorite) {
+										history.messages[detail.node.data.message.id].favorite = true;
 									} else {
-										history.messages[e.detail.node.data.message.id].favorite = null;
+										history.messages[detail.node.data.message.id].favorite = null;
 									}
 
-									showMessage(e.detail.node.data.message);
+									showMessage(detail.node.data.message);
 								}}
-								on:close={() => {
+								onClose={() => {
 									showControls.set(false);
 								}}
 							/>

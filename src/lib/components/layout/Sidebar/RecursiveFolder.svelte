@@ -1,11 +1,10 @@
 <script>
 	import RecursiveFolder from './RecursiveFolder.svelte';
 
-	import { getContext, createEventDispatcher, onMount, onDestroy, tick } from 'svelte';
+	import { getContext, onMount, onDestroy, tick } from 'svelte';
 
 	/** @type {import('svelte/store').Writable<import('i18next').i18n>} */
 	const i18n = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	import DOMPurify from 'dompurify';
 	import fileSaver from 'file-saver';
@@ -21,6 +20,7 @@
 
 	import FolderOpen from '$lib/components/icons/FolderOpen.svelte';
 	import EllipsisHorizontal from '$lib/components/icons/EllipsisHorizontal.svelte';
+	import Plus from '$lib/components/icons/Plus.svelte';
 	import {
 		deleteFolderById,
 		updateFolderIsExpandedById,
@@ -49,6 +49,9 @@
 	 * @property {any} folderId
 	 * @property {string} [className]
 	 * @property {boolean} [parentDragged]
+	 * @property {any} [onImport] { folderId, items } from a dropped export
+	 * @property {any} [onUpdate] re-fetch the folder tree
+	 * @property {any} [onChange] re-fetch the chat list
 	 */
 
 	/** @type {Props} */
@@ -57,7 +60,14 @@
 		folders = $bindable(),
 		folderId,
 		className = '',
-		parentDragged = false
+		parentDragged = false,
+		// onImport carries { folderId, items } from a dropped export file.
+		// onUpdate asks the tree to re-fetch after a move/rename/delete.
+		// onChange asks the CHAT list to re-fetch. All three are forwarded
+		// unchanged through nested folders and up through Folders to the Sidebar.
+		onImport = () => {},
+		onUpdate = () => {},
+		onChange = () => {}
 	} = $props();
 
 	let folderElement = $state();
@@ -103,7 +113,7 @@
 								try {
 									const fileContent = JSON.parse(/** @type {string} */ (event.target.result));
 									open = true;
-									dispatch('import', {
+									onImport({
 										folderId: folderId,
 										items: fileContent
 									});
@@ -141,7 +151,7 @@
 							);
 
 							if (res) {
-								dispatch('update');
+								onUpdate();
 							}
 						} else if (type === 'chat') {
 							open = true;
@@ -153,6 +163,18 @@
 								chat = await importChat(localStorage.token, item.chat, item?.meta ?? {});
 							}
 
+							// `item` is only set on the FILE-drop path, so a failed lookup on a
+							// normal sidebar drag left `chat` null and fell straight through to
+							// `chat.id` below -- an unhandled promise rejection ("Cannot read
+							// properties of null (reading 'id')") that aborted the move silently,
+							// leaving the sidebar showing a drag that never happened. Surface it
+							// instead of dereferencing null.
+							if (!chat) {
+								toast.error($i18n.t('Chat not found'));
+								draggedOver = false;
+								return;
+							}
+
 							// Move the chat
 							const res = await updateChatFolderIdById(localStorage.token, chat.id, folderId).catch(
 								(error) => {
@@ -162,7 +184,7 @@
 							);
 
 							if (res) {
-								dispatch('update');
+								onUpdate();
 							}
 						}
 					}
@@ -259,7 +281,7 @@
 
 		if (res) {
 			toast.success($i18n.t('Folder deleted successfully'));
-			dispatch('update');
+			onUpdate();
 		}
 	};
 
@@ -289,7 +311,7 @@
 		if (res) {
 			folders[folderId].name = name;
 			toast.success($i18n.t('Folder name updated successfully'));
-			dispatch('update');
+			onUpdate();
 		}
 	};
 
@@ -476,7 +498,7 @@
 				<span
 					role="button"
 					tabindex="-1"
-					class="absolute z-10 right-2 invisible group-hover:visible self-center flex items-center dark:text-gray-300"
+					class="absolute z-10 right-2 invisible group-hover:visible self-center flex items-center gap-1 dark:text-gray-300"
 					onpointerup={(e) => {
 						e.stopPropagation();
 					}}
@@ -502,6 +524,25 @@
 							<EllipsisHorizontal className="size-4" strokeWidth="2.5" />
 						</span>
 					</FolderMenu>
+
+					<span
+						role="button"
+						tabindex="0"
+						class="p-0.5 dark:hover:bg-gray-850 rounded-lg touch-auto"
+						onpointerup={(e) => {
+							e.stopPropagation();
+							newChatInFolderHandler();
+						}}
+						onkeydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								e.stopPropagation();
+								newChatInFolderHandler();
+							}
+						}}
+					>
+						<Plus className="size-4" strokeWidth="2.5" />
+					</span>
 				</span>
 			</button>
 		</div>
@@ -527,15 +568,9 @@
 									{folders}
 									folderId={childFolder.id}
 									parentDragged={dragged}
-									on:import={(e) => {
-										dispatch('import', e.detail);
-									}}
-									on:update={(e) => {
-										dispatch('update', e.detail);
-									}}
-									on:change={(e) => {
-										dispatch('change', e.detail);
-									}}
+									{onImport}
+									{onUpdate}
+									{onChange}
 								/>
 							{/each}
 						{/if}
@@ -545,9 +580,7 @@
 								<ChatItem
 									id={chat.id}
 									title={chat.title}
-									on:change={(e) => {
-										dispatch('change', e.detail);
-									}}
+									{onChange}
 								/>
 							{/each}
 						{/if}

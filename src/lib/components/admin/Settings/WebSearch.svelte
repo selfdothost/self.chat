@@ -1,11 +1,19 @@
 <script lang="ts">
 	import { preventDefault } from 'svelte/legacy';
 
+	import { toast } from 'svelte-sonner';
+
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
-	import { getRAGConfig, updateRAGConfig } from '$lib/apis/retrieval';
+	import {
+		getRAGConfig,
+		updateRAGConfig,
+		testWebSearchConnection,
+		type WebSearchTestResult
+	} from '$lib/apis/retrieval';
 	import Switch from '$lib/components/common/Switch.svelte';
+	import Spinner from '$lib/components/common/Spinner.svelte';
 
 	import { onMount, getContext } from 'svelte';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
@@ -38,6 +46,21 @@
 	let youtubeLanguage = $state('en');
 	let youtubeTranslation = null;
 	let youtubeProxyUrl = $state('');
+
+	let testing = $state(false);
+	let testResult = $state<WebSearchTestResult | null>(null);
+
+	const testHandler = async () => {
+		testing = true;
+		testResult = null;
+		try {
+			testResult = await testWebSearchConnection(localStorage.token);
+		} catch (err) {
+			toast.error(`${err}`);
+		} finally {
+			testing = false;
+		}
+	};
 
 	const submitHandler = async () => {
 		await updateRAGConfig(localStorage.token, {
@@ -419,6 +442,102 @@
 						</div>
 					</div>
 				{/if}
+
+				<div class="mt-2 flex flex-col gap-2">
+					<div class="flex items-center justify-between">
+						<div class="text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t('Run a live test query through the search engine and page fetcher.')}
+						</div>
+						<button
+							class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-850 dark:hover:bg-gray-800 transition flex items-center gap-1.5 disabled:opacity-50"
+							type="button"
+							disabled={testing}
+							onclick={testHandler}
+						>
+							{#if testing}
+								<Spinner className="size-3.5" />
+								{$i18n.t('Testing…')}
+							{:else}
+								{$i18n.t('Test Connection')}
+							{/if}
+						</button>
+					</div>
+
+					{#if testResult}
+						{@const search = testResult.search}
+						{@const fetchStage = testResult.fetch}
+						<div
+							class="rounded-lg border border-gray-100 dark:border-gray-850 p-2.5 text-xs flex flex-col gap-2"
+						>
+							<!-- Stage 1: search -->
+							<div class="flex items-start gap-2">
+								<span class={search.ok ? 'text-green-500' : 'text-red-500'}>
+									{search.ok ? '✓' : '✕'}
+								</span>
+								<div class="flex-1 min-w-0">
+									<div class="font-medium">
+										{$i18n.t('Search')} · {search.engine}
+									</div>
+									{#if search.error}
+										<div class="text-red-500 break-all">{search.error}</div>
+									{:else}
+										<div class="text-gray-500 dark:text-gray-400">
+											{$i18n.t('{{count}} results', { count: search.count })}
+										</div>
+										{#each search.samples as sample (sample.link)}
+											<div class="text-gray-400 dark:text-gray-500 truncate">
+												{sample.title || sample.link}
+											</div>
+										{/each}
+									{/if}
+									{#if search.unresponsive_engines.length > 0}
+										<div class="mt-1 text-amber-600 dark:text-amber-500">
+											{$i18n.t('Unresponsive engines:')}
+										</div>
+										{#each search.unresponsive_engines as ue (ue.engine)}
+											<div class="text-amber-600/80 dark:text-amber-500/80 truncate">
+												{ue.engine} — {ue.reason}
+											</div>
+										{/each}
+									{/if}
+								</div>
+							</div>
+
+							<!-- Stage 2: page fetch -->
+							<div class="flex items-start gap-2">
+								<span
+									class={!fetchStage.attempted
+										? 'text-gray-400'
+										: fetchStage.ok
+											? 'text-green-500'
+											: 'text-red-500'}
+								>
+									{!fetchStage.attempted ? '–' : fetchStage.ok ? '✓' : '✕'}
+								</span>
+								<div class="flex-1 min-w-0">
+									<div class="font-medium">{$i18n.t('Page fetch')}</div>
+									{#if !fetchStage.attempted}
+										<div class="text-gray-500 dark:text-gray-400">
+											{$i18n.t('Skipped — no results to fetch')}
+										</div>
+									{:else if fetchStage.ok}
+										<div class="text-gray-500 dark:text-gray-400 truncate">
+											{fetchStage.url}
+										</div>
+										<div class="text-gray-400 dark:text-gray-500">
+											{$i18n.t('{{count}} characters retrieved', {
+												count: fetchStage.content_chars
+											})}
+										</div>
+									{:else}
+										<div class="text-gray-500 dark:text-gray-400 truncate">{fetchStage.url}</div>
+										<div class="text-red-500 break-all">{fetchStage.error}</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/if}
+				</div>
 			</div>
 
 			<hr class=" dark:border-gray-850 my-2" />

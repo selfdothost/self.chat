@@ -4,10 +4,9 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount, getContext, createEventDispatcher, tick, onDestroy } from 'svelte';
+	import { onMount, getContext, tick, onDestroy } from 'svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	const dispatch = createEventDispatcher();
 
 	import { archiveChatById, cloneChatById, deleteChatById, getAllTags, getChatById, getChatList, getPinnedChatList, updateChatById } from '$lib/apis/chats';
 	import {
@@ -42,6 +41,16 @@
 		/* eslint-enable @typescript-eslint/no-explicit-any */
 		selected?: boolean;
 		shiftKey?: boolean;
+		// onSelect/onUnselect mark this item as the menu-active one in the Sidebar;
+		// both are argument-less. onChange asks for a chat-list re-fetch.
+		// onTag forwards ChatMenu's { type: 'add' | 'delete', name } verbatim -- the
+		// Sidebar reads .name off it, so it must not be flattened.
+		onSelect?: () => void;
+		onUnselect?: () => void;
+		onChange?: () => void;
+		/* eslint-disable @typescript-eslint/no-explicit-any */
+		onTag?: (detail: any) => void;
+		/* eslint-enable @typescript-eslint/no-explicit-any */
 	}
 
 	let {
@@ -49,7 +58,11 @@
 		id,
 		title,
 		selected = false,
-		shiftKey = false
+		shiftKey = false,
+		onSelect = () => {},
+		onUnselect = () => {},
+		onChange = () => {},
+		onTag = () => {}
 	}: Props = $props();
 
 	let chat = null;
@@ -89,6 +102,8 @@
 			currentChatPage.set(1);
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
 			await pinnedChats.set(await getPinnedChatList(localStorage.token));
+
+			onChange();
 		}
 	};
 
@@ -122,13 +137,13 @@
 				await tick();
 			}
 
-			dispatch('change');
+			onChange();
 		}
 	};
 
 	const archiveChatHandler = async (id) => {
 		await archiveChatById(localStorage.token, id);
-		dispatch('change');
+		onChange();
 	};
 
 	// Svelte actions (`use:`) must be synchronous -- they return
@@ -261,7 +276,7 @@
 					: ' group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis"
 			href={resolve('/(app)/c/[id]', { id })}
 			onclick={() => {
-				dispatch('select');
+				onSelect();
 
 				if ($mobile) {
 					showSidebar.set(false);
@@ -385,20 +400,20 @@
 						showDeleteConfirm = true;
 					}}
 					onClose={() => {
-						dispatch('unselect');
+						onUnselect();
 					}}
-					on:change={async () => {
-						dispatch('change');
+					onChange={() => {
+						onChange();
 					}}
-					on:tag={(e) => {
-						dispatch('tag', e.detail);
+					onTag={(detail) => {
+						onTag(detail);
 					}}
 				>
 					<button
 						aria-label="Chat Menu"
 						class=" self-center dark:hover:text-white transition"
 						onclick={() => {
-							dispatch('select');
+							onSelect();
 						}}
 					>
 						<svg

@@ -69,7 +69,7 @@
 	// does not apply (see the comment on that branch).
 	//
 	// This reads /voice-catalog/voices/selectable — the SAME endpoint the shipped
-	// per-model voice picker (workspace/Models/ModelEditor.svelte) reads — so the
+	// per-model voice picker (studio/Models/ModelEditor.svelte) reads — so the
 	// options offered here are consistent with downstream voice selection by
 	// construction. It backs the default-voice selector in the openai/elevenlabs/
 	// azure branches.

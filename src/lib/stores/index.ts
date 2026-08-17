@@ -12,4 +12,4 @@ export * from './models';
 export * from './settings';
 export * from './socket';
 export * from './ui';
-export * from './workspace';
+export * from './studio';

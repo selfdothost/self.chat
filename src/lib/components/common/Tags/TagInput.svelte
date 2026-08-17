@@ -1,25 +1,26 @@
 <script lang="ts">
 	import type { i18n as i18nType } from 'i18next';
 	import type { Writable } from 'svelte/store';
-	import { createEventDispatcher, getContext } from 'svelte';
+	import { getContext } from 'svelte';
 	import { tags } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
-	const dispatch = createEventDispatcher();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	interface Props {
 		label?: string;
+		// Emits the trimmed tag name; only ever called with a non-empty string.
+		onAdd?: (name: string) => void;
 	}
 
-	let { label = '' }: Props = $props();
+	let { label = '', onAdd = () => {} }: Props = $props();
 	let showTagInput = $state(false);
 	let tagName = $state('');
 
 	const addTagHandler = async () => {
 		tagName = tagName.trim();
 		if (tagName !== '') {
-			dispatch('add', tagName);
+			onAdd(tagName);
 			tagName = '';
 			showTagInput = false;
 		} else {

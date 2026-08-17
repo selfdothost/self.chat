@@ -19,7 +19,7 @@ describe('Folder behavior regression (SO/R4)', () => {
 	});
 
 	const addFolderViaHeader = () => {
-		cy.get('nav')
+		cy.get('#sidebar')
 			.contains('Folders')
 			.parents('.relative')
 			.first()
@@ -29,7 +29,7 @@ describe('Folder behavior regression (SO/R4)', () => {
 	};
 
 	const renameFolder = (from: string, to: string) => {
-		cy.get('nav').contains(from).dblclick();
+		cy.get('#sidebar').contains(from).dblclick();
 		cy.focused().clear();
 		cy.focused().type(`${to}{enter}`);
 	};
@@ -52,12 +52,19 @@ describe('Folder behavior regression (SO/R4)', () => {
 
 		// Drag the first flat-list chat onto the folder (id resolved from the app's
 		// drag payload; in CI the chat id comes from the rendered ChatItem).
-		cy.get('nav')
-			.find('[id^="chat-"], a[href^="/c/"]')
+		cy.get('#sidebar')
+			.find('a[href^="/c/"]')
 			.first()
 			.then(($chat) => {
-				const id = ($chat.attr('id') || '').replace('chat-', '') || 'chat-id';
-				dragOnto({ type: 'chat', id }, cy.get('nav').contains('DropTarget'));
+				// ChatItem renders an <a href="/c/<id>"> with NO id attribute, so the
+				// old `attr('id')` read was always undefined and fell back to the
+				// literal string 'chat-id'. That 404s, which is what drove the app's
+				// null-deref crash (self.chat#38) rather than any real drag problem.
+				// Take the id from the href, and refuse to proceed on a bogus one.
+				const href = $chat.attr('href') || '';
+				const id = href.split('/c/')[1] || '';
+				expect(id, 'chat id resolved from the sidebar item').to.match(/^[0-9a-f-]{8,}$/);
+				dragOnto({ type: 'chat', id }, cy.get('#sidebar').contains('DropTarget'));
 			});
 
 		cy.wait('@moveChat').its('response.statusCode').should('be.oneOf', [200, 201]);
@@ -71,11 +78,20 @@ describe('Folder behavior regression (SO/R4)', () => {
 
 		cy.intercept('POST', '/api/v1/folders/*/update/parent').as('reparent');
 
-		cy.get('nav')
+		cy.get('#sidebar')
 			.contains('Child')
+			.closest('[id^="folder-"][id$="-button"]')
 			.then(($child) => {
-				const id = $child.attr('id') || 'child-id';
-				dragOnto({ type: 'folder', id }, cy.get('nav').contains('Parent'));
+				// The element cy.contains() lands on is the folder's BUTTON, whose id
+				// is `folder-<uuid>-button` -- not the folder id. Sending it raw put
+				// the element id straight into the URL and the API answered 404:
+				//   POST /api/v1/folders/folder-c14b3ccc-...-button/update/parent
+				// Strip the affix to recover the actual folder id.
+				const id = ($child.attr('id') || '')
+					.replace(/^folder-/, '')
+					.replace(/-button$/, '');
+				expect(id, 'folder id parsed from the button id').to.not.match(/^folder-|-button$/);
+				dragOnto({ type: 'folder', id }, cy.get('#sidebar').contains('Parent'));
 			});
 
 		cy.wait('@reparent').its('response.statusCode').should('be.oneOf', [200, 201]);
@@ -86,7 +102,7 @@ describe('Folder behavior regression (SO/R4)', () => {
 		cy.intercept('POST', '/api/v1/folders/*/update').as('rename');
 		renameFolder('Untitled', 'Renamed');
 		cy.wait('@rename');
-		cy.get('nav').contains('Renamed').should('exist');
+		cy.get('#sidebar').contains('Renamed').should('exist');
 	});
 
 	it('AC4: exporting a folder still works', () => {
@@ -94,14 +110,14 @@ describe('Folder behavior regression (SO/R4)', () => {
 		renameFolder('Untitled', 'Exportable');
 		cy.intercept('GET', '/api/v1/chats/folder/*').as('exportChats');
 		// Open the folder options menu and click Export.
-		cy.get('nav')
+		cy.get('#sidebar')
 			.contains('Exportable')
 			.parents('.group')
 			.first()
 			.within(() => {
 				cy.get('button').last().click({ force: true });
 			});
-		cy.contains('Export').click({ force: true });
+		cy.get('[data-testid="folder-menu-export"]').click({ force: true });
 		cy.wait('@exportChats');
 	});
 
@@ -109,18 +125,20 @@ describe('Folder behavior regression (SO/R4)', () => {
 		addFolderViaHeader();
 		renameFolder('Untitled', 'ToDelete');
 		cy.intercept('DELETE', '/api/v1/folders/*').as('deleteFolder');
-		cy.get('nav')
+		cy.get('#sidebar')
 			.contains('ToDelete')
 			.parents('.group')
 			.first()
 			.within(() => {
 				cy.get('button').last().click({ force: true });
 			});
-		cy.contains('Delete').click({ force: true });
+		// data-testid, not text: the menu is portalled to body, so text
+		// matching collides with other 'Delete' strings in the document.
+		cy.get('[data-testid="folder-menu-delete"]').click({ force: true });
 		// Confirm in the delete dialog.
 		cy.contains('button', 'Confirm').click({ force: true });
 		cy.wait('@deleteFolder');
-		cy.get('nav').contains('ToDelete').should('not.exist');
+		cy.get('#sidebar').contains('ToDelete').should('not.exist');
 	});
 
 	it("AC6: a folder's expanded/collapsed state persists across reload", () => {
@@ -128,11 +146,13 @@ describe('Folder behavior regression (SO/R4)', () => {
 		renameFolder('Untitled', 'Persist');
 		cy.intercept('POST', '/api/v1/folders/*/update/expanded').as('expanded');
 		// Expand the folder (persists is_expanded server-side).
-		cy.get('nav').contains('Persist').click();
+		cy.get('#sidebar').contains('Persist').click();
 		cy.wait('@expanded');
 		cy.reload();
+		cy.dismissChangelog();
+		cy.closeModals();
 		// Server-persisted expanded state re-applies on load.
-		cy.get('nav').contains('Persist').should('exist');
+		cy.get('#sidebar').contains('Persist').should('exist');
 	});
 
 	it('AC7: a folder renders its own contained chats when expanded', () => {
@@ -140,22 +160,31 @@ describe('Folder behavior regression (SO/R4)', () => {
 		// renders under it (pre-existing per-folder rendering, unaltered).
 		addFolderViaHeader();
 		renameFolder('Untitled', 'WithChats');
-		cy.get('nav')
+		cy.get('#sidebar')
 			.contains('WithChats')
 			.parents('.group')
 			.first()
 			.within(() => {
 				cy.get('button').last().click({ force: true });
 			});
-		cy.contains('New Chat').click({ force: true });
-		cy.get('button[aria-label="Select a model"]').click();
+		cy.get('[data-testid="folder-menu-new-chat"]').click({ force: true });
+		// #model-selector-0-button, not the aria-label: the folder-config modal
+			// mounts its OWN ModelSelector (id="folder-config-model"), and both
+			// render the same aria-label, so the label selector matched two elements
+			// once a config modal existed. The composer's selector is index 0 -- the
+			// app addresses it the same way (Chat.svelte:612).
+			cy.get('#model-selector-0-button').click();
 		cy.get('button[aria-label="model-item"]').first().click();
 		cy.get('#chat-input').type('inside folder{enter}', { force: true });
 		cy.get('.chat-user', { timeout: 10_000 }).should('exist');
 
+		// see self.chat#45 -- set the state before the reload rather than toggling
+		// with a click afterwards.
+		cy.setFolderExpanded('WithChats');
 		cy.reload();
-		cy.get('nav').contains('WithChats').click(); // expand
-		cy.get('nav')
+		cy.dismissChangelog();
+		cy.closeModals();
+		cy.get('#sidebar')
 			.contains('WithChats')
 			.parents('.relative')
 			.first()

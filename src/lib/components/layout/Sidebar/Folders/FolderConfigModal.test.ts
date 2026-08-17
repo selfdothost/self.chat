@@ -62,6 +62,9 @@ beforeEach(() => {
 	config.set(undefined as never);
 });
 
+// NOTE: the model trigger's DOM id is keyed by folder id (self.chat#39), so the
+// lookups below use `...-f1-...` to match this default folder. Change the id
+// here and the getElementById calls must follow.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderModal(show: boolean, folder: any = { id: 'f1', name: 'Folder', meta: {} }) {
 	return render(FolderConfigModal, {
@@ -94,12 +97,12 @@ describe('FolderConfigModal (FC/R2)', () => {
 		await waitFor(() => expect(screen.queryByText('Calculator')).not.toBeNull());
 		expect(screen.queryByText('Weather')).not.toBeNull();
 
-		// (3) Knowledge picker — the reused Workspace Knowledge picker's entry point.
+		// (3) Knowledge picker — the reused Studio Knowledge picker's entry point.
 		expect(screen.queryByText('Select Knowledge')).not.toBeNull();
 
 		// (1) Single default-model picker primitive — open it and assert it exposes
 		// the available models as selectable options.
-		const modelTrigger = document.getElementById('model-selector-folder-config-model-button');
+		const modelTrigger = document.getElementById('model-selector-folder-config-model-f1-button');
 		expect(modelTrigger).not.toBeNull();
 		await fireEvent.keyDown(modelTrigger as Element, { key: 'Enter' });
 		await waitFor(() =>
@@ -125,7 +128,7 @@ describe('FolderConfigModal pre-populates from the folder preset (FC/R3)', () =>
 		await waitFor(() => expect(screen.queryByText('Default Model')).not.toBeNull());
 
 		// Model: the picker trigger reflects the stored default model's label.
-		const modelTrigger = document.getElementById('model-selector-folder-config-model-button');
+		const modelTrigger = document.getElementById('model-selector-folder-config-model-f1-button');
 		await waitFor(() => expect(modelTrigger?.textContent).toContain('Llama 3'));
 
 		// Knowledge: the stored knowledge (present in options) appears pre-attached.
@@ -143,7 +146,7 @@ describe('FolderConfigModal pre-populates from the folder preset (FC/R3)', () =>
 		await waitFor(() => expect(screen.queryByText('Default Model')).not.toBeNull());
 
 		// Model: placeholder, not a model label.
-		const modelTrigger = document.getElementById('model-selector-folder-config-model-button');
+		const modelTrigger = document.getElementById('model-selector-folder-config-model-f1-button');
 		expect(modelTrigger?.textContent).toContain('Select a model');
 		expect(modelTrigger?.textContent).not.toContain('Llama 3');
 
@@ -405,9 +408,9 @@ describe('FolderConfigModal composes existing pickers only (FC/R2, feeds FC/R6)'
 		expect(src).not.toContain("import ModelSelector from '$lib/components/chat/ModelSelector.svelte'");
 	});
 
-	it('imports the Workspace tool-set and Knowledge pickers', () => {
-		expect(src).toContain("$lib/components/workspace/Models/ToolsSelector.svelte");
-		expect(src).toContain("$lib/components/workspace/Models/Knowledge.svelte");
+	it('imports the Studio tool-set and Knowledge pickers', () => {
+		expect(src).toContain("$lib/components/studio/Models/ToolsSelector.svelte");
+		expect(src).toContain("$lib/components/studio/Models/Knowledge.svelte");
 	});
 
 	it('defines no new picker/selector component of its own', () => {

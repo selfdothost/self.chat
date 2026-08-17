@@ -3,7 +3,7 @@ import { tick } from 'svelte';
 import { writable } from 'svelte/store';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Every other top-level section (chat, admin, playground, workspace) reserves
+// Every other top-level section (chat, admin, playground, studio) reserves
 // `md:max-w-[calc(100%-260px)]` on its root when the sidebar is open and renders
 // its own reopen-sidebar button (the toggle inside Sidebar.svelte disappears when
 // the sidebar collapses, so a route-local reopen affordance is the only way back).

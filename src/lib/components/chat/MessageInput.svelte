@@ -8,12 +8,12 @@
 	import { v4 as uuidv4 } from 'uuid';
 	import { createPicker } from '$lib/utils/google-drive-picker';
 
-	import { onMount, tick, getContext, createEventDispatcher, onDestroy } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { onMount, tick, getContext, onDestroy } from 'svelte';
 
 	import { type Model, mobile, settings, models, config, showCallOverlay, tools, user as _user, showControls } from '$lib/stores';
 
 	import { blobToFile, compressImage, createMessagesList, findWordIndices } from '$lib/utils';
+	import { blocksImageInput } from '$lib/utils/model-capabilities';
 	import { transcribeAudio } from '$lib/apis/audio';
 	import { uploadFile } from '$lib/apis/files';
 
@@ -73,6 +73,10 @@
 	interface Props {
 		transparentBackground?: boolean;
 		onChange?: AnyFn;
+		// onSubmit gets the prompt STRING. onUpload gets Commands'
+		// { type: 'youtube' | 'web', data } detail, forwarded unchanged.
+		onSubmit?: AnyFn;
+		onUpload?: AnyFn;
 		createMessagePair: AnyFn;
 		stopResponse: AnyFn;
 		autoScroll?: boolean;
@@ -89,11 +93,25 @@
 		webCrawlEnabled?: boolean;
 		webCrawlKbId?: string;
 		placeholder?: string;
+		/** An optional extra control rendered in the composer's toolbar, beside
+		 *  the "+" menu. Omitted means nothing is rendered there, which is exactly
+		 *  what the composer shows today, so an omitted accessory is not a
+		 *  behavioural change.
+		 *
+		 *  It is invoked with the single capability such a control needs —
+		 *  `insertText`, which puts text into this composer. Passing a capability
+		 *  rather than letting the caller reach in keeps the composer the only
+		 *  thing that knows how its own input is written; and passing a SNIPPET
+		 *  rather than a flag keeps this component from ever learning what the
+		 *  control is for. */
+		composerAccessory?: import('svelte').Snippet<[{ insertText: (text: string) => void }]>;
 	}
 
 	let {
 		transparentBackground = false,
 		onChange = () => {},
+		onSubmit = () => {},
+		onUpload = () => {},
 		createMessagePair,
 		stopResponse,
 		autoScroll = $bindable(false),
@@ -107,18 +125,74 @@
 		deepResearchEnabled = $bindable(false),
 		webCrawlEnabled = $bindable(false),
 		webCrawlKbId = $bindable(''),
-		placeholder = ''
+		placeholder = '',
+		composerAccessory = undefined
 	}: Props = $props();
+
+	/**
+	 * Puts text into this composer as an ordinary, editable value.
+	 *
+	 * The same three steps `MessageInput/Commands/Prompts.svelte` takes after a
+	 * `/command` insertion: set the bound value, let the container re-measure,
+	 * then focus the input and fire `input` so the rich-text editor and the
+	 * autosize handler both see the new content. Nothing is stored or locked —
+	 * the text is in the box and the user owns it from here.
+	 *
+	 * Only ever reached through the `composerAccessory` snippet, so a composer
+	 * without one behaves exactly as before.
+	 */
+	const insertText = async (text: string) => {
+		prompt = text;
+
+		await tick();
+		const container = document.getElementById('chat-input-container');
+		if (container) {
+			container.style.height = '';
+			container.style.height = Math.min(container.scrollHeight, 200) + 'px';
+		}
+
+		await tick();
+		const input = document.getElementById('chat-input');
+		if (input) {
+			input.focus();
+			input.dispatchEvent(new Event('input'));
+		}
+	};
 
 	let selectedModelIds = $derived(
 		atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels
 	);
 
+	// self.chat#51 — the model ids this input will accept an image for: every
+	// selected model EXCEPT the ones that explicitly declare `vision: false`. An
+	// absent or null `capabilities` object is unknown, not capable and not
+	// incapable, and unknown is permitted (see $lib/utils/model-capabilities).
+	//
+	// Two defects lived in the previous expression. `?? true` made the list
+	// unconditionally full — 97 of 101 model rows carry `capabilities: null` — so
+	// the "do not support image inputs" refusal below was unreachable. And it
+	// filtered `[...(atSelectedModel ? [atSelectedModel] : selectedModels)]`,
+	// which mixes a model OBJECT with model ID strings, so `m.id === model` never
+	// matched under an @-mention. selectedModelIds is already the normalised id
+	// list; use it.
 	let visionCapableModels = $derived(
-		[...(atSelectedModel ? [atSelectedModel] : selectedModels)].filter(
-			(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
-		)
+		selectedModelIds.filter((id) => !blocksImageInput($models.find((m) => m.id === id)))
 	);
+
+	/**
+	 * Admission check for every path that can attach an image to the composer.
+	 * The refusal existed on the file-drop/picker path only, and was unreachable
+	 * anyway; paste and screen capture never checked at all. Refuses only when
+	 * NO selected model will take an image — with one that will, the composer
+	 * accepts and the per-model guard in Chat.svelte handles the rest.
+	 */
+	const canAttachImage = () => {
+		if (visionCapableModels.length === 0) {
+			toast.error($i18n.t('Selected model(s) do not support image inputs'));
+			return false;
+		}
+		return true;
+	};
 
 	const scrollToBottom = () => {
 		const element = document.getElementById('messages-container');
@@ -129,6 +203,10 @@
 	};
 
 	const screenCaptureHandler = async () => {
+		// self.chat#51 — refuse before prompting for a screen share, not after.
+		if (!canAttachImage()) {
+			return;
+		}
 		try {
 			// Request screen media
 			const mediaStream = await navigator.mediaDevices.getDisplayMedia({
@@ -273,8 +351,7 @@
 			}
 
 			if (['image/gif', 'image/webp', 'image/jpeg', 'image/png'].includes(file['type'])) {
-				if (visionCapableModels.length === 0) {
-					toast.error($i18n.t('Selected model(s) do not support image inputs'));
+				if (!canAttachImage()) {
 					return;
 				}
 				let reader = new FileReader();
@@ -555,11 +632,10 @@
 						bind:this={commandsElement}
 						bind:prompt
 						bind:files
-						on:upload={(e) => {
-							dispatch('upload', e.detail);
+						onUpload={(detail) => {
+							onUpload(detail);
 						}}
-						on:select={(e) => {
-							const data = e.detail;
+						onSelect={(data) => {
 
 							if (data?.type === 'model') {
 								atSelectedModel = data.data;
@@ -617,7 +693,7 @@
 								document.getElementById('chat-input')?.focus();
 
 								if ($settings?.speechAutoSend ?? false) {
-									dispatch('submit', prompt);
+									onSubmit(prompt);
 								}
 							}}
 						/>
@@ -626,7 +702,7 @@
 							class="w-full flex gap-1.5"
 							onsubmit={preventDefault(() => {
 								// check if selectedModels support image input
-								dispatch('submit', prompt);
+								onSubmit(prompt);
 							})}
 						>
 							<div
@@ -645,13 +721,11 @@
 															alt="input"
 															imageClassName=" h-16 w-16 rounded-xl object-cover"
 														/>
-														{#if atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length}
+														{#if selectedModelIds.length !== visionCapableModels.length}
 															<Tooltip
 																className=" absolute top-1 left-1"
 																content={$i18n.t('{{ models }}', {
-																	models: [
-																		...(atSelectedModel ? [atSelectedModel] : selectedModels)
-																	]
+																	models: selectedModelIds
 																		.filter((id) => !visionCapableModels.includes(id))
 																		.join(', ')
 																})}
@@ -772,6 +846,10 @@
 												</svg>
 											</button>
 										</InputMenu>
+
+										<!-- Optional, and absent by default: with no accessory
+										     passed this renders nothing at all. -->
+										{@render composerAccessory?.({ insertText })}
 									</div>
 
 									{#if $settings?.richTextInput ?? true}
@@ -922,7 +1000,7 @@
 
 															// Submit the prompt when Enter key is pressed
 															if (prompt !== '' && event.keyCode === 13 && !event.shiftKey) {
-																dispatch('submit', prompt);
+																onSubmit(prompt);
 															}
 														}
 													}
@@ -945,6 +1023,10 @@
 													if (clipboardData && clipboardData.items) {
 														for (const item of clipboardData.items) {
 															if (item.type.indexOf('image') !== -1) {
+																// self.chat#51 -- pasting an image bypassed the refusal entirely.
+																if (!canAttachImage()) {
+																	continue;
+																}
 																const blob = item.getAsFile();
 																const reader = new FileReader();
 
@@ -1003,7 +1085,7 @@
 
 													// Submit the prompt when Enter key is pressed
 													if (prompt !== '' && e.key === 'Enter' && !e.shiftKey) {
-														dispatch('submit', prompt);
+														onSubmit(prompt);
 													}
 												}
 											}}
@@ -1138,6 +1220,10 @@
 												if (clipboardData && clipboardData.items) {
 													for (const item of clipboardData.items) {
 														if (item.type.indexOf('image') !== -1) {
+															// self.chat#51 -- pasting an image bypassed the refusal entirely.
+															if (!canAttachImage()) {
+																continue;
+															}
 															const blob = item.getAsFile();
 															const reader = new FileReader();
 

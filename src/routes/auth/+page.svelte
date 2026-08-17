@@ -96,7 +96,12 @@
 			return;
 		}
 		const sessionUser = await getSessionUser(token).catch((error) => {
-			toast.error(error);
+			// A rejected credential throws the reply's `detail` (a string); an
+			// undelivered request throws a SessionLookupFailedError. Stringify so the
+			// second case reads as a sentence rather than "[object Object]" -- this
+			// path has no token stored yet, so there is nothing to protect, only to
+			// report honestly.
+			toast.error(`${error}`);
 			return null;
 		});
 		if (!sessionUser) {

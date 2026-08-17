@@ -293,7 +293,7 @@
 
 				{#if jobs.length === 0}
 					<div class="rounded-xl border border-dashed border-gray-200 dark:border-gray-800 px-4 py-10 text-sm text-center text-gray-500 dark:text-gray-400">
-						{$i18n.t('No training jobs yet. Users can submit jobs from the Training workspace.')}
+						{$i18n.t('No training jobs yet. Users can submit jobs from the Training studio.')}
 					</div>
 				{:else}
 					<!-- Jobs table -->

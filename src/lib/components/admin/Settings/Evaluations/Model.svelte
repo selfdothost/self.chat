@@ -1,10 +1,17 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import type { AnyFn } from '$lib/types';
 
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ArenaModelModal from './ArenaModelModal.svelte';
-	let { model } = $props();
+
+	interface Props {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches ArenaModelModal's own loosely-typed model prop
+		model: any;
+		onEdit?: AnyFn;
+		onDelete?: AnyFn;
+	}
+
+	let { model, onEdit = () => {}, onDelete = () => {} }: Props = $props();
 
 	let showModel = $state(false);
 </script>
@@ -13,11 +20,11 @@
 	bind:show={showModel}
 	edit={true}
 	{model}
-	on:submit={async (e) => {
-		dispatch('edit', e.detail);
+	onSubmit={async (detail) => {
+		onEdit(detail);
 	}}
-	on:delete={async () => {
-		dispatch('delete');
+	onDelete={async () => {
+		onDelete();
 	}}
 />
 

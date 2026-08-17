@@ -6,9 +6,12 @@
 
 	interface Props {
 		status?: { urls: string[]; query: string };
+		/** The collapsed-header content -- the parent renders the "Searched N
+		 *  sites" line here. Was the default <slot />. */
+		children?: import('svelte').Snippet;
 	}
 
-	let { status = { urls: [], query: '' } }: Props = $props();
+	let { status = { urls: [], query: '' }, children }: Props = $props();
 	let state = $state(false);
 </script>
 
@@ -16,7 +19,7 @@
 	<div
 		class="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
 	>
-		<slot />
+		{@render children?.()}
 
 		{#if state}
 			<ChevronUp strokeWidth="3.5" className="size-3.5 " />

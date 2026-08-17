@@ -102,7 +102,7 @@ describe('client R6 AC1: navigating away removes the custom element from the DOM
 		expect(alphaEl.isConnected).toBe(true);
 
 		// Navigate away to a different mod. `enterMod` resets to `loading` first, so
-		// the `{#if state === 'ready'}` branch (alpha's boundary + container + element)
+		// the `{#if viewState === 'ready'}` branch (alpha's boundary + container + element)
 		// is destroyed and alpha is removed from the DOM.
 		h.page.setParams('beta');
 		await vi.waitFor(() => expect(connectsOf('mod-beta').length).toBe(1));
@@ -156,17 +156,21 @@ describe('client R6 AC3: non-Svelte side effects are the mod author’s responsi
 
 describe('client R6 AC4: real navigation genuinely removes the element (not a same-tick detach+reattach)', () => {
 	it('every view-entry resets to `loading` before mounting, so nav-away is a genuine destroy, not a transient reattach', () => {
-		// The load-bearing code shape for AC4: `enterMod` sets `state = 'loading'`
-		// synchronously (before any await) on EVERY entry. So an A → B navigation tears
-		// A's `ready` branch down immediately and only later (after the async load)
-		// mounts B — never a same-tick detach+reattach (which Svelte deliberately
-		// optimises into NO teardown). This is a source guard so a later edit can't
-		// silently turn the mount into a reused-node reattach.
-		expect(code).toMatch(/state\s*=\s*'loading'/);
+		// The load-bearing code shape for AC4: `enterMod` sets the view state to
+		// 'loading' synchronously (before any await) on EVERY entry. So an A → B
+		// navigation tears A's `ready` branch down immediately and only later (after
+		// the async load) mounts B — never a same-tick detach+reattach (which Svelte
+		// deliberately optimises into NO teardown). This is a source guard so a later
+		// edit can't silently turn the mount into a reused-node reattach.
+		//
+		// The variable is `viewState` since the Svelte 5 conversion (self.chat#31):
+		// the $state rune cannot coexist with a variable named `state`, which is why
+		// the codemod refused this file. The guard is the same one.
+		expect(code).toMatch(/viewState\s*=\s*'loading'/);
 		// The mount lives in the `ready` branch of an `{#if}`, which Svelte destroys
 		// and recreates across `state` changes — the mechanism that yields a real
 		// removal rather than a moved-in-place node.
-		expect(code).toMatch(/\{#if state === 'loading'\}/);
+		expect(code).toMatch(/\{#if viewState === 'loading'\}/);
 		expect(code).toMatch(/use:mountMod/);
 	});
 

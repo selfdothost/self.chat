@@ -18,6 +18,26 @@ describe('Registration and Login', () => {
 	});
 
 	it('should register a new user as pending', () => {
+		// self.ai switches ENABLE_SIGNUP off as soon as the first user exists
+		// (routers/auths.py), so the sign-up UI this test drives is not
+		// reachable by default. Re-open it as the admin first -- that is the
+		// real precondition for self-registration in this product, and
+		// asserting it here keeps the test honest rather than depending on a
+		// database that happens to be empty.
+		cy.enableSignup();
+
+		// enableSignup() authenticates as the admin to flip the flag, which
+		// leaves this browser LOGGED IN -- and a logged-in visit to '/' renders
+		// the app, not the auth page, so there is no "Sign up" toggle to click.
+		// (That is what made this test fail with "Expected to find content:
+		// 'Sign up'": the precondition helper had quietly changed who we are.)
+		// Drop the session and land on /auth explicitly, so the page fetches a
+		// fresh /api/config -- the toggle only renders when
+		// `$config.features.enable_signup` is true (auth/+page.svelte:287).
+		cy.clearCookies();
+		cy.clearLocalStorage();
+		cy.visit('/auth');
+
 		const userName = `Test User - ${Date.now()}`;
 		const userEmail = `cypress-${Date.now()}@example.com`;
 		// Toggle from sign in to sign up
@@ -42,10 +62,18 @@ describe('Registration and Login', () => {
 		cy.get('button[type="submit"]').click();
 		// Wait until the user is redirected to the home page
 		cy.contains(adminUser.name);
-		// Dismiss the changelog dialog if it is visible
-		cy.getAllLocalStorage().then((ls) => {
-			if (!ls['version']) {
-				cy.get('button').contains("Okay, Let's Go!").click();
+		// Dismiss the changelog dialog IF it is showing.
+		//
+		// The previous check read `ls['version']` off getAllLocalStorage(),
+		// which returns storage keyed BY ORIGIN -- so `ls['version']` was
+		// always undefined and the branch always ran, then failed whenever the
+		// modal was not on screen. Ask the DOM instead of inferring from
+		// storage: the modal is conditional (ChangelogModal.svelte), so a
+		// conditional dismissal is what this needs.
+		cy.get('body').then(($body) => {
+			const button = $body.find('button:contains("Okay, Let\'s Go!")');
+			if (button.length) {
+				cy.wrap(button.first()).click();
 			}
 		});
 	});

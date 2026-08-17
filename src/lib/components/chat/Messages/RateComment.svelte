@@ -255,15 +255,15 @@
 		<div class="flex items-end group">
 			<Tags
 				{tags}
-				on:delete={(e) => {
+				onDelete={(name) => {
 					tags = tags.filter(
 						(tag) =>
 							tag.name.replaceAll(' ', '_').toLowerCase() !==
-							e.detail.replaceAll(' ', '_').toLowerCase()
+							name.replaceAll(' ', '_').toLowerCase()
 					);
 				}}
-				on:add={(e) => {
-					tags = [...tags, { name: e.detail }];
+				onAdd={(name) => {
+					tags = [...tags, { name }];
 				}}
 			/>
 		</div>

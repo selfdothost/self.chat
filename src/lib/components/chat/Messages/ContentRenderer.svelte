@@ -1,6 +1,5 @@
 <script>
-	import { onDestroy, onMount, tick, createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import { onDestroy, onMount, tick } from 'svelte';
 
 	import Markdown from './Markdown.svelte';
 	import { chatId, mobile, showArtifacts, showControls } from '$lib/stores';
@@ -25,6 +24,8 @@
 	 * @property {boolean} [floatingButtons]
 	 * @property {any} [onSourceClick]
 	 * @property {import('$lib/types').AnyFn} [onAddMessages]
+	 * @property {import('$lib/types').AnyFn} [onUpdate] forwarded from Markdown:
+	 *   { raw, oldContent, newContent } when a code block is edited and saved
 	 */
 
 	/** @type {Props} */
@@ -37,7 +38,8 @@
 		save = false,
 		floatingButtons = true,
 		onSourceClick = () => {},
-		onAddMessages = () => {}
+		onAddMessages = () => {},
+		onUpdate = () => {}
 	} = $props();
 
 	let contentContainerElement = $state();
@@ -161,11 +163,9 @@
 			return acc.filter((item, index) => acc.indexOf(item) === index);
 		}, [])}
 		{onSourceClick}
-		on:update={(e) => {
-			dispatch('update', e.detail);
-		}}
-		on:code={(e) => {
-			const { lang, code } = e.detail;
+		{onUpdate}
+		onCode={(detail) => {
+			const { lang, code } = detail;
 
 			if (
 				(['html', 'svg'].includes(lang) || (lang === 'xml' && code.includes('svg'))) &&

@@ -6,7 +6,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { functions, tools } from '$lib/stores';
-	import { createEventDispatcher, getContext, tick } from 'svelte';
+	import { getContext, tick } from 'svelte';
 
 	import {
 		getUserValvesSpecById as getToolUserValvesSpecById,
@@ -24,7 +24,6 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Valves from '$lib/components/common/Valves.svelte';
 
-	const dispatch = createEventDispatcher();
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -156,8 +155,12 @@
 	<form
 		class="flex flex-col h-full justify-between space-y-3 text-sm"
 		onsubmit={preventDefault(() => {
+			// A 'save' event was emitted here. Nothing has ever listened: the sole
+			// mount is `<Valves show={showValves} />` in Controls.svelte, with no
+			// handler, and no listener for a save event exists anywhere for it.
+			// Removed with the dispatcher rather than promoted to a prop nobody
+			// passes. submitHandler() already persists and toasts.
 			submitHandler();
-			dispatch('save');
 		})}
 	>
 		<div class="flex flex-col">

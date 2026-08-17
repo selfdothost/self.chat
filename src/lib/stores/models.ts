@@ -26,7 +26,7 @@ type BaseModel = {
 	// stored config.
 	actions?: { id: string; name: string; icon_url?: string }[];
 	// Load status fallback read by ModelStatusDot's callers (admin/Settings/Models,
-	// workspace/Models, chat/MessageInput/Commands/Models) when `modelLoadStatus`
+	// studio/Models, chat/MessageInput/Commands/Models) when `modelLoadStatus`
 	// has no entry for this model's id or base_model_id — a response-time
 	// enrichment like `actions`, not part of ModelConfig.
 	status?: string;

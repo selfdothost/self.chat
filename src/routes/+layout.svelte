@@ -30,7 +30,7 @@
 	import { Toaster, toast } from 'svelte-sonner';
 
 	import { getBackendConfig } from '$lib/apis';
-	import { getSessionUser } from '$lib/apis/auths';
+	import { getSessionUser, SessionLookupFailedError } from '$lib/apis/auths';
 
 	import '../tailwind.css';
 	import '../app.css';
@@ -249,8 +249,25 @@
 				await setupSocket($config.features?.enable_websocket ?? true);
 
 				if (localStorage.token) {
-					// Get Session User Info
+					// Get Session User Info.
+					//
+					// `undelivered` separates "the server rejected this token" from "the
+					// request never reached the server". Both used to arrive here as a
+					// bare null, and the else-branch below answers null by DELETING the
+					// token -- so a single unanswered request signed the user out for
+					// good. That fires on an ordinary reload-during-boot (the in-flight
+					// lookup is aborted by the navigation) and on any momentary network
+					// blip. Destroying a session needs evidence the credential is bad,
+					// and an undelivered request is not evidence of anything.
+					let undelivered = false;
 					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
+						if (error instanceof SessionLookupFailedError) {
+							// No toast: the usual cause is the document being replaced, and
+							// a toast on a page that is going away is noise at best.
+							console.error(error);
+							undelivered = true;
+							return null;
+						}
 						toast.error(error);
 						return null;
 					});
@@ -264,11 +281,14 @@
 
 						await user.set(sessionUser);
 						await config.set(await getBackendConfig());
-					} else {
+					} else if (!undelivered) {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
 						await goto(resolve('/auth'));
 					}
+					// An undelivered lookup leaves the token alone and leaves `$user`
+					// unset, so `(app)/+layout.svelte`'s own guard still moves the reader
+					// to /auth -- but the session survives, and a reload restores it.
 				} else {
 					// Don't redirect if we're already on the auth page
 					// Needed because we pass in tokens from OAuth logins via URL fragments

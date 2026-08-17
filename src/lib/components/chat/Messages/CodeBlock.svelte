@@ -6,7 +6,7 @@
 
 	import { v4 as uuidv4 } from 'uuid';
 
-	import { getContext, onMount, tick, createEventDispatcher } from 'svelte';
+	import { getContext, onMount, tick, untrack } from 'svelte';
 	import { copyToClipboard } from '$lib/utils';
 
 	import 'highlight.js/styles/github-dark.min.css';
@@ -16,7 +16,6 @@
 	import SvgPanZoom from '$lib/components/common/SVGPanZoom.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 
 
@@ -33,6 +32,11 @@
 		className?: string;
 		editorClassName?: string;
 		stickyButtonsClassName?: string;
+		// Emits the saved code. Only fires from the explicit save affordance.
+		onSave?: (code: string) => void;
+		// Emits { lang, code } whenever either changes -- and once on mount, which
+		// the onMount call below preserves deliberately.
+		onCode?: (detail: { lang: string; code: string }) => void;
 	}
 
 	let {
@@ -44,7 +48,9 @@
 		code = $bindable(''),
 		className = 'my-2',
 		editorClassName = '',
-		stickyButtonsClassName = 'top-8'
+		stickyButtonsClassName = 'top-8',
+		onSave = () => {},
+		onCode = () => {}
 	}: Props = $props();
 
 	let _code = $state('');
@@ -74,7 +80,7 @@
 		saved = true;
 
 		code = _code;
-		dispatch('save', code);
+		onSave(code);
 
 		setTimeout(() => {
 			saved = false;
@@ -287,7 +293,7 @@ __builtins__.input = input`);
 
 	onMount(async () => {
 		if (lang) {
-			dispatch('code', { lang, code });
+			onCode({ lang, code });
 		}
 		if (document.documentElement.classList.contains('dark')) {
 			mermaid.initialize({
@@ -321,7 +327,13 @@ __builtins__.input = input`);
 		}
 	});
 	$effect(() => {
-		dispatch('code', { lang, code });
+		// `lang`/`code` tracked, the callback NOT. The dispatcher this replaces was
+		// a stable const, so those two were the only dependencies. Reading `onCode`
+		// tracked would re-fire whenever its identity changed -- and a consumer
+		// passing an inline arrow recreates it on every parent render, emitting a
+		// duplicate `code` event for content that never moved.
+		const detail = { lang, code };
+		untrack(() => onCode(detail));
 	});
 </script>
 

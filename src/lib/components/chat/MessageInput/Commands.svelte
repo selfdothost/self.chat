@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
+	import type { Model } from '$lib/stores';
 
-	const dispatch = createEventDispatcher();
 
 	import { knowledge, prompts } from '$lib/stores';
 
@@ -19,9 +18,20 @@
 		/* eslint-disable @typescript-eslint/no-explicit-any */
 		files?: any;
 		/* eslint-enable @typescript-eslint/no-explicit-any */
+		// onUpload carries { type: 'youtube' | 'web', data: url }.
+		// onSelect is called TWO WAYS and MessageInput branches on it: with no
+		// argument after a knowledge pick, and with { type: 'model', data } after a
+		// model pick. Keeping the argument optional preserves both call shapes.
+		onUpload?: (detail: { type: string; data: unknown }) => void;
+		onSelect?: (detail?: { type: string; data: Model }) => void;
 	}
 
-	let { prompt = $bindable(''), files = $bindable([]) }: Props = $props();
+	let {
+		prompt = $bindable(''),
+		files = $bindable([]),
+		onUpload = () => {},
+		onSelect = () => {}
+	}: Props = $props();
 
 	let loading = $state(false);
 	let commandElement = $state(null);
@@ -73,43 +83,40 @@
 				bind:this={commandElement}
 				bind:prompt
 				command={command.includes('\\#') ? command.slice(2) : command}
-				on:youtube={(e) => {
-					console.log(e);
-					dispatch('upload', {
+				onYoutube={(url) => {
+					onUpload({
 						type: 'youtube',
-						data: e.detail
+						data: url
 					});
 				}}
-				on:url={(e) => {
-					console.log(e);
-					dispatch('upload', {
+				onUrl={(url) => {
+					onUpload({
 						type: 'web',
-						data: e.detail
+						data: url
 					});
 				}}
-				on:select={(e) => {
-					console.log(e);
+				onSelect={(item) => {
 					files = [
 						...files,
 						{
-							...e.detail,
+							...(item as object),
 							status: 'processed'
 						}
 					];
 
-					dispatch('select');
+					onSelect();
 				}}
 			/>
 		{:else if command?.charAt(0) === '@'}
 			<Models
 				bind:this={commandElement}
 				{command}
-				on:select={(e) => {
+				onSelect={(model) => {
 					prompt = removeLastWordFromString(prompt, command);
 
-					dispatch('select', {
+					onSelect({
 						type: 'model',
-						data: e.detail
+						data: model
 					});
 				}}
 			/>

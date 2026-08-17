@@ -25,7 +25,7 @@
 	
 	interface Props {
 		permissions?: {
-		workspace: {
+		studio: {
 			models: boolean;
 			knowledge: boolean;
 			prompts: boolean;
@@ -50,7 +50,7 @@
 	}
 
 	let { permissions = $bindable({
-		workspace: {
+		studio: {
 			models: false,
 			knowledge: false,
 			prompts: false,
@@ -123,7 +123,7 @@
 		if (toolsWarningEverOpened && !showToolsWarning) {
 			setTimeout(() => {
 				if (!toolsAccessConfirmed) {
-					permissions.workspace.tools = false;
+					permissions.studio.tools = false;
 				}
 			}, 0);
 		}
@@ -261,41 +261,41 @@
 	<hr class=" border-gray-50 dark:border-gray-850 my-2" /> -->
 
 	<div>
-		<div class=" mb-2 text-sm font-medium">{$i18n.t('Workspace Permissions')}</div>
+		<div class=" mb-2 text-sm font-medium">{$i18n.t('Studio Permissions')}</div>
 
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
 				{$i18n.t('Models Access')}
 			</div>
-			<Switch bind:state={permissions.workspace.models} />
+			<Switch bind:state={permissions.studio.models} />
 		</div>
 
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
 				{$i18n.t('Knowledge Access')}
 			</div>
-			<Switch bind:state={permissions.workspace.knowledge} />
+			<Switch bind:state={permissions.studio.knowledge} />
 		</div>
 
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
 				{$i18n.t('Prompts Access')}
 			</div>
-			<Switch bind:state={permissions.workspace.prompts} />
+			<Switch bind:state={permissions.studio.prompts} />
 		</div>
 
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
 				{$i18n.t('Training Access')}
 			</div>
-			<Switch bind:state={permissions.workspace.training} />
+			<Switch bind:state={permissions.studio.training} />
 		</div>
 
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
 				{$i18n.t('Evaluations Access')}
 			</div>
-			<Switch bind:state={permissions.workspace.evaluations} />
+			<Switch bind:state={permissions.studio.evaluations} />
 		</div>
 
 		<div class=" ">
@@ -312,7 +312,7 @@
 					{$i18n.t('Tools Access')}
 				</div>
 				<Switch
-					bind:state={permissions.workspace.tools}
+					bind:state={permissions.studio.tools}
 					onChange={(checked) => handleToolsAccessChange(checked)}
 				/>
 			</Tooltip>

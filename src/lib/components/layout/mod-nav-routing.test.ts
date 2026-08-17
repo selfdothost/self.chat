@@ -76,9 +76,9 @@ describe('client R1 AC3: one generic id-parameterized route, no per-mod route fi
 });
 
 describe('client R1 AC4: registry nav is additive to core; core items unchanged', () => {
-	it('still renders the core hardcoded nav items (New Chat, Workspace)', () => {
+	it('still renders the core hardcoded nav items (New Chat, Studio)', () => {
 		expect(sidebarSrc).toContain('sidebar-new-chat-button');
-		expect(sidebarSrc).toContain("$i18n.t('Workspace')");
+		expect(sidebarSrc).toContain("$i18n.t('Studio')");
 	});
 
 	it('renders <ModNav/> as an added block, not a rewrite of the core items', () => {

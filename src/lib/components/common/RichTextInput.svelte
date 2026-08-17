@@ -213,31 +213,55 @@
 			content: content,
 			autofocus: messageInput ? true : false,
 			onTransaction: () => {
-				// force re-render so `editor.isActive` works as expected
-				editor = editor;
-				let newValue = turndownService
-					.turndown(
-						editor
-							.getHTML()
-							.replace(/<p><\/p>/g, '<br/>')
-							.replace(/ {2,}/g, (m) => m.replace(/ /g, '\u00a0'))
-					)
-					.replace(/\u00a0/g, ' ');
+				// Deferred to a microtask deliberately (self.chat#44).
+				//
+				// ProseMirror dispatches transactions SYNCHRONOUSLY, including from
+				// its own blur handling, so this callback can run while Svelte is
+				// mid-derivation. Writing $state at that moment is exactly what
+				// Svelte 5 refuses -- `state_unsafe_mutation` -- and it surfaced as
+				// an UNHANDLED PROMISE REJECTION, which aborted whatever interaction
+				// was in flight and left the UI looking like the click did nothing.
+				//
+				// A microtask still runs before paint, so the binding stays visually
+				// immediate; it simply lands outside the derivation.
+				queueMicrotask(() => {
+					if (!editor || editor.isDestroyed) {
+						return;
+					}
 
-				if (!preserveBreaks) {
-					newValue = newValue.replace(/<br\/>/g, '');
-				}
+					// force re-render so `editor.isActive` works as expected.
+					// Kept on purpose: Editor is a CLASS INSTANCE, so $state does not
+					// proxy its internals and mutations inside it are invisible to the
+					// template -- this self-assignment is what makes toolbar
+					// `editor.isActive(...)` re-evaluate. It is safe here because we
+					// are no longer inside the derivation.
+					// eslint-disable-next-line no-self-assign
+					editor = editor;
 
-				if (value !== newValue) {
-					value = newValue;
+					let newValue = turndownService
+						.turndown(
+							editor
+								.getHTML()
+								.replace(/<p><\/p>/g, '<br/>')
+								.replace(/ {2,}/g, (m) => m.replace(/ /g, '\u00a0'))
+						)
+						.replace(/\u00a0/g, ' ');
 
-					// check if the node is paragraph as well
-					if (editor.isActive('paragraph')) {
-						if (value === '') {
-							editor.commands.clearContent();
+					if (!preserveBreaks) {
+						newValue = newValue.replace(/<br\/>/g, '');
+					}
+
+					if (value !== newValue) {
+						value = newValue;
+
+						// check if the node is paragraph as well
+						if (editor.isActive('paragraph')) {
+							if (value === '') {
+								editor.commands.clearContent();
+							}
 						}
 					}
-				}
+				});
 			},
 			editorProps: {
 				attributes: { id },

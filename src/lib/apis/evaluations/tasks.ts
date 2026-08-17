@@ -34,3 +34,40 @@ export const getEvalTasks = async (token: string, evalType: EvalType): Promise<E
 	}
 	return res.json();
 };
+
+export type EvalLanguages = {
+	/** MultiPL-E languages the harness ships. Never legitimately empty. */
+	builtin: string[];
+	/** Languages registered at runtime (self.code-eval#6/#7). Withdrawable. */
+	custom: string[];
+};
+
+/**
+ * List code-eval's MultiPL-E languages.
+ *
+ * code-eval only — language-eval has no equivalent concept, which is why there
+ * is no `evalType` parameter to get wrong.
+ *
+ * Kept separate from `getEvalTasks` because the two answer different questions:
+ * a `multiple-{lang}` task only exists once the language is registered, so the
+ * language list is what a picker must offer, not the task list. The client used
+ * to hardcode 14 of these against 23 built-ins (self.chat#40).
+ *
+ * A `502` means the harness is unreachable. As with `getEvalTasks`, that is
+ * deliberately *not* an empty set — but the reason is sharper here: `builtin`
+ * can never legitimately be empty, so rendering an outage as "no languages"
+ * would be a lie rather than merely ambiguous.
+ */
+export const getEvalLanguages = async (token: string): Promise<EvalLanguages> => {
+	const res = await fetch(`${BASE}/languages`, {
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		}
+	});
+	if (!res.ok) {
+		const err = await res.json().catch(() => ({ detail: res.statusText }));
+		throw err?.detail ?? 'Failed to list languages';
+	}
+	return res.json();
+};

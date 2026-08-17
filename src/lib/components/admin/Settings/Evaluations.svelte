@@ -78,8 +78,8 @@
 
 <ArenaModelModal
 	bind:show={showAddModel}
-	on:submit={async (e) => {
-		addModelHandler(e.detail);
+	onSubmit={async (detail) => {
+		addModelHandler(detail);
 	}}
 />
 
@@ -131,10 +131,10 @@
 							{#each config.EVALUATION_ARENA_MODELS as model, index (model.id)}
 								<Model
 									{model}
-									on:edit={(e) => {
-										editModelHandler(e.detail, index);
+									onEdit={(detail) => {
+										editModelHandler(detail, index);
 									}}
-									on:delete={(_e) => {
+									onDelete={() => {
 										deleteModelHandler(index);
 									}}
 								/>

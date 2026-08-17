@@ -14,12 +14,25 @@
 	interface Props {
 		/* eslint-disable @typescript-eslint/no-explicit-any */
 		selectedModels?: any;
+		/** Optional narrowing of the offered models. Defaults to "everything",
+		 *  which is the list this picker has always shown -- an omitted filter
+		 *  changes nothing.
+		 *
+		 *  A PREDICATE rather than a mode flag, deliberately: this component must
+		 *  not learn why a caller wants a subset. Whoever needs the narrowing owns
+		 *  the rule and passes it in. */
+		modelFilter?: (model: any) => boolean;
 		/* eslint-enable @typescript-eslint/no-explicit-any */
 		disabled?: boolean;
 		showSetDefault?: boolean;
 	}
 
-	let { selectedModels = $bindable(['']), disabled = false, showSetDefault = true }: Props = $props();
+	let {
+		selectedModels = $bindable(['']),
+		modelFilter = () => true,
+		disabled = false,
+		showSetDefault = true
+	}: Props = $props();
 
 	const saveDefaultModel = async () => {
 		const hasEmptyModel = selectedModels.filter((it) => it === '');
@@ -63,7 +76,7 @@
 					<Selector
 						id={`${selectedModelIdx}`}
 						placeholder={$i18n.t('Select a model')}
-						items={$models.map((model) => ({
+						items={$models.filter(modelFilter).map((model) => ({
 							value: model.id,
 							label: model.name,
 							model: model

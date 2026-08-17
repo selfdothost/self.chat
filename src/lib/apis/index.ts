@@ -1103,7 +1103,7 @@ export interface ModelConfig {
 
 export interface ModelMeta {
 	description?: string;
-	// Known checkboxes rendered by workspace/Models/Capabilities.svelte; kept
+	// Known checkboxes rendered by studio/Models/Capabilities.svelte; kept
 	// as an open record since new capability flags get added there over time.
 	capabilities?: {
 		vision?: boolean;

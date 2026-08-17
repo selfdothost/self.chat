@@ -1,19 +1,21 @@
 <script lang="ts">
 	import Fuse from 'fuse.js';
 
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { onMount } from 'svelte';
+	import type { Model } from '$lib/stores';
 	import { tick } from 'svelte';
 
 	import { models, modelLoadStatus } from '$lib/stores';
 	import ModelStatusDot from '$lib/components/common/ModelStatusDot.svelte';
 
-	const dispatch = createEventDispatcher();
 
 	interface Props {
+		// Emits the whole model object; Commands wraps it as { type: 'model', data }.
+		onSelect?: (model: Model) => void;
 		command?: string;
 	}
 
-	let { command = $bindable('') }: Props = $props();
+	let { command = $bindable(''), onSelect = () => {} }: Props = $props();
 
 	let selectedIdx = $state(0);
 
@@ -59,7 +61,7 @@
 
 	const confirmSelect = async (model) => {
 		command = '';
-		dispatch('select', model);
+		onSelect(model);
 	};
 
 	onMount(async () => {

@@ -7,9 +7,6 @@
 	import markedKatexExtension from '$lib/utils/marked/katex-extension';
 
 	import MarkdownTokens from './Markdown/MarkdownTokens.svelte';
-	import { createEventDispatcher } from 'svelte';
-
-	const dispatch = createEventDispatcher();
 
 	
 
@@ -21,6 +18,8 @@
 	 * @property {boolean} [save]
 	 * @property {any} [sourceIds]
 	 * @property {any} [onSourceClick]
+	 * @property {any} [onUpdate] forwarded from MarkdownTokens: { raw, oldContent, newContent }
+	 * @property {any} [onCode] forwarded from MarkdownTokens: { lang, code }
 	 */
 
 	/** @type {Props} */
@@ -30,7 +29,9 @@
 		model = null,
 		save = false,
 		sourceIds = [],
-		onSourceClick = () => {}
+		onSourceClick = () => {},
+		onUpdate = () => {},
+		onCode = () => {}
 	} = $props();
 
 	let tokens = $state([]);
@@ -59,11 +60,7 @@
 		{id}
 		{save}
 		{onSourceClick}
-		on:update={(e) => {
-			dispatch('update', e.detail);
-		}}
-		on:code={(e) => {
-			dispatch('code', e.detail);
-		}}
+		{onUpdate}
+		{onCode}
 	/>
 {/key}

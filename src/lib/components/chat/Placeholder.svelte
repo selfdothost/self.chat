@@ -45,6 +45,10 @@
 		webCrawlKbId?: string;
 		onUpload?: AnyFn;
 		onSubmit?: AnyFn;
+		/** Passed straight through to the composer. Omitted means nothing extra is
+		 *  rendered — today's behaviour. Forwarded, never read: this component
+		 *  does not know or care what the accessory is for. */
+		composerAccessory?: import('svelte').Snippet<[{ insertText: (text: string) => void }]>;
 	}
 
 	let {
@@ -63,7 +67,8 @@
 		webCrawlEnabled = $bindable(false),
 		webCrawlKbId = $bindable(''),
 		onUpload = () => {},
-		onSubmit = () => {}
+		onSubmit = () => {},
+		composerAccessory = undefined
 	}: Props = $props();
 
 	let models = $derived(selectedModels.map((id) => $_models.find((m) => m.id === id)));
@@ -233,15 +238,12 @@
 					bind:webCrawlKbId
 					bind:atSelectedModel
 					{transparentBackground}
+					{composerAccessory}
 					{stopResponse}
 					{createMessagePair}
 					placeholder={$i18n.t('How can I help you today?')}
-					on:upload={(e) => {
-						onUpload(e.detail);
-					}}
-					on:submit={(e) => {
-						onSubmit(e.detail);
-					}}
+					{onUpload}
+					{onSubmit}
 				/>
 			</div>
 		</div>

@@ -5,12 +5,11 @@
 	import { DropdownMenu } from 'bits-ui';
 	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import DropdownMenuSubContent from '$lib/components/common/DropdownMenuSubContent.svelte';
-	import { getContext, createEventDispatcher } from 'svelte';
+	import { getContext } from 'svelte';
 
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	const dispatch = createEventDispatcher();
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
@@ -42,6 +41,10 @@
 		deleteHandler: AnyFn;
 		onClose: AnyFn;
 		chatId?: string;
+		// onChange: the chat list must re-fetch (archive/clone/delete happened).
+		// onTag: { type: 'add' | 'delete', name } -- ChatItem forwards it verbatim.
+		onChange?: AnyFn;
+		onTag?: AnyFn;
 		children?: import('svelte').Snippet;
 	}
 
@@ -53,6 +56,8 @@
 		deleteHandler,
 		onClose,
 		chatId = '',
+		onChange = () => {},
+		onTag = () => {},
 		children
 	}: Props = $props();
 
@@ -61,7 +66,7 @@
 
 	const pinHandler = async () => {
 		await toggleChatPinnedStatusById(localStorage.token, chatId);
-		dispatch('change');
+		onChange();
 	};
 
 	const checkPinned = async () => {
@@ -266,27 +271,26 @@
 				<hr class="border-gray-50 dark:border-gray-850 my-0.5" />
 
 				<div class="flex p-1">
+					<!-- There was an `on:close` here too. chat/Tags never dispatched `close`,
+					     so it could not fire and is dropped rather than carried across as a
+					     prop nothing calls. Closing on add/delete below is the real behaviour. -->
 					<Tags
 						{chatId}
-						on:add={(e) => {
-							dispatch('tag', {
+						onAdd={(tag) => {
+							onTag({
 								type: 'add',
-								name: e.detail.name
+								name: tag.name
 							});
 
 							show = false;
 						}}
-						on:delete={(e) => {
-							dispatch('tag', {
+						onDelete={(tag) => {
+							onTag({
 								type: 'delete',
-								name: e.detail.name
+								name: tag.name
 							});
 
 							show = false;
-						}}
-						on:close={() => {
-							show = false;
-							onClose();
 						}}
 					/>
 				</div>

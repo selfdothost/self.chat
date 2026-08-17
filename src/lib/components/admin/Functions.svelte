@@ -26,8 +26,8 @@
 	import FunctionMenu from './Functions/FunctionMenu.svelte';
 	import EllipsisHorizontal from '../icons/EllipsisHorizontal.svelte';
 	import Switch from '../common/Switch.svelte';
-	import ValvesModal from '../workspace/common/ValvesModal.svelte';
-	import ManifestModal from '../workspace/common/ManifestModal.svelte';
+	import ValvesModal from '../studio/common/ValvesModal.svelte';
+	import ManifestModal from '../studio/common/ManifestModal.svelte';
 	import Heart from '../icons/Heart.svelte';
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import GarbageBin from '../icons/GarbageBin.svelte';
@@ -346,7 +346,7 @@
 
 <!-- <div class=" text-gray-500 text-xs mt-1 mb-2">
 	ⓘ {$i18n.t(
-		'Admins have access to all tools at all times; users need tools assigned per model in the workspace.'
+		'Admins have access to all tools at all times; users need tools assigned per model in the studio.'
 	)}
 </div> -->
 

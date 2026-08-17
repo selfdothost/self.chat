@@ -149,10 +149,11 @@ describe('T-C09 — reference mod status view proves the whole chain (client R7 
 		// (T-A07). We reload once so the boot-time `GET /api/v1/mods/enabled` fetch
 		// runs after the scope grant (belt-and-suspenders; admin sees it regardless).
 		cy.reload();
+		cy.dismissChangelog();
 		cy.get('#chat-search').should('exist');
 		cy.wait('@registry').its('response.statusCode').should('eq', 200);
 
-		cy.get(`nav a[data-mod-id="${MOD_ID}"]`, { timeout: 20_000 })
+		cy.get(`#sidebar a[data-mod-id="${MOD_ID}"]`, { timeout: 20_000 })
 			.should('exist')
 			.and('contain.text', 'Reference')
 			// href resolves to the ONE generic id-parameterized route — there is no
@@ -163,7 +164,7 @@ describe('T-C09 — reference mod status view proves the whole chain (client R7 
 			.and('have.attr', 'href')
 			.and('match', /\/mods\/reference$/);
 
-		cy.get(`nav a[data-mod-id="${MOD_ID}"]`).click();
+		cy.get(`#sidebar a[data-mod-id="${MOD_ID}"]`).click();
 
 		// Navigated to the generic route with the mod id; the route's own wrapper
 		// carries data-mod-view={modId} (+page.svelte). This is SPA navigation

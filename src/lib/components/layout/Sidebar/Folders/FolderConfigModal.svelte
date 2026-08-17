@@ -15,11 +15,11 @@
 	// Reuse existing pickers verbatim (FC/R2, FC/R6) -- no new picker UI here.
 	// (1) the chat composer's single-model picker PRIMITIVE (bound to one model id),
 	//     not the ModelSelector wrapper that carries composer-specific side effects;
-	// (2) the Workspace tool-set picker (bound to a plain array of tool ids);
-	// (3) the Workspace Knowledge picker (bound to full knowledge objects).
+	// (2) the Studio tool-set picker (bound to a plain array of tool ids);
+	// (3) the Studio Knowledge picker (bound to full knowledge objects).
 	import ModelSelectorPrimitive from '$lib/components/chat/ModelSelector/Selector.svelte';
-	import ToolsSelector from '$lib/components/workspace/Models/ToolsSelector.svelte';
-	import Knowledge from '$lib/components/workspace/Models/Knowledge.svelte';
+	import ToolsSelector from '$lib/components/studio/Models/ToolsSelector.svelte';
+	import Knowledge from '$lib/components/studio/Models/Knowledge.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -183,8 +183,13 @@
 							</button>
 						{/if}
 					</div>
+					<!-- The model trigger's id is keyed by folder id: RecursiveFolder mounts
+					     one FolderConfigModal PER FOLDER, so a bare id produced duplicate DOM
+					     ids whenever two modals were open -- invalid HTML, and
+					     document.getElementById returned whichever mounted first rather than
+					     the one on screen (self.chat#39). -->
 					<ModelSelectorPrimitive
-						id="folder-config-model"
+						id={`folder-config-model-${folder?.id ?? 'new'}`}
 						placeholder={$i18n.t('Select a model')}
 						items={$models.map((model) => ({
 							value: model.id,
@@ -215,6 +220,7 @@
 
 		<div class="mt-6 flex justify-end gap-1.5">
 			<button
+				data-testid="folder-config-cancel"
 				class="bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white font-medium px-4 py-2 rounded-lg transition"
 				type="button"
 				onclick={() => {
@@ -224,6 +230,7 @@
 				{$i18n.t('Cancel')}
 			</button>
 			<button
+				data-testid="folder-config-save"
 				class="bg-gray-900 hover:bg-gray-850 text-gray-100 dark:bg-gray-100 dark:hover:bg-white dark:text-gray-800 font-medium px-4 py-2 rounded-lg transition disabled:opacity-50"
 				type="button"
 				disabled={saving || !optionsLoaded}

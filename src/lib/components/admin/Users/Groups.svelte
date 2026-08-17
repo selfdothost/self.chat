@@ -41,7 +41,7 @@
 
 	let search = $state('');
 	let defaultPermissions = $state({
-		workspace: {
+		studio: {
 			models: false,
 			knowledge: false,
 			prompts: false,

@@ -10,7 +10,7 @@ export type SessionUser = {
 	role: string;
 	profile_image_url: string;
 	token?: string;
-	// Spans multiple independent namespaces (chat.*, model.*, workspace.*) --
+	// Spans multiple independent namespaces (chat.*, model.*, studio.*) --
 	// genuinely an open permission bag, not a fixed shape.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	permissions?: Record<string, any>;

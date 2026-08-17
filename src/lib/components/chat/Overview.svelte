@@ -1,9 +1,8 @@
 <script lang="ts">
 	import type { i18n as i18nType } from 'i18next';
-	import { getContext, createEventDispatcher, onDestroy } from 'svelte';
+	import { getContext, onDestroy } from 'svelte';
 	import { useSvelteFlow, useNodesInitialized, useStore } from '@xyflow/svelte';
 
-	const dispatch = createEventDispatcher();
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { onMount, tick } from 'svelte';
@@ -31,7 +30,10 @@
 	// store -- see the note above.
 	const nodesInitializedState = useNodesInitialized();
 
-	let { history } = $props();
+	// onClose fires when the overview's own X is pressed. onNodeClick forwards
+	// xyflow's node-click payload up unchanged; ChatControls reads
+	// `.node.data.message.id` from it.
+	let { history, onClose = () => {}, onNodeClick = () => {} } = $props();
 
 	let selectedMessageId = $state(null);
 
@@ -194,7 +196,7 @@
 		<button
 			class="self-center p-0.5"
 			onclick={() => {
-				dispatch('close');
+				onClose();
 				showOverview.set(false);
 			}}
 		>
@@ -207,10 +209,9 @@
 			{nodes}
 			{nodeTypes}
 			{edges}
-			on:nodeclick={(e) => {
-				console.log(e.detail.node.data);
-				dispatch('nodeclick', e.detail);
-				selectedMessageId = e.detail.node.data.message.id;
+			onNodeClick={(detail) => {
+				onNodeClick(detail);
+				selectedMessageId = detail.node.data.message.id;
 				fitView({ nodes: [{ id: selectedMessageId }] });
 			}}
 		/>

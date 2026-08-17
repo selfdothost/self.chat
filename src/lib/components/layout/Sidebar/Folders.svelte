@@ -1,9 +1,19 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 
-	const dispatch = createEventDispatcher();
 	import RecursiveFolder from './RecursiveFolder.svelte';
-	let { folders = {} } = $props();
+	/**
+	 * Pure forwarder for the folder tree: onImport/onUpdate/onChange carry
+	 * RecursiveFolder's payloads up to the Sidebar unchanged.
+	 *
+	 * @typedef {Object} Props
+	 * @property {any} [folders]
+	 * @property {any} [onImport]
+	 * @property {any} [onUpdate]
+	 * @property {any} [onChange]
+	 */
+
+	/** @type {Props} */
+	let { folders = {}, onImport = () => {}, onUpdate = () => {}, onChange = () => {} } = $props();
 
 	let folderList = $derived(Object.keys(folders)
 		.filter((key) => folders[key].parent_id === null)
@@ -22,14 +32,8 @@
 		className=""
 		{folders}
 		{folderId}
-		on:import={(e) => {
-			dispatch('import', e.detail);
-		}}
-		on:update={(e) => {
-			dispatch('update', e.detail);
-		}}
-		on:change={(e) => {
-			dispatch('change', e.detail);
-		}}
+		{onImport}
+		{onUpdate}
+		{onChange}
 	/>
 {/each}

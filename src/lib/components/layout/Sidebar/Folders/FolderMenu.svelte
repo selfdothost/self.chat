@@ -50,6 +50,7 @@
 				align="start"
 			>
 				<DropdownMenu.Item
+					data-testid="folder-menu-new-chat"
 					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					onSelect={() => {
 						onNewChat();
@@ -60,6 +61,7 @@
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Item
+					data-testid="folder-menu-rename"
 					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					onSelect={() => {
 						onRename();
@@ -70,6 +72,7 @@
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Item
+					data-testid="folder-menu-configure"
 					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					onSelect={() => {
 						onConfigure();
@@ -80,6 +83,7 @@
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Item
+					data-testid="folder-menu-export"
 					class="flex gap-2 items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					onSelect={() => {
 						onExport();
@@ -91,6 +95,7 @@
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Item
+					data-testid="folder-menu-delete"
 					class="flex  gap-2  items-center px-3 py-1.5 text-sm  cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
 					onSelect={() => {
 						onDelete();

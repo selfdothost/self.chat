@@ -586,6 +586,52 @@ export const processWebSearch = async (
 	return res;
 };
 
+export type WebSearchTestResult = {
+	query: string;
+	search: {
+		ok: boolean;
+		engine: string;
+		count: number;
+		samples: { title: string | null; link: string }[];
+		unresponsive_engines: { engine: string; reason: string }[];
+		error: string | null;
+	};
+	fetch: {
+		attempted: boolean;
+		ok: boolean;
+		url: string | null;
+		content_chars: number;
+		error: string | null;
+	};
+};
+
+export const testWebSearchConnection = async (token: string): Promise<WebSearchTestResult> => {
+	let error = null;
+
+	const res = await fetch(`${RETRIEVAL_API_BASE_URL}/process/web/search/test`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.log(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 export const queryDoc = async (
 	token: string,
 	collection_name: string,

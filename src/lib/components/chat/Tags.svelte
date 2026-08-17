@@ -1,18 +1,20 @@
 <script lang="ts">
 	import { addTagById, deleteTagById, getAllTags, getTagsById, updateChatById } from '$lib/apis/chats';
 	import { tags as _tags } from '$lib/stores';
-	import { createEventDispatcher, onMount } from 'svelte';
-
-	const dispatch = createEventDispatcher();
+	import { onMount } from 'svelte';
 
 	import Tags from '../common/Tags.svelte';
 	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		chatId?: string;
+		// These emit `{ name }` objects, NOT the bare string that common/Tags
+		// forwards -- consumers read `e.detail.name`, so the shape is preserved.
+		onAdd?: (tag: { name: string }) => void;
+		onDelete?: (tag: { name: string }) => void;
 	}
 
-	let { chatId = '' }: Props = $props();
+	let { chatId = '', onAdd = () => {}, onDelete = () => {} }: Props = $props();
 	let tags = $state([]);
 
 	const getTags = async () => {
@@ -36,7 +38,7 @@
 		});
 
 		await _tags.set(await getAllTags(localStorage.token));
-		dispatch('add', {
+		onAdd({
 			name: tagName
 		});
 	};
@@ -49,7 +51,7 @@
 		});
 
 		await _tags.set(await getAllTags(localStorage.token));
-		dispatch('delete', {
+		onDelete({
 			name: tagName
 		});
 	};
@@ -61,12 +63,4 @@
 	});
 </script>
 
-<Tags
-	{tags}
-	on:delete={(e) => {
-		deleteTag(e.detail);
-	}}
-	on:add={(e) => {
-		addTag(e.detail);
-	}}
-/>
+<Tags {tags} onDelete={deleteTag} onAdd={addTag} />

@@ -8,7 +8,7 @@
 	import { deleteChannelById } from '$lib/apis/channels';
 
 	import Modal from '$lib/components/common/Modal.svelte';
-	import AccessControl from '$lib/components/workspace/common/AccessControl.svelte';
+	import AccessControl from '$lib/components/studio/common/AccessControl.svelte';
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 
 	import { toast } from 'svelte-sonner';

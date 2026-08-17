@@ -58,6 +58,7 @@
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
 	import { uploadFile } from '$lib/apis/files';
 	import { seedFromFolderPreset } from '$lib/utils/folder-preset';
+	import { blocksImageInput } from '$lib/utils/model-capabilities';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -69,11 +70,100 @@
 
 	interface Props {
 		chatIdProp?: string;
+		/** Optional narrowing of the models offered in this chat's picker.
+		 *  Omitted means "every model", which is what chat has always shown, so an
+		 *  omitted filter is not a behavioural change.
+		 *
+		 *  A PREDICATE, not a mode flag, and forwarded rather than read. This
+		 *  component must not learn WHY a caller wants a subset: the surface that
+		 *  needs the narrowing owns the rule and passes it in. Chat may gain
+		 *  additive, optional, defaulted configuration; it may not gain knowledge
+		 *  of another surface's concepts. A guard test enforces that, so branching
+		 *  on this value here will fail review rather than quietly couple the two.
+		 */
+		/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+		modelFilter?: (model: any) => boolean;
+		/** Overrides the user's stream re-chunking preference FOR THIS SURFACE
+		 *  ONLY. Omitted means read `$settings.splitLargeChunks`, exactly as chat
+		 *  always has.
+		 *
+		 *  It is an override rather than a setter on purpose: the stored
+		 *  preference is never written, so leaving a surface that overrides it
+		 *  restores the user's own choice untouched. */
+		splitLargeDeltas?: boolean;
+		/** Extra fields merged into the completion request body. Omitted means
+		 *  none, so the request is byte-identical to today's.
+		 *
+		 *  Spread FIRST, so every field this component sets wins: a caller can add
+		 *  parameters but cannot rewrite `model`, `messages`, `stream` or the chat
+		 *  identifiers out from under it. */
+		requestExtras?: Record<string, unknown>;
+		/** Whether the parameter controls rail starts OPEN when a session begins on
+		 *  this surface. Omitted means false, which is exactly what entering a chat
+		 *  has always done: the `showControls.set(...)` in `initNewChat()` read a
+		 *  literal `false` before this prop existed.
+		 *
+		 *  A ONE-SHOT entry default, not a bound mode. It is read where a session
+		 *  begins and nowhere else, so an artist who closes the rail keeps it
+		 *  closed, and no later re-render or viewport change can revoke that
+		 *  choice. Nothing observes it reactively, and in particular nothing writes
+		 *  `showControls` from an `$effect` that reads it — the loop
+		 *  `ChatControls.svelte:191-217` documents.
+		 *
+		 *  The CALLER decides whether the viewport can present a rail at all; this
+		 *  component only applies the answer, and never asks why it was given. */
+		controlsOpenOnEntry?: boolean;
+		/** Optional extra control rendered inside the composer's toolbar. Omitted
+		 *  means nothing is rendered, which is exactly what chat shows today.
+		 *
+		 *  A SNIPPET, not a feature flag. This component neither knows nor asks
+		 *  what the caller puts there; it is handed straight to MessageInput,
+		 *  which invokes it with the one capability such a control needs — a way
+		 *  to put text into the composer. Chat may gain additive, optional,
+		 *  defaulted configuration; it may not gain knowledge of another
+		 *  surface's concepts, and a guard test counts every occurrence of this
+		 *  name here to keep it that way. */
+		composerAccessory?: import('svelte').Snippet<[{ insertText: (text: string) => void }]>;
+		/** Which surface owns conversations started here. Omitted -- every entry
+		 *  through the chat routes -- persists NULL, which is ordinary chat, so the
+		 *  chat sidebar keeps listing exactly what it listed before.
+		 *
+		 *  Forwarded to the create call and read nowhere else: this component does
+		 *  not branch on it, and does not know what any particular kind means. The
+		 *  server validates the value against an allowlist. */
+		sessionKind?: string;
+		/** The chat's advanced model params bag (stream_response, system, seed,
+		 *  temperature, ...), already this component's own state and already bound
+		 *  down into the controls rail. Exposing it as a BINDABLE prop lets a host
+		 *  surface observe what the rail is actually sending, without this
+		 *  component gaining a reader or a caller's concept.
+		 *
+		 *  Unbound it falls back to `{}` -- the exact initial value it held as
+		 *  local state -- so chat is behaviourally unchanged. */
+		/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+		params?: Record<string, any>;
 	}
 
-	let { chatIdProp = '' }: Props = $props();
+	let {
+		chatIdProp = '',
+		modelFilter = undefined,
+		splitLargeDeltas = undefined,
+		requestExtras = undefined,
+		controlsOpenOnEntry = false,
+		composerAccessory = undefined,
+		params = $bindable({}),
+		sessionKind = undefined
+	}: Props = $props();
 
 	let loaded = $state(false);
+	// Guards the chatIdProp $effect below against re-entering loadChat() for
+	// a chat it's already loading or has already loaded. Without this, any
+	// re-run of that effect for the SAME chatIdProp value (observed live:
+	// GET /api/v1/chats/<id> and /api/v1/users/user/settings repeating
+	// dozens of times a second against an unchanged URL) piles up
+	// concurrent loadChat() calls that all write the same shared
+	// chat/history/selectedModels state, racing each other indefinitely.
+	let loadingChatIdProp = $state('');
 	const eventTarget = new EventTarget();
 	let controlPane = $state(null);
 	let controlPaneComponent: ChatControls | undefined = $state();
@@ -119,11 +209,9 @@
 	let prompt = $state('');
 	let chatFiles = $state([]);
 	let files = $state([]);
-	// Advanced model params bag (stream_response, system, stop, seed, etc.) --
-	// genuinely dynamic, keyed by whatever the selected model's advanced
-	// params UI (AdvancedParams.svelte) exposes.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let params: Record<string, any> = $state({});
+	// The advanced model params bag (stream_response, system, stop, seed, etc.)
+	// is declared as a bindable prop above -- genuinely dynamic, keyed by whatever
+	// the selected model's advanced params UI (AdvancedParams.svelte) exposes.
 
 
 	const saveSessionSelectedModels = () => {
@@ -330,7 +418,18 @@
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('chat-events', chatEventHandler);
 
-		if (!$chatId) {
+		// Gate on chatIdProp, not just $chatId. Under Svelte 4 the `$: if
+		// (chatIdProp)` block that calls loadChat() ran during init, and
+		// loadChat()'s first statement is a synchronous chatId.set(chatIdProp) --
+		// so on an existing chat $chatId was ALWAYS truthy by the time onMount
+		// ran, and this subscriber was never registered. Its $effect replacement
+		// runs after onMount instead, so $chatId is still '' here and we'd
+		// register a subscriber that immediately fires initNewChat() against the
+		// chat we are in the middle of loading: it rewrites the URL to '/',
+		// resets chatId to '', and clears showControls/showArtifacts. That is
+		// what kills the auto-opened HTML/SVG artifact preview (ContentRenderer
+		// gates it on $chatId) and closes the controls rail.
+		if (!chatIdProp && !$chatId) {
 			chatIdUnsubscriber = chatId.subscribe(async (value) => {
 				if (!value) {
 					await initNewChat();
@@ -633,7 +732,17 @@
 			}
 		}
 
-		await showControls.set(false);
+		// The rail's state ON ENTRY. `false` unless a caller asked otherwise, which
+		// is the literal this line carried before `controlsOpenOnEntry` existed.
+		//
+		// Deliberately here, and deliberately last. ChatControls closes the rail
+		// whenever it sees no chatId (`$effect(() => { if (!chatId) closeHandler() })`),
+		// and a child's effects flush BEFORE a parent's onMount — so anything that
+		// opened the rail earlier than this point, including the entering route's
+		// own script, would already have been undone by the time we got here.
+		// Setting it from initNewChat is also the mechanism the `?call=true` entry
+		// below has always used, so this is a proven path rather than a new one.
+		await showControls.set(controlsOpenOnEntry);
 		await showCallOverlay.set(false);
 		await showOverview.set(false);
 		await showArtifacts.set(false);
@@ -1070,10 +1179,23 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
-		const { done, choices, content, reasoning, sources, selected_model_id, error, usage } = data;
+		const {
+			done,
+			choices,
+			content,
+			reasoning,
+			sources,
+			selected_model_id,
+			model_substitution,
+			error,
+			usage
+		} = data;
 
 		if (error) {
-			await handleOpenAIError(error, message);
+			// `chatId` here is the event's chat id (the parameter shadows the store,
+			// same as in chatCompletedHandler below) — handleOpenAIError needs it to
+			// decide whether the save still belongs to the chat on screen.
+			await handleOpenAIError(error, message, chatId);
 		}
 
 		if (sources) {
@@ -1171,7 +1293,16 @@
 
 		if (selected_model_id) {
 			message.selectedModelId = selected_model_id;
-			message.arena = true;
+			// selected_model_id used to mean exactly one thing -- an arena pick --
+			// so it set `arena` unconditionally. An eval-window substitution sets
+			// it too now (self.ai#35), and marking that as an arena response would
+			// both mislabel the message and send the wrong `arena` flag with its
+			// feedback. model_substitution is what tells the two apart.
+			if (model_substitution) {
+				message.modelSubstitution = model_substitution;
+			} else {
+				message.arena = true;
+			}
 		}
 
 		if (usage) {
@@ -1408,17 +1539,41 @@
 						message.files?.some((file) => file.type === 'image')
 					);
 
-					if (hasImages && !(model.info?.meta?.capabilities?.vision ?? true)) {
-						toast.error(
-							$i18n.t('Model {{modelName}} is not vision capable', {
-								modelName: model.name ?? model.id
-							})
-						);
-					}
-
 					let responseMessageId =
 						responseMessageIds[`${modelId}-${modelIdx ? modelIdx : _modelIdx}`];
 					let responseMessage = history.messages[responseMessageId];
+
+					// self.chat#51 — this guard used to be doubly dead: the old
+					// `?? true` default made it unreachable for the 97-of-101 models
+					// whose `capabilities` is JSON null, and the toast had no
+					// `return`, so even a model that DID declare `vision: false`
+					// still had its images sent and came back a 500.
+					//
+					// `return` (not `break`/`continue`) is the short-circuit here:
+					// the enclosing shape is `selectedModelIds.map(async (...) => …)`
+					// inside a Promise.all, so returning ends this model's send and
+					// leaves the other selected models untouched.
+					//
+					// The placeholder assistant message already exists by now (it is
+					// created, and saved, before this Promise.all), so refusing is not
+					// enough on its own: bailing out silently would leave exactly the
+					// blank never-finishing bubble self.chat#52 is about. Mark it
+					// failed and write it through, same as any other terminal error.
+					if (hasImages && blocksImageInput(model)) {
+						const errorContent = $i18n.t('Model {{modelName}} is not vision capable', {
+							modelName: model.name ?? model.id
+						});
+						toast.error(errorContent);
+
+						if (responseMessage) {
+							responseMessage.error = { content: errorContent };
+							responseMessage.done = true;
+							history.messages[responseMessageId] = responseMessage;
+							await tick();
+							await saveChatHandler(_chatId);
+						}
+						return;
+					}
 
 					let userContext = null;
 					if ($settings?.memory ?? false) {
@@ -1545,6 +1700,10 @@
 		const res = await generateOpenAIChatCompletion(
 			localStorage.token,
 			{
+				// Spread first: everything below overrides it, so extras can add
+				// parameters but cannot rewrite the request's identity.
+				...(requestExtras ?? {}),
+
 				stream: stream,
 				model: model.id,
 				messages: messages,
@@ -1602,13 +1761,26 @@
 					: {})
 			},
 			`${WEBUI_BASE_URL}/api`
-		).catch((error) => {
+		).catch(async (error) => {
 			console.log(error);
 			responseMessage.error = {
 				content: error
 			};
 			responseMessage.done = true;
 			history.messages[responseMessageId] = responseMessage;
+
+			// self.chat#52 — persist the failure. Without this the error and the
+			// `done` flag live in the in-memory history only: the sole other save
+			// inside this function is on the streaming-success path, and the caller
+			// (`sendPrompt`) only refreshes the chat list afterwards. So a failed
+			// turn survived until the tab reloaded and then came back as a blank
+			// bubble that reads as still-generating forever, because `done` was
+			// never written either.
+			//
+			// `await` inside an async .catch is safe: the awaited promise resolves
+			// to this callback's result, so the `const res = await …` above still
+			// sees `null` and still waits for the write.
+			await saveChatHandler(_chatId);
 			return null;
 		});
 
@@ -1622,7 +1794,7 @@
 		scrollToBottom();
 	};
 
-	const handleOpenAIError = async (error, responseMessage) => {
+	const handleOpenAIError = async (error, responseMessage, _chatId) => {
 		let errorMessage = '';
 		let innerError;
 
@@ -1659,6 +1831,18 @@
 		}
 
 		history.messages[responseMessage.id] = responseMessage;
+
+		// self.chat#52 — a terminal error delivered over the socket needs the same
+		// write-through as the HTTP-level failure above. Verified against the API's
+		// post_response_handler: a mid-stream error is forwarded verbatim as the
+		// `chat:completion` payload it arrived as, and that payload carries `error`
+		// WITHOUT `done`. The only save on this path hangs off `if (done)` (via
+		// chatCompletedHandler), so without this the error and `done` never leave
+		// memory. When the payload does happen to carry both, this save is merely
+		// redundant with the one chatCompletedHandler performs — cheap, and on a
+		// path that only runs once per failed turn.
+		await tick();
+		await saveChatHandler(_chatId);
 	};
 
 	const stopResponse = () => {
@@ -1768,7 +1952,10 @@
 			);
 
 			if (res && res.ok && res.body) {
-				const textStream = await createOpenAITextStream(res.body, $settings.splitLargeChunks);
+				const textStream = await createOpenAITextStream(
+					res.body,
+					splitLargeDeltas ?? $settings.splitLargeChunks
+				);
 				for await (const update of textStream) {
 					const { value, done, error } = update;
 					if (error || done) {
@@ -1808,7 +1995,11 @@
 				messages: createMessagesList(history.currentId),
 				tags: [],
 				timestamp: Date.now()
-			});
+			},
+			// Third argument, not a field of the chat blob: `kind` is a COLUMN the
+			// server filters lists on, and burying it in the JSON would put it
+			// somewhere no query can reach.
+			sessionKind);
 
 			// If this chat was started from a folder's "New Chat" affordance, the
 			// active folder is carried on the `folder_id` URL param. Place the chat
@@ -1856,10 +2047,15 @@
 	
 	// Assignments run inside an async IIFE triggered by this block; none of
 	// them (loaded/prompt/files/selectedToolIds/webSearchEnabled) are part of
-	// the block's own condition (`chatIdProp`), so they can't retrigger this
-	// reactive statement -- not an infinite loop.
+	// the block's own condition (`chatIdProp`), so in principle they can't
+	// retrigger this reactive statement. In practice this effect WAS observed
+	// re-running for an unchanged chatIdProp in production -- the exact
+	// Svelte-side trigger wasn't pinned down, but the loadingChatIdProp guard
+	// above makes every re-run past the first one for the same id a no-op
+	// regardless of cause, which is what actually stops the loop.
 	$effect(() => {
-		if (chatIdProp) {
+		if (chatIdProp && chatIdProp !== loadingChatIdProp) {
+			loadingChatIdProp = chatIdProp;
 			(async () => {
 				console.log(chatIdProp);
 
@@ -1876,6 +2072,14 @@
 				if (chatIdProp && (await loadChat())) {
 					await tick();
 					loaded = true;
+
+					// Resuming an existing conversation is an entry too, and takes the
+					// other branch: initNewChat never runs here. Only ever OPENS —
+					// switching between chats must not close a rail the user already has
+					// open, so this is not the mirror of initNewChat's unconditional set.
+					if (controlsOpenOnEntry) {
+						showControls.set(true);
+					}
 
 					if (localStorage.getItem(`chat-input-${chatIdProp}`)) {
 						try {
@@ -1898,6 +2102,9 @@
 					const chatInput = document.getElementById('chat-input');
 					chatInput?.focus();
 				} else {
+					// Allow a genuine retry (e.g. clicking the same chat again
+					// later) instead of leaving this id permanently guarded off.
+					loadingChatIdProp = '';
 					await goto(resolve('/'));
 				}
 			})();
@@ -1980,6 +2187,7 @@
 				}
 			}}
 			bind:selectedModels
+			{modelFilter}
 			shareEnabled={!!history.currentId}
 			{initNewChat}
 		/>
@@ -2055,6 +2263,7 @@
 								bind:webCrawlKbId
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
+								{composerAccessory}
 								{stopResponse}
 								{createMessagePair}
 								onChange={(input) => {
@@ -2064,8 +2273,7 @@
 										localStorage.removeItem(`chat-input-${$chatId}`);
 									}
 								}}
-								on:upload={async (e) => {
-									const { type, data } = e.detail;
+								onUpload={async ({ type, data }) => {
 
 									if (type === 'web') {
 										await uploadWeb(data);
@@ -2075,13 +2283,13 @@
 										await uploadGoogleDriveFile(data);
 									}
 								}}
-								on:submit={async (e) => {
-									if (e.detail) {
+								onSubmit={async (detail) => {
+									if (detail) {
 										await tick();
 										submitPrompt(
 											($settings?.richTextInput ?? true)
-												? e.detail.replaceAll('\n\n', '\n')
-												: e.detail
+												? detail.replaceAll('\n\n', '\n')
+												: detail
 										);
 									}
 								}}
@@ -2108,6 +2316,7 @@
 								bind:webCrawlKbId
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
+								{composerAccessory}
 								{stopResponse}
 								{createMessagePair}
 								onUpload={async (detail) => {

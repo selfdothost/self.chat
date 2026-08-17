@@ -261,12 +261,30 @@
 		<div
 			class="flex w-full text-left px-0.5 outline-hidden bg-transparent truncate {triggerClassName} justify-between font-medium placeholder-gray-400 focus:outline-hidden"
 		>
-			{#if selectedModel}
-				{selectedModel.label}
-			{:else}
-				{placeholder}
-			{/if}
-			<ChevronDown className=" self-center ml-2 size-3" strokeWidth="2.5" />
+			<!--
+				The label MUST sit in its own element, not be a bare text node here.
+				`truncate` on this div sets text-overflow: ellipsis, but this div is
+				display:flex -- and text-overflow applies to a BLOCK container's inline
+				content, never to a flex container's items. So the ellipsis half of
+				`truncate` was inert and only its overflow:hidden bit took effect,
+				hard-clipping long model names mid-character (self.chat#15).
+
+				min-w-0 is required too: a flex item defaults to min-width:auto and so
+				refuses to shrink below min-content, and a model id like
+				`gemma-4-26B-A4B-it-qat-UD-Q4_K_XL` has no spaces, making min-content the
+				WHOLE name. Without it the span cannot shrink and there is nothing to
+				ellipsise.
+			-->
+			<span class="truncate min-w-0">
+				{#if selectedModel}
+					{selectedModel.label}
+				{:else}
+					{placeholder}
+				{/if}
+			</span>
+			<!-- shrink-0: without it the chevron is squeezed by the label instead of
+			     the label yielding to it. -->
+			<ChevronDown className=" self-center ml-2 size-3 shrink-0" strokeWidth="2.5" />
 		</div>
 	</DropdownMenu.Trigger>
 

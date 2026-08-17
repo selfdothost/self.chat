@@ -89,6 +89,14 @@
 
 	let messagesCount = $state(20);
 	let messagesLoading = $state(false);
+	let allMessagesLoaded = $state(false);
+
+	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- referenced only to register chatId as an $effect dependency
+		chatId;
+		messagesCount = 20;
+		allMessagesLoaded = false;
+	});
 
 	const loadMoreMessages = async () => {
 		// scroll slightly down to disable continuous loading
@@ -96,9 +104,21 @@
 		element.scrollTop = element.scrollTop + 100;
 
 		messagesLoading = true;
+		const previousCount = messages.length;
 		messagesCount += 20;
 
 		await tick();
+
+		// Walking further back revealed nothing new -- either the true root
+		// (parentId === null) was reached, or an ancestor id has no entry in
+		// history.messages (broken/unresolvable chain). Either way there is
+		// nothing more to reveal locally, so stop showing the Loader --
+		// `messages.at(0)?.parentId !== null` alone can't tell "more to
+		// load" apart from "unresolvable chain", and without this the
+		// Loader's fixed 100ms onVisible() cadence never ends.
+		if (messages.length === previousCount) {
+			allMessagesLoaded = true;
+		}
 
 		messagesLoading = false;
 	};
@@ -406,7 +426,7 @@
 		<div class="w-full pt-2">
 			{#key chatId}
 				<div class="w-full">
-					{#if messages.at(0)?.parentId !== null}
+					{#if messages.at(0)?.parentId !== null && !allMessagesLoaded}
 						<Loader
 							onVisible={() => {
 								console.log('visible');

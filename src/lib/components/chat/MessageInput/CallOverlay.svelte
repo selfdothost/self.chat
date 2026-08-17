@@ -484,7 +484,7 @@
 				if ($config.audio.tts.engine !== '') {
 					const res = await synthesizeOpenAISpeech(
 						localStorage.token,
-						// Per-model voice (Workspace Model meta.audio.tts_voice) overrides the
+						// Per-model voice (Studio Model meta.audio.tts_voice) overrides the
 						// user/global default for the model driving this voice call.
 						model?.info?.meta?.audio?.tts_voice ??
 							($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice

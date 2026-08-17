@@ -223,39 +223,58 @@ publish:web:
 # published images, just assembled live from source instead. One origin, one
 # port, zero CORS_ALLOW_ORIGIN wiring.
 #
-# KNOWN GAP, not fixed by this job: chat.cy.ts drives real model selection
-# and inference (Ollama). ENABLE_OLLAMA_API/ENABLE_OPENAI_API are both False
-# below — there is no inference engine anywhere in this pipeline — so
-# `button[aria-label="model-item"]` will never exist and chat.cy.ts's 4 tests
-# are expected to fail here. That's a separate problem (a stub/mock model
-# provider, or carving chat.cy.ts out of this gate) from the DB wiring this
-# job solves. registration.cy.ts and settings.cy.ts need no inference and
-# should pass; documents.cy.ts is currently an empty stub file.
+# THE INFERENCE GAP IS CLOSED, by the mock upstream this job now runs.
+# cypress/support/mock-openai.mjs is a dependency-free OpenAI-compatible server
+# that self.ai's API talks to as an ordinary OpenAI connection, so chat.cy.ts
+# exercises the real path: browser -> self.ai API -> upstream -> Socket.IO -> DOM.
 #
-# UNVERIFIED (no live runner to check against before landing this):
-#   - cross-project CI_JOB_TOKEN read via the archive API, as reasoned above
-#   - requirements-api.txt installing cleanly on this image's system Python
-#     (Debian trixie ships newer than the 3.11 self.ai's own Dockerfile
-#     pins — most pins should have wheels by now, but unconfirmed)
-#   - egress to Cypress's own binary CDN (download.cypress.io) from this
-#     runner, same class of assumption as the PyPI/npm egress every other
-#     job here already depends on
-# allow_failure: true until a real pipeline run confirms this end to end —
-# same soft-landing pattern lint:ruff and lint:eslint used in this yard
-# before being made blocking.
+# That path could NOT be reached by stubbing HTTP, which is why the chat tests
+# sat skipped. `generateOpenAIChatCompletion` does `res.json()` and uses only
+# `res.task_id`; the assistant reply arrives over Socket.IO from the API. A
+# `cy.intercept` on POST /api/chat/completions removes the very request that
+# makes the API emit those events, so no stub body can ever produce a reply.
+# The earlier "the stub's stream shape is wrong" reading was a misdiagnosis --
+# there is no stream reader on that path at all.
+#
+# ALL VERIFIED NOW (this block used to list them as unverified assumptions):
+#   - cross-project CI_JOB_TOKEN read: works, via `git clone` (NOT the archive
+#     REST endpoint, which job tokens cannot reach cross-project)
+#   - requirements-api.txt installs on this image's system Python: yes, since
+#     self.ai#60 moved the API tier to 3.13 and this image ships trixie/3.13.
+#     Needs build-essential for numpy, which has no cp313 wheel (self.ai#108)
+#   - egress to download.cypress.io: works
 e2e:cypress:
   stage: e2e
   image: cypress/browsers:node-22.21.0-chrome-141.0.7390.107-1-ff-144.0-edge-141.0.3537.92-1
   tags: [yard-midbuild]
   timeout: 45m
-  # Still allow_failure: true -- the curl and cross-project fetch gaps below are
-  # fixed, but this job's before_script installs whatever python3 the base image
-  # ships (Debian trixie -> 3.13), while self.ai's own api/Dockerfile is still on
-  # 3.11 and requirements-api.txt's unstructured==0.15.9 has no 3.13-compatible
-  # release -- the exact same wall self.ai#60 (move the API stack off 3.11) hit.
-  # Flip this back to false once #60 lands (or this job pins a matching Python
-  # itself, but that just moves the same mismatch, not fixes it).
-  allow_failure: true
+  # The Python wall is GONE. self.ai#60 landed (self.ai!335): the API tier moved
+  # to 3.13, unstructured 0.15.9 -> 0.16.19, and pydub/audioop-lts were dropped
+  # entirely (self.ai#106). So this image's own python3 (Debian trixie -> 3.13)
+  # now matches what self.ai actually builds and runs, and step 2 installs
+  # cleanly instead of failing resolution.
+  #
+  # allow_failure: FALSE -- the gate is live.
+  #
+  # Held at true until the suite proved itself, which it now has: TWO consecutive
+  # green runs on main (35 tests, 31 passing, 0 failing, 4 pending). One green was
+  # deliberately not enough -- an identical commit measured 19/12 and 20/11
+  # earlier in this work, so the suite carried at least +/-1 run-to-run noise, and
+  # flipping on a single sample would have blocked every MR in the repo on a flaky
+  # gate.
+  #
+  # What made it stable: /api/models and the SSE completion are stubbed, the stub
+  # models are registered as real workspace records (server-side preset validation
+  # needs them), the sidebar is pinned open, the changelog is suppressed, and the
+  # portalled menus are addressed by data-testid instead of text.
+  #
+  # The 4 pending are chat.cy.ts, each skipped INDIVIDUALLY with a checkable
+  # reason in the file -- not a blanket describe.skip.
+  #
+  # If this starts failing intermittently, read cypress/videos + the selfai-api.log
+  # artifact before reverting to allow_failure: it has been faster than the Cypress
+  # output for every round-trip failure in this suite.
+  allow_failure: false
   variables:
     NODE_OPTIONS: --max-old-space-size=6144
     CYPRESS_CACHE_FOLDER: "$CI_PROJECT_DIR/.cache/Cypress"
@@ -267,7 +286,27 @@ e2e:cypress:
     DATA_DIR: "$CI_PROJECT_DIR/.selfai-api-data"
     FRONTEND_BUILD_DIR: "$CI_PROJECT_DIR/build"
     ENABLE_OLLAMA_API: "False"
-    ENABLE_OPENAI_API: "False"
+    # ON, pointed at the in-job mock upstream (step 3.5). This is what lets
+    # chat.cy.ts test generation for real rather than simulating it.
+    ENABLE_OPENAI_API: "True"
+    MOCK_OPENAI_PORT: "8899"
+    OPENAI_API_BASE_URLS: "http://127.0.0.1:8899/v1"
+    # self.ai pairs keys to URLs positionally; the mock ignores the value but the
+    # slot has to exist or the connection is treated as unconfigured.
+    OPENAI_API_KEYS: "cypress-mock-key"
+    # Enable the reference mod so mods-reference.cy.ts tests the REAL mod
+    # surface rather than being carved out. Everything it needs already
+    # ships in self.ai's tree: api/mods/reference/ carries mod.yaml (with
+    # the `frontend` block, add_to_nav: true) and the built, content-hashed
+    # entry bundle, and step 1 below already sparse-checkouts api/ -- so
+    # this is a single env knob, not an install step. The spec grants
+    # itself the `mods.reference.use` scope through the real admin
+    # permissions round-trip, so no extra seeding is needed either.
+    #
+    # The spec's own header called for exactly this ("standing this spec up
+    # for real needs those two knobs: reference-mod enablement + a self.ai
+    # ref carrying those merges"). SELFAI_REF=main now carries them.
+    ENABLED_MODS: "reference"
     SCARF_NO_ANALYTICS: "true"
     DO_NOT_TRACK: "true"
     ANONYMIZED_TELEMETRY: "false"
@@ -279,7 +318,23 @@ e2e:cypress:
     # entirely. git: step 1 below clones self.ai cross-project via job token
     # (see the note there for why it's git, not the repository-archive API).
     # curl: also used later to poll the API's own /health once it's up.
-    - apt-get update && apt-get install -y --no-install-recommends git curl python3 python3-venv python3-pip jq ca-certificates && rm -rf /var/lib/apt/lists/*
+    # ffmpeg: self.ai's audio router now calls ffmpeg/ffprobe DIRECTLY rather
+    # than through pydub (self.ai#106). NOTE this is NOT needed to import the
+    # router -- utils/audio_ffmpeg.py only shells out at call time, which is
+    # precisely the flaw pydub had (it imported the deleted stdlib audioop at
+    # IMPORT time and took the whole router down). It is installed so the
+    # environment under test matches the runtime image, where ffmpeg is now a
+    # hard requirement, rather than passing here and failing in prod.
+    # build-essential/gcc/python3-dev: NOT optional. unstructured==0.16.19 caps
+    # numpy<2, and numpy 1.26.4 publishes wheels for cp39-cp312 ONLY -- no
+    # cp313. On this image's 3.13 pip therefore has to build numpy from its
+    # sdist, and without a toolchain that dies at metadata generation
+    # ("error: metadata-generation-failed ... numpy"). self.ai's own test:api
+    # and api/Dockerfile already apt-install exactly these three for the same
+    # reason; this job was the odd one out. Costs a few minutes of numpy
+    # compile per run. self.ai#108 tracks removing the source build entirely
+    # by lifting the numpy<2 cap, which would make this unnecessary again.
+    - apt-get update && apt-get install -y --no-install-recommends git curl python3 python3-venv python3-pip jq ca-certificates ffmpeg build-essential gcc python3-dev && rm -rf /var/lib/apt/lists/*
     - npm ci
   script:
     # 1. Fetch self.ai's api/ tree only via a sparse, blobless, shallow clone
@@ -308,6 +363,25 @@ e2e:cypress:
     #    fallback to index.html per svelte.config.js) for self.ai's API to
     #    serve same-origin.
     - npm run build
+
+    # 3.5 Start the mock OpenAI upstream BEFORE the API. self.ai queries an
+    #     OpenAI connection's /models when it builds the model list, so an
+    #     upstream that is not listening yet reads as a connection with no
+    #     models rather than as an error worth retrying.
+    - >
+      (MOCK_OPENAI_PORT="$MOCK_OPENAI_PORT" exec node cypress/support/mock-openai.mjs)
+      > "$CI_PROJECT_DIR/mock-openai.log" 2>&1 &
+    - echo $! > /tmp/mock-openai.pid
+    - >
+      for i in $(seq 1 30); do
+        if curl --silent --fail "http://127.0.0.1:${MOCK_OPENAI_PORT}/v1/models" > /dev/null 2>&1; then
+          echo "mock upstream is up (after ${i}x1s polls)"; break;
+        fi
+        if [ "$i" -eq 30 ]; then
+          echo "mock upstream did not start"; cat "$CI_PROJECT_DIR/mock-openai.log"; exit 1;
+        fi
+        sleep 1
+      done
 
     # 4. Start self.ai's API in the background: fresh job-local DATA_DIR (so
     #    the sqlite DB is genuinely empty this run — required for
@@ -338,6 +412,7 @@ e2e:cypress:
     - npm run cy:run
   after_script:
     - kill "$(cat /tmp/selfai-api.pid 2>/dev/null)" 2>/dev/null || true
+    - kill "$(cat /tmp/mock-openai.pid 2>/dev/null)" 2>/dev/null || true
   artifacts:
     when: always
     expire_in: 7 days
@@ -345,6 +420,10 @@ e2e:cypress:
       - cypress/videos/
       - cypress/screenshots/
       - selfai-api.log
+      # The mock's log answers "did the API ever call the upstream, and with
+      # which model id" in one line -- the two questions a failed chat spec
+      # raises first.
+      - mock-openai.log
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: [src/**/*, static/**/*, cypress/**/*, package.json, package-lock.json, cypress.config.ts, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*, .gitlab-ci.yml]

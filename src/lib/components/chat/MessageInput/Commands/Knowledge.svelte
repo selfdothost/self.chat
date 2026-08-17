@@ -8,7 +8,7 @@
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	dayjs.extend(relativeTime);
 
-	import { createEventDispatcher, tick, getContext, onMount } from 'svelte';
+	import { tick, getContext, onMount } from 'svelte';
 	import { removeLastWordFromString, isValidHttpUrl } from '$lib/utils';
 	import { knowledge } from '$lib/stores';
 
@@ -17,11 +17,23 @@
 	interface Props {
 		prompt?: string;
 		command?: string;
+		// Payloads are deliberately different and all three are read by Commands:
+		// onSelect gets the whole knowledge ITEM (spread into `files`), while
+		// onUrl/onYoutube get a bare URL STRING that Commands wraps as
+		// { type: 'web' | 'youtube', data }.
+		onSelect?: (item: unknown) => void;
+		onUrl?: (url: string) => void;
+		onYoutube?: (url: string) => void;
 	}
 
-	let { prompt = $bindable(''), command = '' }: Props = $props();
+	let {
+		prompt = $bindable(''),
+		command = '',
+		onSelect = () => {},
+		onUrl = () => {},
+		onYoutube = () => {}
+	}: Props = $props();
 
-	const dispatch = createEventDispatcher();
 	let selectedIdx = $state(0);
 
 	let items = $state([]);
@@ -53,7 +65,7 @@
 	};
 
 	const confirmSelect = async (item) => {
-		dispatch('select', item);
+		onSelect(item);
 
 		prompt = removeLastWordFromString(prompt, command);
 		const chatInputElement = document.getElementById('chat-input');
@@ -64,7 +76,7 @@
 	};
 
 	const confirmSelectWeb = async (url) => {
-		dispatch('url', url);
+		onUrl(url);
 
 		prompt = removeLastWordFromString(prompt, command);
 		const chatInputElement = document.getElementById('chat-input');
@@ -75,7 +87,7 @@
 	};
 
 	const confirmSelectYoutube = async (url) => {
-		dispatch('youtube', url);
+		onYoutube(url);
 
 		prompt = removeLastWordFromString(prompt, command);
 		const chatInputElement = document.getElementById('chat-input');

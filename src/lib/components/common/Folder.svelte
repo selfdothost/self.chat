@@ -134,14 +134,7 @@
 	{/if}
 
 	{#if collapsible}
-		<Collapsible
-			bind:open
-			className="w-full "
-			buttonClassName="w-full"
-			on:change={(e) => {
-				onChange(e.detail);
-			}}
-		>
+		<Collapsible bind:open className="w-full " buttonClassName="w-full" {onChange}>
 			<div
 				class="w-full group rounded-md relative flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-900 text-gray-500 dark:text-gray-500 transition"
 			>

@@ -1,10 +1,15 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import Tooltip from '../Tooltip.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
-	const dispatch = createEventDispatcher();
 
-	let { tags = [] } = $props();
+	interface Props {
+		tags?: { name: string }[];
+		// Emits the tag NAME, not the tag object -- the previous `delete` event
+		// carried `tag.name` and every consumer treats the payload as a string.
+		onDelete?: (name: string) => void;
+	}
+
+	let { tags = [], onDelete = () => {} }: Props = $props();
 </script>
 
 {#each tags as tag (tag.name)}
@@ -19,7 +24,7 @@
 				<button
 					class="rounded-full border bg-white dark:bg-gray-700 h-full flex self-center cursor-pointer"
 					onclick={() => {
-						dispatch('delete', tag.name);
+						onDelete(tag.name);
 					}}
 					type="button"
 				>

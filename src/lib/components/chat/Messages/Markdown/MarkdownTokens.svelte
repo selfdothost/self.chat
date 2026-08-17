@@ -4,7 +4,7 @@
 	import type { Writable } from 'svelte/store';
 	import type { AnyFn } from '$lib/types';
 	import DOMPurify from 'dompurify';
-	import { createEventDispatcher, getContext } from 'svelte';
+	import { getContext } from 'svelte';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import fileSaver from 'file-saver';
@@ -27,7 +27,6 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ArrowDownTray from '$lib/components/icons/ArrowDownTray.svelte';
 
-	const dispatch = createEventDispatcher();
 
 
 	interface Props {
@@ -36,6 +35,10 @@
 		top?: boolean;
 		save?: boolean;
 		onSourceClick?: AnyFn;
+		// Forwarded up from CodeBlock. `onUpdate` carries the edit shape
+		// { raw, oldContent, newContent }; `onCode` carries { lang, code }.
+		onUpdate?: AnyFn;
+		onCode?: AnyFn;
 	}
 
 	let {
@@ -43,7 +46,9 @@
 		tokens,
 		top = true,
 		save = false,
-		onSourceClick = () => {}
+		onSourceClick = () => {},
+		onUpdate = () => {},
+		onCode = () => {}
 	}: Props = $props();
 
 	const headerComponent = (depth: number) => {
@@ -103,14 +108,12 @@
 				lang={token?.lang ?? ''}
 				code={revertSanitizedResponseContent(token?.text ?? '')}
 				{save}
-				on:code={(e) => {
-					dispatch('code', e.detail);
-				}}
-				on:save={(e) => {
-					dispatch('update', {
+				onCode={(detail) => onCode(detail)}
+				onSave={(newContent) => {
+					onUpdate({
 						raw: token.raw,
 						oldContent: token.text,
-						newContent: e.detail
+						newContent
 					});
 				}}
 			/>
