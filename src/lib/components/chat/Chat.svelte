@@ -59,6 +59,7 @@
 	import { uploadFile } from '$lib/apis/files';
 	import { seedFromFolderPreset } from '$lib/utils/folder-preset';
 	import { blocksImageInput } from '$lib/utils/model-capabilities';
+	import { DESCRIBER_FEATURE_FLAG, describerAvailable } from '$lib/utils/image-describer';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -195,6 +196,21 @@
 	let webCrawlEnabled = $state(false);
 	/** Destination KB for Web Crawl. '' = unconfigured; the tool isn't offered without it. */
 	let webCrawlKbId = $state('');
+	/** self.chat#54 — route images through the instance's vision model so a model
+	 *  that cannot see can still answer about them. Usually switched on by the
+	 *  composer at attach time rather than by the user. */
+	let imageDescriberEnabled = $state(false);
+
+	/**
+	 * Whether the describer will actually run this turn.
+	 *
+	 * The flag alone is not enough to act on: a chat restored from a seed can
+	 * carry a stale `true` from a session where the feature was configured, or
+	 * from a user who has since lost the permission. Re-checking availability
+	 * here means a stale flag degrades to today's refusal instead of sending an
+	 * image the server will reject.
+	 */
+	let describerEngaged = $derived(imageDescriberEnabled && describerAvailable($config, $user));
 
 	let chat = null;
 
@@ -449,6 +465,7 @@
 				selectedToolIds = input.selectedToolIds;
 				webSearchEnabled = input.webSearchEnabled;
 				deepResearchEnabled = input.deepResearchEnabled ?? false;
+				imageDescriberEnabled = input.imageDescriberEnabled ?? false;
 			} catch {
 				prompt = '';
 				files = [];
@@ -457,6 +474,7 @@
 				deepResearchEnabled = false;
 				webCrawlEnabled = false;
 				webCrawlKbId = '';
+				imageDescriberEnabled = false;
 			}
 		}
 
@@ -1559,7 +1577,15 @@
 					// enough on its own: bailing out silently would leave exactly the
 					// blank never-finishing bubble self.chat#52 is about. Mark it
 					// failed and write it through, same as any other terminal error.
-					if (hasImages && blocksImageInput(model)) {
+					//
+					// self.chat#54 — `describerEngaged` is the one way past this guard.
+					// When the instance's image-to-text describer is available AND
+					// switched on for this turn, a model that cannot see is no longer a
+					// dead end: the server describes the image with a vision model and
+					// this model answers from the text. The guard still fires for every
+					// other case, so an unavailable or switched-off describer refuses
+					// exactly as before rather than sending an image that 500s.
+					if (hasImages && blocksImageInput(model) && !describerEngaged) {
 						const errorContent = $i18n.t('Model {{modelName}} is not vision capable', {
 							modelName: model.name ?? model.id
 						});
@@ -1726,7 +1752,13 @@
 				features: {
 					web_search: webSearchEnabled,
 					deep_research: deepResearchEnabled,
-					web_crawl: webCrawlEnabled
+					web_crawl: webCrawlEnabled,
+					// self.chat#54 — computed key, not a literal: self.ai#142 owns this
+					// name and had not published it, so the guess lives in exactly one
+					// place ($lib/utils/image-describer). `describerEngaged`, not the raw
+					// flag, so a stale restored draft cannot ask for a describe the user
+					// is no longer entitled to.
+					[DESCRIBER_FEATURE_FLAG]: describerEngaged
 				},
 
 				// Sibling of `features`, not inside it: features carries booleans,
@@ -2066,6 +2098,7 @@
 				deepResearchEnabled = false;
 				webCrawlEnabled = false;
 				webCrawlKbId = '';
+				imageDescriberEnabled = false;
 
 				loaded = false;
 
@@ -2092,6 +2125,7 @@
 							deepResearchEnabled = input.deepResearchEnabled ?? false;
 							webCrawlEnabled = input.webCrawlEnabled ?? false;
 							webCrawlKbId = input.webCrawlKbId ?? '';
+							imageDescriberEnabled = input.imageDescriberEnabled ?? false;
 						} catch {
 							// Corrupt/unparsable saved draft — leave the already-reset
 							// prompt/files/etc. defaults in place rather than restoring.
@@ -2261,6 +2295,7 @@
 								bind:deepResearchEnabled
 								bind:webCrawlEnabled
 								bind:webCrawlKbId
+								bind:imageDescriberEnabled
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{composerAccessory}
@@ -2314,6 +2349,7 @@
 								bind:deepResearchEnabled
 								bind:webCrawlEnabled
 								bind:webCrawlKbId
+								bind:imageDescriberEnabled
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{composerAccessory}

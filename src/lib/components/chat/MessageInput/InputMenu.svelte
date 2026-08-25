@@ -8,8 +8,9 @@
 	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
 	import { getContext, tick } from 'svelte';
 
-	import { config, tools as _tools, mobile } from '$lib/stores';
+	import { config, tools as _tools, mobile, user } from '$lib/stores';
 	import { getTools } from '$lib/apis/tools';
+	import { describerAvailable } from '$lib/utils/image-describer';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -19,6 +20,7 @@
 	import Cog6Solid from '$lib/components/icons/Cog6Solid.svelte';
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
 	import CameraSolid from '$lib/components/icons/CameraSolid.svelte';
+	import SparklesSolid from '$lib/components/icons/SparklesSolid.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -38,6 +40,10 @@
 		webCrawlKbId?: string;
 		/** Opens the Configure modal (owned by the parent, so it survives this dropdown closing). */
 		onConfigureWebCrawl?: AnyFn;
+		/** self.chat#54 — the image-to-text describer. The composer switches this
+		 *  on by itself when an image is attached to a model that cannot see; the
+		 *  entry here is what lets the user switch it back off. */
+		imageDescriberEnabled?: boolean;
 		onClose: AnyFn;
 		children?: import('svelte').Snippet;
 	}
@@ -52,6 +58,7 @@
 		webCrawlEnabled = $bindable(false),
 		webCrawlKbId = $bindable(''),
 		onConfigureWebCrawl = () => {},
+		imageDescriberEnabled = $bindable(false),
 		onClose,
 		children
 	}: Props = $props();
@@ -232,6 +239,29 @@
 							}}
 						/>
 					</div>
+
+					<hr class="border-black/5 dark:border-white/5 my-1" />
+				{/if}
+
+				<!-- self.chat#54 — shown only when the describer is genuinely usable:
+				     enabled instance-wide, a default vision model configured, and this
+				     user holding the permission. The composer switches it on by itself
+				     when an image is attached to a model that cannot see; this entry
+				     exists so that is reversible like any other tool. -->
+				{#if describerAvailable($config, $user)}
+					<button
+						class="flex w-full justify-between gap-2 items-center px-3 py-2 text-sm font-medium cursor-pointer rounded-xl"
+						onclick={() => {
+						imageDescriberEnabled = !imageDescriberEnabled;
+					}}
+					>
+						<div class="flex-1 flex items-center gap-2">
+							<SparklesSolid />
+							<div class="text-left line-clamp-1">{$i18n.t('Describe Images')}</div>
+						</div>
+
+						<Switch state={imageDescriberEnabled} />
+					</button>
 
 					<hr class="border-black/5 dark:border-white/5 my-1" />
 				{/if}

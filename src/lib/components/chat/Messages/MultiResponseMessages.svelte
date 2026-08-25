@@ -155,7 +155,13 @@
 			? history.messages[history.messages[messageId].parentId]
 			: null;
 
-		groupedMessageIds = parentMessage?.models.reduce((a, model, modelIdx) => {
+		// `?? {}` matters as much as the `?.` on `.models`: a parent message with
+		// no `models` array makes the whole optional-chained expression
+		// `undefined`, which would replace the `{}` initializer and then throw
+		// `Object.keys(undefined)` in the template below — inside `{#if
+		// parentMessage}`, which is true in exactly that case. That is the same
+		// blank-page class as #61, just relocated. Keep both fallbacks.
+		groupedMessageIds = parentMessage?.models?.reduce((a, model, modelIdx) => {
 			// Find all messages that are children of the parent message and have the same model
 			let modelMessageIds = parentMessage?.childrenIds
 				.map((id) => history.messages[id])
@@ -180,9 +186,9 @@
 				...a,
 				[modelIdx]: { messageIds: modelMessageIds }
 			};
-		}, {});
+		}, {}) ?? {};
 
-		groupedMessageIdsIdx = parentMessage?.models.reduce((a, model, modelIdx) => {
+		groupedMessageIdsIdx = parentMessage?.models?.reduce((a, model, modelIdx) => {
 			const idx = groupedMessageIds[modelIdx].messageIds.findIndex((id) => id === messageId);
 			if (idx !== -1) {
 				return {
@@ -195,7 +201,7 @@
 					[modelIdx]: groupedMessageIds[modelIdx].messageIds.length - 1
 				};
 			}
-		}, {});
+		}, {}) ?? {};
 
 		console.log(groupedMessageIds, groupedMessageIdsIdx);
 

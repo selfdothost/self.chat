@@ -26,10 +26,6 @@
 
 	let { sources = [] }: Props = $props();
 
-	let citations: Citation[] = $state();
-	let showPercentage: boolean = $state();
-	let showRelevance: boolean = $state();
-
 	let showCitationModal = $state(false);
 	let selectedCitation: Citation | null = $state(null);
 	let isCollapsibleOpen = $state(false);
@@ -58,9 +54,20 @@
 		return distances.every((d) => d !== undefined && d >= -1 && d <= 1);
 	}
 
-	$effect(() => {
-		citations = sources.reduce((acc, source) => {
+	// $derived evaluates eagerly on first read — no undefined window between
+	// mount and the first $effect tick, which previously threw
+	// "Cannot read properties of undefined (reading 'length')" and blanked the
+	// whole chat page (issue #61).
+	let citations = $derived(
+		sources.reduce((acc, source) => {
 			if (Object.keys(source).length === 0) {
+				return acc;
+			}
+
+			// Guard: a source record may have keys but no document array
+			// (e.g. a zero-file KB attached model). The Object.keys check above
+			// only catches completely empty objects.
+			if (!source.document) {
 				return acc;
 			}
 
@@ -99,11 +106,11 @@
 				}
 			});
 			return acc;
-		}, []);
+		}, [] as Citation[])
+	);
 
-		showRelevance = calculateShowRelevance(citations);
-		showPercentage = shouldShowPercentage(citations);
-	});
+	let showRelevance = $derived(calculateShowRelevance(citations));
+	let showPercentage = $derived(shouldShowPercentage(citations));
 </script>
 
 <CitationsModal

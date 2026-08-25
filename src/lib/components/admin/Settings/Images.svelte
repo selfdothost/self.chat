@@ -7,7 +7,16 @@
 	import { toast } from 'svelte-sonner';
 
 	import { onMount, getContext } from 'svelte';
-	import { config as backendConfig, user } from '$lib/stores';
+	// `models` here is the local image-GENERATION model list; the app-wide model
+	// catalog is aliased, since the Input section picks a vision model out of it.
+	import { config as backendConfig, models as chatModels, user } from '$lib/stores';
+
+	import {
+		adminConfigWithDescriber,
+		emptyDescriberSettings,
+		modelsThatCanSee,
+		readAdminDescriberSettings
+	} from '$lib/utils/image-describer';
 
 	import { getBackendConfig } from '$lib/apis';
 	import {
@@ -36,6 +45,34 @@
 	let imageGenerationConfig = $state(null);
 
 	let models = $state(null);
+
+	// self.chat#54 — the Input (describer) settings, self.ai#142's
+	// `input.describer` object.
+	//
+	// Held apart from `config` on purpose. `updateConfigHandler()` below
+	// overwrites `config` wholesale with the server's response, so binding the
+	// form straight to `config.input.describer` would put the admin's
+	// in-progress Input edits at the mercy of every Generations switch they
+	// touch. Kept separate, it is merged in at each POST instead.
+	let describer = $state(emptyDescriberSettings());
+
+	/** Models an admin may pick as the instance default: the ones that can see. */
+	let visionModels = $derived(modelsThatCanSee($chatModels));
+
+	/**
+	 * True when the configured default is no longer among the models that can
+	 * see — a model was deleted, or self.ai#139's derivation moved it from
+	 * `vision: true` to a hard `false`. Saying so is better than silently
+	 * dropping the value out of the picker.
+	 */
+	let describerModelIsStale = $derived(
+		describer.model !== '' && !visionModels.some((model) => model.id === describer.model)
+	);
+
+	/** The images config as it goes on the wire, with the Input section folded in
+	 *  under `input.describer`. The nesting lives in $lib/utils/image-describer,
+	 *  not here. */
+	const configWithDescriber = () => adminConfigWithDescriber(config, describer);
 
 	let samplers = [
 		'DPM++ 2M',
@@ -115,7 +152,7 @@
 	};
 
 	const updateConfigHandler = async () => {
-		const res = await updateConfig(localStorage.token, config)
+		const res = await updateConfig(localStorage.token, configWithDescriber())
 			.catch((error) => {
 				toast.error(error);
 				return null;
@@ -152,6 +189,21 @@
 	const saveHandler = async () => {
 		loading = true;
 
+		// Form validation, NOT a second copy of the availability gate. self.ai#142
+		// owns that: it publishes `features.enable_image_input_describer` as
+		// enable-AND-a-model, so an enabled-but-unconfigured instance already
+		// reads as unavailable everywhere and the client never re-derives it.
+		//
+		// What this stops is an admin storing that state at all — #142's own
+		// rationale is that enabled-with-no-model is "a describe that reports a
+		// failure". Refusing at the form means the panel never shows a switch that
+		// reads as on while every consumer treats it as off.
+		if (describer.enabled && describer.model === '') {
+			toast.error($i18n.t('Select a vision model to describe images with.'));
+			loading = false;
+			return;
+		}
+
 		if (config?.comfyui?.COMFYUI_WORKFLOW) {
 			if (!validateJSON(config.comfyui.COMFYUI_WORKFLOW)) {
 				toast.error('Invalid JSON format for ComfyUI Workflow.');
@@ -171,7 +223,7 @@
 			});
 		}
 
-		await updateConfig(localStorage.token, config).catch((error) => {
+		await updateConfig(localStorage.token, configWithDescriber()).catch((error) => {
 			toast.error(error);
 			loading = false;
 			return null;
@@ -197,6 +249,7 @@
 
 			if (res) {
 				config = res;
+				describer = readAdminDescriberSettings(res);
 			}
 
 			if (config.enabled) {
@@ -243,8 +296,66 @@
 >
 	<div class=" space-y-3 overflow-y-scroll scrollbar-hidden pr-2">
 		{#if config && imageGenerationConfig}
+			<!-- self.chat#54 — Input sits ABOVE Generations. Images arriving is the
+			     first thing that happens to an image; generating one is the second. -->
 			<div>
-				<div class=" mb-1 text-sm font-medium">{$i18n.t('Image Settings')}</div>
+				<div class=" mb-1 text-sm font-medium">{$i18n.t('Input')}</div>
+
+				<div>
+					<div class=" py-0.5 flex w-full justify-between">
+						<div class=" self-center text-xs font-medium">
+							{$i18n.t('Describe Images for Models That Cannot See')}
+						</div>
+
+						<div class="px-1">
+							<Switch bind:state={describer.enabled} />
+						</div>
+					</div>
+				</div>
+
+				{#if describer.enabled}
+					<div class="mt-2">
+						<div class=" mb-1 text-xs font-medium">{$i18n.t('Default Vision Model')}</div>
+
+						<Tooltip
+							content={$i18n.t('Only models declaring `capabilities.vision` can be selected.')}
+							placement="top-start"
+						>
+							<select
+								class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+								bind:value={describer.model}
+							>
+								<option value="">{$i18n.t('Select a model')}</option>
+
+								{#each visionModels as model (model.id)}
+									<option value={model.id}>{model.name ?? model.id}</option>
+								{/each}
+
+								<!-- A stored id that is no longer vision-capable would otherwise
+								     vanish from the picker and read as "nothing configured",
+								     while still being the value that gets saved back. Keep it
+								     visible and labelled instead. -->
+								{#if describerModelIsStale}
+									<option value={describer.model}
+										>{describer.model} — {$i18n.t('no longer reports vision')}</option
+									>
+								{/if}
+							</select>
+						</Tooltip>
+
+						{#if visionModels.length === 0}
+							<div class="mt-1 text-xs text-gray-500">
+								{$i18n.t('No model currently declares vision support.')}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<hr class=" dark:border-gray-850" />
+
+			<div>
+				<div class=" mb-1 text-sm font-medium">{$i18n.t('Generations')}</div>
 
 				<div>
 					<div class=" py-0.5 flex w-full justify-between">

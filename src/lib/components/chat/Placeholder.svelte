@@ -43,6 +43,9 @@
 		deepResearchEnabled?: boolean;
 		webCrawlEnabled?: boolean;
 		webCrawlKbId?: string;
+		/** self.chat#54 — pass-through to the composer, which switches it on when
+		 *  an image is attached to a model that cannot see. */
+		imageDescriberEnabled?: boolean;
 		onUpload?: AnyFn;
 		onSubmit?: AnyFn;
 		/** Passed straight through to the composer. Omitted means nothing extra is
@@ -66,6 +69,7 @@
 		deepResearchEnabled = $bindable(false),
 		webCrawlEnabled = $bindable(false),
 		webCrawlKbId = $bindable(''),
+		imageDescriberEnabled = $bindable(false),
 		onUpload = () => {},
 		onSubmit = () => {},
 		composerAccessory = undefined
@@ -236,6 +240,7 @@
 					bind:deepResearchEnabled
 					bind:webCrawlEnabled
 					bind:webCrawlKbId
+					bind:imageDescriberEnabled
 					bind:atSelectedModel
 					{transparentBackground}
 					{composerAccessory}

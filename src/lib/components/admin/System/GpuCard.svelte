@@ -32,7 +32,11 @@
 	<div class="flex flex-wrap justify-center gap-4">
 		<div class="flex flex-col items-center">
 			<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{$i18n.t('Utilization')}</div>
-			<ArcGauge percent={gpu.utilization} label="" size={120} />
+			{#if gpu.utilization != null}
+				<ArcGauge percent={gpu.utilization} label="" size={120} />
+			{:else}
+				<span class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Not tracked')}</span>
+			{/if}
 		</div>
 
 		<div class="flex flex-col items-center">

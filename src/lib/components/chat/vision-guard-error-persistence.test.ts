@@ -20,6 +20,14 @@ const messageInputSrc = readFileSync(
 	'utf-8'
 );
 
+// self.chat#54 added one condition to this guard (`&& !describerEngaged`, the
+// escape hatch for the image-to-text describer). The guard itself, and
+// everything #51 and #52 assert about it, is unchanged — so these tests find it
+// by its stable prefix rather than by an exact line that a later condition
+// keeps invalidating. #54's own behaviour is asserted in
+// describer-auto-enable.test.ts.
+const GUARD_PREFIX = 'if (hasImages && blocksImageInput(model)';
+
 describe('self.chat#51: the vision guard fires and stops the send', () => {
 	it('no longer defaults an unknown capability to vision-capable', () => {
 		// The expression that made the guard dead code for the 97-of-101 models
@@ -34,7 +42,7 @@ describe('self.chat#51: the vision guard fires and stops the send', () => {
 	});
 
 	it('short-circuits the send for a model that refuses images', () => {
-		const guardIdx = chatSrc.indexOf('if (hasImages && blocksImageInput(model))');
+		const guardIdx = chatSrc.indexOf(GUARD_PREFIX);
 		expect(guardIdx).toBeGreaterThan(-1);
 
 		// The guard block runs up to the next statement in the map callback.
@@ -50,7 +58,7 @@ describe('self.chat#51: the vision guard fires and stops the send', () => {
 		// The placeholder response message is created and saved BEFORE the
 		// Promise.all, so a bare `return` would refuse the send and still leave a
 		// blank never-finishing bubble — self.chat#52's symptom by another route.
-		const guardIdx = chatSrc.indexOf('if (hasImages && blocksImageInput(model))');
+		const guardIdx = chatSrc.indexOf(GUARD_PREFIX);
 		const guard = chatSrc.slice(guardIdx, chatSrc.indexOf('let userContext', guardIdx));
 
 		expect(guard).toContain('responseMessage.error');
@@ -61,7 +69,7 @@ describe('self.chat#51: the vision guard fires and stops the send', () => {
 	it('reads the response message before the guard, not after it', () => {
 		// The lookup used to sit below the guard; the early return needs it above.
 		const lookupIdx = chatSrc.indexOf('let responseMessageId =\n\t\t\t\t\t\tresponseMessageIds[');
-		const guardIdx = chatSrc.indexOf('if (hasImages && blocksImageInput(model))');
+		const guardIdx = chatSrc.indexOf(GUARD_PREFIX);
 		expect(lookupIdx).toBeGreaterThan(-1);
 		expect(lookupIdx).toBeLessThan(guardIdx);
 	});

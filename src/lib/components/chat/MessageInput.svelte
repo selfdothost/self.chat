@@ -14,6 +14,7 @@
 
 	import { blobToFile, compressImage, createMessagesList, findWordIndices } from '$lib/utils';
 	import { blocksImageInput } from '$lib/utils/model-capabilities';
+	import { describerAvailable } from '$lib/utils/image-describer';
 	import { transcribeAudio } from '$lib/apis/audio';
 	import { uploadFile } from '$lib/apis/files';
 
@@ -92,6 +93,10 @@
 		deepResearchEnabled?: boolean;
 		webCrawlEnabled?: boolean;
 		webCrawlKbId?: string;
+		/** self.chat#54 — the image-to-text describer. Bindable because the
+		 *  composer TURNS IT ON when an image is attached to a model that cannot
+		 *  see; the parent owns the value and puts it on the wire. */
+		imageDescriberEnabled?: boolean;
 		placeholder?: string;
 		/** An optional extra control rendered in the composer's toolbar, beside
 		 *  the "+" menu. Omitted means nothing is rendered there, which is exactly
@@ -125,6 +130,7 @@
 		deepResearchEnabled = $bindable(false),
 		webCrawlEnabled = $bindable(false),
 		webCrawlKbId = $bindable(''),
+		imageDescriberEnabled = $bindable(false),
 		placeholder = '',
 		composerAccessory = undefined
 	}: Props = $props();
@@ -185,13 +191,43 @@
 	 * anyway; paste and screen capture never checked at all. Refuses only when
 	 * NO selected model will take an image — with one that will, the composer
 	 * accepts and the per-model guard in Chat.svelte handles the rest.
+	 *
+	 * self.chat#54 — that refusal is now CONDITIONAL. If the instance has an
+	 * image-to-text describer available to this user, an image sent to a model
+	 * that cannot see is not a dead end: a vision model describes it and the
+	 * target model answers from the text. So the image attaches and the
+	 * describer turns on.
+	 *
+	 * This runs from the four attach EVENT HANDLERS — drop/picker, both paste
+	 * paths, screen capture — and nowhere else. Deliberately not an `$effect`:
+	 * an effect that read the attached files and wrote the tool flag would be
+	 * the self-writing shape that killed a whole route in #33. Attaching is a
+	 * user action with an obvious moment; the write belongs at that moment.
+	 *
+	 * Turning it on here (rather than at send) is also what keeps the eager
+	 * "describe in the background while the user types" work cheap to add
+	 * later: attach time is already where the decision is made.
 	 */
 	const canAttachImage = () => {
-		if (visionCapableModels.length === 0) {
-			toast.error($i18n.t('Selected model(s) do not support image inputs'));
-			return false;
+		// A mixed selection still includes a model that cannot see the image, so
+		// it needs the describer just like an entirely non-vision selection.
+		if (selectedModelIds.length > 0 && selectedModelIds.length === visionCapableModels.length) {
+			return true;
 		}
-		return true;
+
+		if (describerAvailable($config, $_user)) {
+			// Not silent: this shows up in the tool indicator strip above the
+			// prompt, the same affordance every other switched-on tool uses, and
+			// the user can switch it back off there.
+			imageDescriberEnabled = true;
+			return true;
+		}
+
+		// Unavailable — disabled instance-wide, no default vision model, or this
+		// user lacks the permission. Refuse exactly as before. Attaching anyway
+		// would be the warn-then-500 path self.chat#51 removed.
+		toast.error($i18n.t('Selected model(s) do not support image inputs'));
+		return false;
 	};
 
 	const scrollToBottom = () => {
@@ -458,7 +494,8 @@
 			webSearchEnabled,
 			deepResearchEnabled,
 			webCrawlEnabled,
-			webCrawlKbId
+			webCrawlKbId,
+			imageDescriberEnabled
 		});
 	});
 </script>
@@ -510,7 +547,7 @@
 				</div>
 
 				<div class="w-full relative">
-					{#if atSelectedModel !== undefined || selectedToolIds.length > 0 || webSearchEnabled || deepResearchEnabled || webCrawlEnabled}
+					{#if atSelectedModel !== undefined || selectedToolIds.length > 0 || webSearchEnabled || deepResearchEnabled || webCrawlEnabled || imageDescriberEnabled}
 						<div
 							class="px-3 pb-0.5 pt-1.5 text-left w-full flex flex-col absolute bottom-0 left-0 right-0 bg-linear-to-t from-white dark:from-gray-900 z-10"
 						>
@@ -591,6 +628,30 @@
 										</div>
 										<div class=" translate-y-[0.5px]">
 											{$i18n.t('Crawl a site into a knowledge base')}
+										</div>
+									</div>
+								</div>
+							{/if}
+
+							<!-- self.chat#54 — the describer announces itself in the same strip
+							     as every other switched-on tool. It is frequently switched on by
+							     the composer rather than the user (attaching an image to a model
+							     that cannot see), so being visible here is the whole point: a
+							     second model is about to be involved, and the user can turn it
+							     off from the same menu as any other tool. -->
+							{#if imageDescriberEnabled}
+								<div class="flex items-center justify-between w-full">
+									<div class="flex items-center gap-2.5 text-sm dark:text-gray-500">
+										<div class="pl-1">
+											<span class="relative flex size-2">
+												<span
+													class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"
+												></span>
+												<span class="relative inline-flex rounded-full size-2 bg-purple-500"></span>
+											</span>
+										</div>
+										<div class=" translate-y-[0.5px]">
+											{$i18n.t('Describe images with a vision model')}
 										</div>
 									</div>
 								</div>
@@ -721,7 +782,11 @@
 															alt="input"
 															imageClassName=" h-16 w-16 rounded-xl object-cover"
 														/>
-														{#if selectedModelIds.length !== visionCapableModels.length}
+														<!-- self.chat#54 — the describer being on is the answer to
+														     this warning, so the two must not be shown together:
+														     one says the image will be ignored, the other says it
+														     will be described. -->
+														{#if selectedModelIds.length !== visionCapableModels.length && !imageDescriberEnabled}
 															<Tooltip
 																className=" absolute top-1 left-1"
 																content={$i18n.t('{{ models }}', {
@@ -796,6 +861,7 @@
 											bind:deepResearchEnabled
 											bind:webCrawlEnabled
 											bind:webCrawlKbId
+											bind:imageDescriberEnabled
 											onConfigureWebCrawl={() => (showWebCrawlModal = true)}
 											bind:selectedToolIds
 											{screenCaptureHandler}

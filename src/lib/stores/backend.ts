@@ -21,6 +21,12 @@ export type Config = {
 		enable_web_search?: boolean;
 		enable_deep_research?: boolean;
 		enable_web_crawl?: boolean;
+		// self.chat#54 / self.ai#142. NOT a bare mirror of
+		// ENABLE_IMAGE_INPUT_DESCRIBER: the server publishes it as that flag AND a
+		// non-empty IMAGE_INPUT_DESCRIBER_MODEL, so an enabled-but-unconfigured
+		// instance reads as false here and never offers the toggle. Consume it as
+		// given — re-deriving the model half client-side is how the two drift.
+		enable_image_input_describer?: boolean;
 		enable_websocket?: boolean;
 		enable_ldap?: boolean;
 		enable_curator?: boolean;

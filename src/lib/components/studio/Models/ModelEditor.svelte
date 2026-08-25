@@ -16,6 +16,7 @@
 	import ActionsSelector from '$lib/components/studio/Models/ActionsSelector.svelte';
 	import Capabilities from '$lib/components/studio/Models/Capabilities.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
+	import { mergeModelIntoEditorInfo } from '$lib/components/studio/Models/model-editor-init';
 	import { getTools } from '$lib/apis/tools';
 	import { getFunctions } from '$lib/apis/functions';
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
@@ -93,8 +94,34 @@
 	let params: ModelParams = $state({
 		system: ''
 	});
+	// self.chat#54 — `vision` starts UNDECLARED, not `true`.
+	//
+	// This is a form default, not an admin decision, but self.ai's precedence
+	// rule treats an explicit row value as an authoritative override — so a
+	// `true` stamped here beats the value self.ai#139 derives from llamolotl's
+	// `architecture.input_modalities`. Measured consequence: `gem8y` (base
+	// `gemma-4-26B-A4B`, which declares `input_modalities: ["text"]`) reported
+	// `capabilities.vision: true`, so images attached at the composer and then
+	// failed at the backend with a 500 instead of being refused at the input.
+	//
+	// `undefined` is the right default rather than `false` because the three
+	// states are not two (see $lib/utils/model-capabilities):
+	//
+	//   true      — the admin ticked the box. Authoritative; this is the only
+	//               source of truth for cloud-backed models like `numberone`,
+	//               which expose no `architecture` to derive from.
+	//   false     — the admin ticked and un-ticked it. Also authoritative, and
+	//               a hard block.
+	//   undefined — nobody said. The key is dropped by JSON.stringify on save,
+	//               so the row carries no override and the derived value wins.
+	//
+	// The key stays present in this object on purpose: Capabilities.svelte
+	// renders `Object.keys(capabilities)`, so dropping it would remove the
+	// checkbox and leave the admin no way to declare vision at all. An
+	// `undefined` value renders unchecked, which is the honest presentation of
+	// "not declared".
 	let capabilities = $state({
-		vision: true,
+		vision: undefined,
 		usage: undefined,
 		citations: true
 	});
@@ -325,7 +352,9 @@
 			capabilities = { ...capabilities, ...(model?.meta?.capabilities ?? {}) };
 
 			if ('access_control' in model) {
-				accessControl = model.access_control;
+				// model.access_control is typed as `Record<string, any> | null`; guard
+				// the null case so AccessControl.svelte always receives an object.
+				accessControl = model.access_control ?? {};
 			} else {
 				accessControl = {};
 			}
@@ -333,19 +362,12 @@
 			console.log(model?.access_control);
 			console.log(accessControl);
 
-			info = {
-				...info,
-				...JSON.parse(
-					JSON.stringify(
-						model
-							? model
-							: {
-									id: model.id,
-									name: model.name
-								}
-					)
-				)
-			};
+			// mergeModelIntoEditorInfo deep-clones model, spreads it onto info, and
+			// normalises fields that Svelte 5 prop-type validation requires to be
+			// specific types (e.g. params.system must be a string, not null).
+			// self.chat#55: without this normalisation, reopening the editor on a
+			// model saved without a system prompt crashed with props_invalid_value.
+			info = mergeModelIntoEditorInfo(info, model);
 
 			console.log(model);
 		}
