@@ -164,7 +164,25 @@ build:web:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: [src/**/*, static/**/*, package.json, package-lock.json, Dockerfile, nginx.conf, svelte.config.js, vite.config.ts, tailwind.config.js, postcss.config.js, scripts/**/*, .gitlab-ci.yml]
 
-# --- publish: build + push :sha / :latest (main only) ---
+# --- publish: build + push :sha / :latest / :build-<pipeline-iid> (main only) -
+# The :build-${CI_PIPELINE_IID} tag is prerequisite 1 of selfai/self.ai#148
+# (activate the staged Flux image automation and end the two-MR deploy pattern).
+# The ImagePolicy selects on
+#   filterTags: { pattern: '^build-(?P<build>[0-9]+)$' }
+#   policy:     { numerical: { order: asc } }
+# IID is per-project and strictly increasing — exactly the ordering the policy
+# assumes. The 'build-' PREFIX is not cosmetic: a bare-numeric tag cannot be
+# distinguished from an all-digit short sha (chat has one live, 15212760,
+# worth 15,212,760 to a numerical policy — it would beat every real IID for
+# years and pin prod to an old commit). Forge runs the same shape
+# (v<version>-<build>).
+#
+# Emitting the tag does NOT activate anything on its own: automation.yaml is
+# still out of manifests/kustomization.yaml, and prerequisite 2 (a write-capable
+# git token for ImageUpdateAutomation — flux/self-ai is read_repository only) is
+# an admiral/mint exit per #148, not something CI can grant itself. Until both
+# land, kustomization.yaml keeps hand-pinning and this tag is simply a third
+# name for the same image.
 publish:web:
   stage: publish
   image: { name: "$BUILDKIT_IMAGE", entrypoint: [""] }
@@ -172,7 +190,7 @@ publish:web:
   timeout: 1h
   before_script: *buildkit-before
   script:
-    - export TAGS="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA},${CI_REGISTRY_IMAGE}:latest"
+    - export TAGS="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA},${CI_REGISTRY_IMAGE}:latest,${CI_REGISTRY_IMAGE}:build-${CI_PIPELINE_IID}"
     - 'export OUT="type=image,\"name=${TAGS}\",push=true"'
     - >
       buildctl-daemonless.sh build

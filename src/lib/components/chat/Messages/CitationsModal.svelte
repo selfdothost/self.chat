@@ -3,6 +3,7 @@
 	import type { Writable } from 'svelte/store';
 	import { getContext } from 'svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
+	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
@@ -24,7 +25,38 @@
 		showRelevance = true
 	}: Props = $props();
 
-	let mergedDocuments = $state([]);
+	// The old shape of this block was a self-writing $effect: it assigned
+	// mergedDocuments, then READ it back (`.every`) and assigned it again. An
+	// effect that writes what it reads loops forever; Svelte throws, nothing
+	// catches it, and the whole route dies with a frozen modal shell on top —
+	// the "empty modal that says Citation and won't close" report. Same class
+	// as #61 (bare $state filled post-mount) and #33. Pure derivation instead:
+	// evaluates eagerly, cannot loop, and `?? []` means {#each} never sees
+	// undefined when a citation record arrives without a document array.
+	let mergedDocuments = $derived.by(() => {
+		if (!citation?.document) {
+			return [];
+		}
+
+		const documents = citation.document.map((c, i) => {
+			return {
+				source: citation.source,
+				document: c,
+				metadata: citation.metadata?.[i],
+				distance: citation.distances?.[i]
+			};
+		});
+
+		if (documents.length > 0 && documents.every((doc) => doc.distance !== undefined)) {
+			// Sort a copy — the mapped array is shared with the derived's own
+			// output and in-place sort would make the derivation mutate state.
+			return [...documents].sort(
+				(a, b) => (b.distance ?? Infinity) - (a.distance ?? Infinity)
+			);
+		}
+
+		return documents;
+	});
 
 	function calculatePercentage(distance: number) {
 		if (distance < 0) return 0;
@@ -41,24 +73,6 @@
 			return 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200';
 		return 'bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200';
 	}
-
-	$effect(() => {
-		if (citation) {
-			mergedDocuments = citation.document?.map((c, i) => {
-				return {
-					source: citation.source,
-					document: c,
-					metadata: citation.metadata?.[i],
-					distance: citation.distances?.[i]
-				};
-			});
-			if (mergedDocuments.every((doc) => doc.distance !== undefined)) {
-				mergedDocuments = mergedDocuments.sort(
-					(a, b) => (b.distance ?? Infinity) - (a.distance ?? Infinity)
-				);
-			}
-		}
-	});
 </script>
 
 <Modal size="lg" bind:show>
@@ -68,6 +82,8 @@
 				{$i18n.t('Citation')}
 			</div>
 			<button
+				type="button"
+				aria-label={$i18n.t('Close')}
 				class="self-center"
 				onclick={() => {
 					show = false;
@@ -90,7 +106,23 @@
 			<div
 				class="flex flex-col w-full dark:text-gray-200 overflow-y-scroll max-h-[22rem] scrollbar-hidden"
 			>
-				{#each mergedDocuments as document, documentIdx (document.document)}
+				{#if !citation}
+					<!-- Opened without a selected citation yet: a real (brief) not-ready
+					     state. A spinner here tells the user the modal is alive rather
+					     than silently blank. -->
+					<div class="flex flex-col items-center justify-center gap-3 py-10 text-gray-500">
+						<Spinner className="size-5" />
+						<span class="text-sm">{$i18n.t('Loading citation...')}</span>
+					</div>
+				{:else if mergedDocuments.length === 0}
+					<!-- Distinct from loading: the citation exists but carries no
+					     document chunks. Content is synchronous — nothing is coming,
+					     and showing a spinner here would be a lie. -->
+					<div class="flex flex-col items-center justify-center gap-2 py-10 text-gray-500">
+						<span class="text-sm">{$i18n.t('No content available for this citation.')}</span>
+					</div>
+				{:else}
+					{#each mergedDocuments as document, documentIdx (document.document)}
 					<div class="flex flex-col w-full">
 						<div class="text-sm font-medium dark:text-gray-300">
 							{$i18n.t('Source')}
@@ -184,7 +216,8 @@
 					{#if documentIdx !== mergedDocuments.length - 1}
 						<hr class=" dark:border-gray-850 my-3" />
 					{/if}
-				{/each}
+					{/each}
+				{/if}
 			</div>
 		</div>
 	</div>
