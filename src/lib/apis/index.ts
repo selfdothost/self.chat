@@ -545,6 +545,52 @@ export const generateMoACompletion = async (
 	return [res, controller];
 };
 
+/**
+ * Summarize a conversation's retired turns (self.chat compaction).
+ *
+ * `messages` carries the transcript the caller serialized — turn markers
+ * already baked in ([turn N] USER: ...) — because the caller owns the
+ * history tree and the turn numbering that persists across compactions.
+ * Returns the summary text, not the raw completion. Errors propagate
+ * (including 404 when the backend predates the endpoint): the caller toasts
+ * and disables the affordance rather than silently compacting nothing.
+ */
+export const generateCompactCompletion = async (
+	token: string = '',
+	model: string,
+	messages: object[],
+	chatId?: string
+): Promise<string> => {
+	const res = await fetch(`${WEBUI_BASE_URL}/api/v1/tasks/compact/completions`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({
+			model,
+			messages,
+			chat_id: chatId,
+			stream: false
+		})
+	});
+
+	if (!res.ok) {
+		// 404 = the backend predates the endpoint (or the model is unknown);
+		// anything else is a generation failure. Either way the caller needs
+		// the status, not just "failed".
+		throw new Error(`compaction request failed: ${res.status}`);
+	}
+
+	const data = await res.json();
+	const content = data?.choices?.[0]?.message?.content;
+	if (typeof content !== 'string') {
+		throw new Error('compaction returned no content');
+	}
+	return content;
+};
+
 export const getPipelinesList = async (token: string = '') => {
 	let error = null;
 

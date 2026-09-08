@@ -29,7 +29,15 @@ export const stubModel = {
 	created: 0,
 	owned_by: 'openai',
 	urlIdx: 0,
-	actions: []
+	actions: [],
+	// /api/models publishes the served context window (self.ai#87) and the
+	// client reads it for the composer's context status line. 8192 keeps the
+	// arithmetic small enough to eyeball in failures.
+	context_length: 8192,
+	// The client only asks for streamed usage when the model declares the
+	// capability (Chat.svelte gates stream_options.include_usage on it), so
+	// without this the status line can never exercise its measured path.
+	info: { meta: { capabilities: { usage: true } } }
 };
 
 /**

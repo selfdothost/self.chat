@@ -13,6 +13,10 @@ type Settings = {
 	showUsername?: boolean;
 	notificationEnabled?: boolean;
 	title?: TitleSettings;
+	// Conversation compaction: summarize the retired span when the measured
+	// context fill crosses threshold% of the model's published context
+	// window. Threshold is a whole percent, clamped 50-95 in the UI.
+	contextCompact?: { enabled: boolean; threshold: number };
 	splitLargeDeltas?: boolean;
 	// Only non-optional field in this type, but the store is initialized
 	// `writable({})` before settings load -- optional like everything else.

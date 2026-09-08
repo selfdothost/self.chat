@@ -5,6 +5,7 @@
 	import MultiResponseMessages from './MultiResponseMessages.svelte';
 	import ResponseMessage from './ResponseMessage.svelte';
 	import UserMessage from './UserMessage.svelte';
+	import CompactedSummaryCard from './CompactedSummaryCard.svelte';
 
 
 	// Chat history tree: message nodes keyed by id, each shaped differently
@@ -72,7 +73,13 @@
 		: 'max-w-5xl'} mx-auto rounded-lg group"
 >
 	{#if history.messages[messageId]}
-		{#if history.messages[messageId].role === 'user'}
+		{#if history.messages[messageId].type === 'compact-summary'}
+			<!-- A compaction point: the summary card REPLACES the response chrome
+			     for this node. It is a real node on the active chain (sent to the
+			     model as its only memory of the retired turns), but it is not a
+			     response: nothing to rate, regenerate, or edit. -->
+			<CompactedSummaryCard {history} {messageId} />
+		{:else if history.messages[messageId].role === 'user'}
 			<UserMessage
 				{user}
 				{history}

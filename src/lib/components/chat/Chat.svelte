@@ -52,7 +52,13 @@
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { queryMemory } from '$lib/apis/memories';
 	import { getAndUpdateUserLocation, getUserSettings } from '$lib/apis/users';
-	import { chatCompleted, chatAction, generateMoACompletion, stopTask } from '$lib/apis';
+	import { chatCompleted, chatAction, generateCompactCompletion, generateMoACompletion, stopTask } from '$lib/apis';
+	import {
+		applyCompaction,
+		buildCompactionTranscript,
+		planCompaction
+	} from '$lib/utils/chat-compaction';
+	import { contextStatus } from '$lib/utils/context-status';
 	import { getTools } from '$lib/apis/tools';
 	import { getFolderById } from '$lib/apis/folders';
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
@@ -68,6 +74,7 @@
 	import ChatControls from './ChatControls.svelte';
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
+	import ContextStatusLine from './ContextStatusLine.svelte';
 
 	interface Props {
 		chatIdProp?: string;
@@ -1364,6 +1371,12 @@
 
 			history.messages[message.id] = message;
 			await chatCompletedHandler(chatId, message.model, message.id, createMessagesList(message.id));
+
+			// Auto-compaction is checked after the turn fully settles (reply
+			// rendered, chat saved, usage trailer persisted) so the threshold
+			// reads the measured footprint of the turn that just finished.
+			// Imperative call from an event handler — never an $effect.
+			await maybeAutoCompact();
 		}
 
 		console.log(data);
@@ -2015,6 +2028,94 @@
 		}
 	};
 
+	//////////////////////////
+	// Conversation compaction
+	//
+	// Summarize the retired span server-side (/api/v1/tasks/compact/completions
+	// reuses the task-model machinery), then splice the summary in as the
+	// retained tail's ancestor. History surgery happens ONLY through the pure
+	// applyCompaction (chat-compaction.ts) and only by REASSIGNMENT — never
+	// in-place mutation — so Svelte 5 reactivity fires exactly once.
+	//////////////////////////
+
+	let isCompacting = $state(false);
+
+	const compactConversation = async () => {
+		if (isCompacting) return;
+
+		const plan = planCompaction(history);
+		if (!plan) {
+			// The status line's Compact control is disabled below this length,
+			// so reaching here means an auto trigger raced a shrinking chat.
+			return;
+		}
+		if (!selectedModels[0]) {
+			toast.error($i18n.t('Please select a model first.'));
+			return;
+		}
+
+		isCompacting = true;
+		try {
+			const transcript = buildCompactionTranscript(history, plan);
+			const summary = await generateCompactCompletion(
+				localStorage.token,
+				selectedModels[0],
+				[{ role: 'user', content: transcript }],
+				$chatId ?? undefined
+			);
+
+			if (!summary.trim()) {
+				throw new Error('empty summary');
+			}
+
+			history = applyCompaction(history, plan, {
+				content: summary,
+				model: selectedModels[0],
+				modelName: $models.find((m) => m.id === selectedModels[0])?.name
+			}, uuidv4());
+
+			await tick();
+			if ($chatId) {
+				await saveChatHandler($chatId);
+			}
+		} catch (err) {
+			// History is untouched on failure — the splice happens only after
+			// the summary is in hand. A 404 here means the backend predates
+			// the endpoint; surfaced as-is so it reads as "not deployed yet".
+			console.error('compaction failed', err);
+			toast.error(`${$i18n.t('Compaction failed')}: ${err instanceof Error ? err.message : err}`);
+		} finally {
+			isCompacting = false;
+		}
+	};
+
+	// Fired imperatively at the end of a completed turn (never from an
+	// $effect): armed by the user's settings, measured against the model's
+	// published context window.
+	const maybeAutoCompact = async () => {
+		const contextCompact = $settings?.contextCompact;
+		if (!contextCompact?.enabled) return;
+		if (!planCompaction(history)) return;
+
+		const modelId = selectedModels?.[0];
+		const model = $models.find((m) => m.id === modelId);
+		if (!model?.context_length) return; // omitted-when-unknown: no threshold to cross
+
+		const status = contextStatus({ history, modelId, models: $models });
+		if (status.percent === null) return;
+
+		const threshold = (contextCompact.threshold ?? 80) / 100;
+		if (status.percent < threshold) return;
+
+		await compactConversation();
+	};
+
+	const autoCompactArmed = $derived(
+		($settings?.contextCompact?.enabled ?? false) &&
+			Boolean($models.find((m) => m.id === selectedModels?.[0])?.context_length)
+	);
+	const canCompact = $derived(planCompaction(history) !== null);
+
 	const initChatHandler = async () => {
 		if (!$temporaryChatEnabled) {
 			chat = await createNewChat(localStorage.token, {
@@ -2158,6 +2259,22 @@
 	});
 </script>
 
+<!-- Context-utilization status line, rendered by BOTH composer instances
+     (the message-list composer and the Placeholder's) via the composerFooter
+     slot. A {#snippet} declared at this level renders nothing on its own; it
+     exists so both call sites share one definition closing over this
+     component's own state (history, selectedModels, prompt). -->
+{#snippet contextStatusFooter()}
+	<ContextStatusLine
+		{history}
+		{selectedModels}
+		promptDraft={prompt}
+		{autoCompactArmed}
+		onCompact={compactConversation}
+		compactDisabled={!canCompact || isCompacting}
+	/>
+{/snippet}
+
 <svelte:head>
 	<title>
 		{$chatTitle
@@ -2299,6 +2416,7 @@
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{composerAccessory}
+								composerFooter={contextStatusFooter}
 								{stopResponse}
 								{createMessagePair}
 								onChange={(input) => {
@@ -2353,6 +2471,7 @@
 								bind:atSelectedModel
 								transparentBackground={!!$settings?.backgroundImageUrl}
 								{composerAccessory}
+								composerFooter={contextStatusFooter}
 								{stopResponse}
 								{createMessagePair}
 								onUpload={async (detail) => {

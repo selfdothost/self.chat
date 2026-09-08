@@ -110,6 +110,12 @@
 		 *  rather than a flag keeps this component from ever learning what the
 		 *  control is for. */
 		composerAccessory?: import('svelte').Snippet<[{ insertText: (text: string) => void }]>;
+		/** An optional single-line status element rendered directly below the
+		 *  composer card (context utilization, etc.). Like the accessory, an
+		 *  omitted footer renders nothing and is not a behavioural change;
+		 *  passing a SNIPPET keeps this component agnostic about what the
+		 *  line says or where its numbers come from. */
+		composerFooter?: import('svelte').Snippet;
 	}
 
 	let {
@@ -132,7 +138,8 @@
 		webCrawlKbId = $bindable(''),
 		imageDescriberEnabled = $bindable(false),
 		placeholder = '',
-		composerAccessory = undefined
+		composerAccessory = undefined,
+		composerFooter = undefined
 	}: Props = $props();
 
 	/**
@@ -1484,6 +1491,10 @@
 							</div>
 						</form>
 					{/if}
+
+					<!-- Optional, and absent by default: with no footer passed
+					     this renders nothing at all. -->
+					{@render composerFooter?.()}
 				</div>
 			</div>
 		</div>

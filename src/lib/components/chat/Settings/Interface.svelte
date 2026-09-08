@@ -26,6 +26,8 @@
 	// Addons
 	let titleAutoGenerate = $state(true);
 	let autoTags = $state(true);
+	let autoCompact = $state(false);
+	let compactThreshold = $state(80);
 
 	let responseAutoCopy = $state(false);
 	let widescreenMode = $state(false);
@@ -146,6 +148,22 @@
 		saveSettings({ autoTags });
 	};
 
+	// Auto-compaction: after each completed turn, if the measured context
+	// fill crosses the threshold against the model's published context
+	// window, the retired span is summarized (compact) so the conversation
+	// can continue. Threshold is percent; 50-95 mirrors what a user can
+	// meaningfully tune — below 50 the summary churns on every turn, above
+	// 95 the model is already failing to fit.
+	const toggleAutoCompact = async () => {
+		autoCompact = !autoCompact;
+		saveSettings({ contextCompact: { enabled: autoCompact, threshold: compactThreshold } });
+	};
+
+	const setCompactThreshold = async (value: number) => {
+		compactThreshold = Math.min(95, Math.max(50, Math.round(value)));
+		saveSettings({ contextCompact: { enabled: autoCompact, threshold: compactThreshold } });
+	};
+
 	const toggleRichTextInput = async () => {
 		richTextInput = !richTextInput;
 		saveSettings({ richTextInput });
@@ -195,6 +213,8 @@
 	onMount(async () => {
 		titleAutoGenerate = $settings?.title?.auto ?? true;
 		autoTags = $settings.autoTags ?? true;
+		autoCompact = $settings?.contextCompact?.enabled ?? false;
+		compactThreshold = $settings?.contextCompact?.threshold ?? 80;
 
 		responseAutoCopy = $settings.responseAutoCopy ?? false;
 
@@ -463,6 +483,51 @@
 						{/if}
 					</button>
 				</div>
+			</div>
+
+			<div>
+				<div class=" py-0.5 flex w-full justify-between">
+					<div class=" self-center text-xs">
+						{$i18n.t('Auto-Compact Conversations')}
+						<span class="text-gray-400 dark:text-gray-500 block">
+							{$i18n.t('Summarize earlier turns when the context window fills past the threshold')}
+						</span>
+					</div>
+
+					<button
+						class="p-1 px-3 text-xs flex rounded transition"
+						onclick={() => {
+							toggleAutoCompact();
+						}}
+						type="button"
+					>
+						{#if autoCompact === true}
+							<span class="ml-2 self-center">{$i18n.t('On')}</span>
+						{:else}
+							<span class="ml-2 self-center">{$i18n.t('Off')}</span>
+						{/if}
+					</button>
+				</div>
+
+				{#if autoCompact}
+					<div class=" py-0.5 flex w-full justify-between">
+						<div class=" self-center text-xs">{$i18n.t('Compact threshold')} (%)</div>
+						<div class="flex items-center gap-2">
+							<input
+								type="range"
+								min="50"
+								max="95"
+								step="5"
+								value={compactThreshold}
+								class="w-32"
+								oninput={(e) => {
+									setCompactThreshold(Number(e.currentTarget.value));
+								}}
+							/>
+							<span class="text-xs tabular-nums w-8 text-right">{compactThreshold}</span>
+						</div>
+					</div>
+				{/if}
 			</div>
 
 			<div>

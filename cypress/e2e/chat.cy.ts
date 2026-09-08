@@ -84,6 +84,74 @@ describe('Chat', () => {
 			sendAndAwaitReply();
 		});
 
+		// The composer's context status line. After a real exchange the line must
+		// exist under the prompt input with both token counters and a utilization
+		// percentage against the stub model's published context_length (8192).
+		//
+		// TOLERANT BY DESIGN on the measured-vs-estimated axis: the e2e job runs
+		// self.ai's api/ tree fetched LIVE from self.ai main, so whether the
+		// exchange carries a real usage trailer depends on whether self.ai's
+		// usage-capture MR has landed there. Both paths render ↑/↓/% (estimated
+		// prefixes ↑ with ≈); asserting on those three proves the line exists,
+		// is wired to the live history, and resolved a context window, without
+		// coupling this gate to the other repo's deploy state. The unit tests
+		// in src/lib/utils/context-status.test.ts pin the exact math.
+		it('shows the context status line under the prompt after an exchange', () => {
+			useRealCompletions();
+			sendAndAwaitReply();
+
+			cy.get('[data-testid="context-status-line"]').should('exist');
+			cy.get('[data-testid="context-status-line"]').should('contain.text', '↑');
+			cy.get('[data-testid="context-status-line"]').should('contain.text', '↓');
+			cy.get('[data-testid="context-status-line"]').should('contain.text', '%');
+		});
+
+		// Manual compaction end to end: the Compact control in the status line
+		// calls POST /api/v1/tasks/compact/completions on self.ai's API, which
+		// serves it through the task-model machinery against the mock upstream
+		// (the stub model is an openai-connection model, so the endpoint is
+		// genuinely served). The mock's non-streaming branch replies "Stubbed
+		// reply." -- which becomes the summary. A single exchange is below the
+		// minimum compactable chain, so the exchanges are stacked until the
+		// control enables.
+		//
+		// NOTE: this requires self.ai main to carry /compact/completions (the
+		// e2e job fetches self.ai's api/ tree live). Until that lands the
+		// click surfaces a toast and this spec fails -- do not merge the
+		// self.chat compaction MR before the self.ai one.
+		it('compacts a conversation into a summary card', () => {
+			useRealCompletions();
+
+			// MIN_CHAIN_MESSAGES is 6 nodes (3 exchanges); stack one more so
+			// the retained-tail alignment always has room.
+			const sendOne = () => {
+				cy.get('#chat-input').clear({ force: true });
+				cy.get('#chat-input').type('Tell me more.', { force: true });
+				cy.get('button[type="submit"]').click();
+				cy.get('.chat-assistant', { timeout: 30_000 }).should('exist');
+			};
+			sendAndAwaitReply();
+			sendOne();
+			sendOne();
+			sendOne();
+
+			cy.get('[data-testid="compact-button"]').should('not.be.disabled');
+			cy.get('[data-testid="compact-button"]').click();
+
+			cy.get('[data-testid="compacted-summary-card"]', { timeout: 30_000 }).should('exist');
+			cy.get('[data-testid="compacted-summary-card"]').should('contain.text', 'Stubbed reply.');
+			// The expander reveals the retired turns, still in the transcript —
+			// with the same [turn N] labels the summary cites. Assert on the
+			// markers (stable) rather than the typed prompts: the markers are
+			// what a citation must resolve against.
+			cy.get('[data-testid="compacted-turns-toggle"]').click();
+			cy.get('[data-testid="compacted-summary-card"]').should('contain.text', '[turn 1] USER');
+			cy.get('[data-testid="compacted-summary-card"]').should('contain.text', '[turn 2] ASSISTANT');
+
+			// And the conversation continues from the summary onward.
+			sendOne();
+		});
+
 		// The share selectors were already verified to exist
 		// (#chat-context-menu-button, #chat-share-button in layout/Navbar/Menu.svelte,
 		// #copy-and-share-chat-button in ShareChatModal); this only ever needed a real

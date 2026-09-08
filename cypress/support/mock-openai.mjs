@@ -119,6 +119,23 @@ const server = createServer(async (req, res) => {
 		res.write(chunk(model, { role: 'assistant', content: '' }, null));
 		res.write(chunk(model, { content: REPLY }, null));
 		res.write(chunk(model, {}, 'stop'));
+		// OpenAI-spec usage trailer: `choices: []` + usage, sent only when the
+		// caller set stream_options.include_usage. Real providers send it after
+		// the final chunk and before [DONE]; self.ai's relay captures exactly
+		// this shape, so the composer's context status line gets measured
+		// numbers through the genuine path.
+		if (body.stream_options?.include_usage) {
+			res.write(
+				`data: ${JSON.stringify({
+					id: 'mock-upstream-completion',
+					object: 'chat.completion.chunk',
+					created: Math.floor(Date.now() / 1000),
+					model,
+					choices: [],
+					usage: { prompt_tokens: 42, completion_tokens: 7, total_tokens: 49 }
+				})}\n\n`
+			);
+		}
 		res.write('data: [DONE]\n\n');
 		return res.end();
 	}

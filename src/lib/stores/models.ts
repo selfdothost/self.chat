@@ -30,6 +30,14 @@ type BaseModel = {
 	// has no entry for this model's id or base_model_id — a response-time
 	// enrichment like `actions`, not part of ModelConfig.
 	status?: string;
+	// Served context window and output cap, published by /api/models
+	// (self.ai#87; utils/model_context.py). OPTIONAL AND OMITTED WHEN UNKNOWN
+	// — never a default, never "unlimited" — so every consumer must treat
+	// undefined as "no data", not as a large number. Read by the context
+	// status line and auto-compaction threshold; a response-time enrichment
+	// like `actions`, not stored config.
+	context_length?: number;
+	max_output_tokens?: number;
 };
 
 // Arena models (model-vs-model comparison entries) are filtered out of most

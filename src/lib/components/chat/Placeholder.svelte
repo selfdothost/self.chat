@@ -52,6 +52,10 @@
 		 *  rendered — today's behaviour. Forwarded, never read: this component
 		 *  does not know or care what the accessory is for. */
 		composerAccessory?: import('svelte').Snippet<[{ insertText: (text: string) => void }]>;
+		/** Passed straight through to the composer's footer slot, below the
+		 *  input card. Same contract as the accessory: forwarded, never read;
+		 *  omitted renders nothing. */
+		composerFooter?: import('svelte').Snippet;
 	}
 
 	let {
@@ -72,7 +76,8 @@
 		imageDescriberEnabled = $bindable(false),
 		onUpload = () => {},
 		onSubmit = () => {},
-		composerAccessory = undefined
+		composerAccessory = undefined,
+		composerFooter = undefined
 	}: Props = $props();
 
 	let models = $derived(selectedModels.map((id) => $_models.find((m) => m.id === id)));
@@ -244,6 +249,7 @@
 					bind:atSelectedModel
 					{transparentBackground}
 					{composerAccessory}
+					{composerFooter}
 					{stopResponse}
 					{createMessagePair}
 					placeholder={$i18n.t('How can I help you today?')}
