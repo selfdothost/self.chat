@@ -33,6 +33,36 @@
 	let jobs: EvalJob[] = $state([]);
 	let modelItems: { value: string; label: string }[] = $state([]);
 
+	// ── Job list presentation ──────────────────────────────────────────
+	// The API returns every job the user ever submitted, newest first. A flat
+	// wall of stale cancelled runs hides the runs that matter, so the list is
+	// filterable by status and collapsed to the newest few by default.
+	type JobFilter = 'all' | 'active' | 'completed' | 'failed' | 'cancelled';
+	let jobStatusFilter = $state<JobFilter>('all');
+	let showAllJobs = $state(false);
+	const INITIAL_JOB_ROWS = 8;
+
+	const ACTIVE_JOB_STATUSES = ['pending', 'scheduled', 'queued', 'running'];
+
+	const jobFilterGroups: { id: JobFilter; label: string }[] = [
+		{ id: 'all', label: 'All' },
+		{ id: 'active', label: 'Active' },
+		{ id: 'completed', label: 'Completed' },
+		{ id: 'failed', label: 'Failed' },
+		{ id: 'cancelled', label: 'Cancelled' }
+	];
+
+	let filteredJobs = $derived.by(() => {
+		if (jobStatusFilter === 'all') return jobs;
+		if (jobStatusFilter === 'active')
+			return jobs.filter((j) => ACTIVE_JOB_STATUSES.includes(j.status));
+		return jobs.filter((j) => j.status === jobStatusFilter);
+	});
+
+	let visibleJobs = $derived(
+		showAllJobs ? filteredJobs : filteredJobs.slice(0, INITIAL_JOB_ROWS)
+	);
+
 	type BenchmarkGroup = {
 		id: string;
 		name: string;
@@ -869,11 +899,32 @@
 				<div class="flex self-center w-[1px] h-5 mx-2 bg-gray-200 dark:bg-gray-700"></div>
 				<span class="text-gray-500 dark:text-gray-400 font-normal">{jobs.length}</span>
 			</div>
+			<div class="flex flex-wrap gap-1.5 mb-2.5">
+				{#each jobFilterGroups as fg (fg.id)}
+					{@const fgCount =
+						fg.id === 'all'
+							? jobs.length
+							: fg.id === 'active'
+								? jobs.filter((j) => ACTIVE_JOB_STATUSES.includes(j.status)).length
+								: jobs.filter((j) => j.status === fg.id).length}
+					<button
+						class="px-2 py-0.5 rounded-lg text-[11px] font-medium transition {jobStatusFilter === fg.id
+							? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+							: 'bg-gray-50 dark:bg-gray-850 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}"
+						onclick={() => {
+							jobStatusFilter = fg.id;
+							showAllJobs = false;
+						}}
+					>
+						{$i18n.t(fg.label)} <span class="opacity-60">{fgCount}</span>
+					</button>
+				{/each}
+			</div>
 			<div class="space-y-1.5">
-				{#each jobs as job (job.id)}
+				{#each visibleJobs as job (job.id)}
 					<div class="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-800 text-sm">
 						<div class="flex items-center gap-3">
-							<span class="px-2 py-0.5 rounded-lg text-[11px] font-medium {statusColor(job.status)}">
+							<span class="px-2 py-0.5 rounded-lg text-[11px] font-medium capitalize {statusColor(job.status)}">
 								{job.status}
 							</span>
 							<span class="px-1.5 py-0.5 rounded text-[10px] font-medium {job.eval_type === 'language-eval' ? 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'}">
@@ -934,6 +985,21 @@
 						</div>
 					</div>
 				{/each}
+				{#if visibleJobs.length === 0}
+					<div class="px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+						{$i18n.t('No jobs with this status.')}
+					</div>
+				{/if}
+				{#if filteredJobs.length > INITIAL_JOB_ROWS}
+					<button
+						class="w-full px-3 py-1.5 rounded-xl border border-dashed border-gray-200 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+						onclick={() => (showAllJobs = !showAllJobs)}
+					>
+						{showAllJobs
+							? $i18n.t('Show fewer')
+							: $i18n.t('Show all {{count}} jobs', { count: filteredJobs.length })}
+					</button>
+				{/if}
 			</div>
 		</div>
 	{/if}

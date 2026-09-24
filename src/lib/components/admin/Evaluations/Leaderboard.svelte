@@ -23,6 +23,15 @@
 
 	let query = $state('');
 
+	// Unrated models (no arena feedback) are hidden by default: on a yard with
+	// a hundred+ registered models and a handful of votes, the raw list is a
+	// wall of dashes. The toggle reveals them for lookup.
+	let showUnrated = $state(false);
+
+	type SortKey = 'model' | 'rating' | 'won' | 'lost';
+	let sortKey = $state<SortKey>('rating');
+	let sortAsc = $state(false);
+
 	// A memoization cache, mutated in place via .has()/.set() -- never read
 	// by the template or a $: block, so Svelte never needs to observe its
 	// mutations. SvelteMap would add proxy overhead for no benefit.
@@ -30,6 +39,16 @@
 	let tagEmbeddings = new Map();
 	let loadingLeaderboard = $state(true);
 	let debounceTimer;
+
+	// DUCT TAPE — semantic search fallback. The re-rank-by-topic path needs a
+	// browser-side embedding model pulled from the HuggingFace CDN. On a yard
+	// without egress that download never completes, and the original code left
+	// the table dimmed (loadingLeaderboard stuck true) after any search. When
+	// the model is unavailable — never loaded, or the fetch fails — we degrade
+	// to a substring match on the model name instead of bricking the page.
+	// Revisit: server-side embeddings behind the self.ai API.
+	let embeddingsBroken = false;
+	let nameQuery = $state('');
 
 	type Feedback = {
 		id: string;
@@ -63,7 +82,7 @@
 	const rankHandler = async (similarities: Map<string, number> = new Map()) => {
 		const modelStats = calculateModelStats(feedbacks, similarities);
 
-		rankedModels = $models
+		const sorted = $models
 			.filter((m) => m?.owned_by !== 'arena' && (m?.info?.meta?.hidden ?? false) !== true)
 			.map((model) => {
 				const stats = modelStats.get(model.id);
@@ -89,8 +108,66 @@
 				return a.name.localeCompare(b.name);
 			});
 
+		// Rank is position in the rating order, stamped here so re-sorting the
+		// displayed rows by another column doesn't reshuffle the ranks.
+		rankedModels = sorted.map((model, idx) => ({
+			...model,
+			rank: typeof model.rating === 'number' ? idx + 1 : null
+		}));
+
 		loadingLeaderboard = false;
 	};
+
+	const sortBy = (key: SortKey) => {
+		if (sortKey === key) {
+			sortAsc = !sortAsc;
+		} else {
+			sortKey = key;
+			// Name sorts A→Z first; numeric columns default to best-first.
+			sortAsc = key === 'model';
+		}
+	};
+
+	const sortIndicator = (key: SortKey) => (sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : '');
+
+	// What renders: unrated hidden unless toggled on, substring fallback applied
+	// when semantic search is unavailable, then sorted by the chosen column.
+	// Unrated rows always sink below rated ones — a dash is not a rating.
+	let visibleModels = $derived.by(() => {
+		let list = showUnrated
+			? [...rankedModels]
+			: rankedModels.filter((m) => typeof m.rating === 'number');
+
+		if (nameQuery !== '') {
+			const q = nameQuery;
+			list = list.filter((m) => m.name.toLowerCase().includes(q));
+		}
+
+		// `rating` is `number | '-'`; `stats.won`/`stats.lost` are strings of
+		// digits or '-'. Normalize both to `number | null`.
+		const numeric = (v: number | string) => {
+			if (typeof v === 'number') return v;
+			return v !== '-' && v !== '' ? Number(v) : null;
+		};
+		const dir = sortAsc ? 1 : -1;
+		list.sort((a, b) => {
+			if (sortKey === 'model') return dir * a.name.localeCompare(b.name);
+			// Sink unrated regardless of direction.
+			const aRated = sortKey === 'rating' ? numeric(a.rating) : numeric(a.stats[sortKey]);
+			const bRated = sortKey === 'rating' ? numeric(b.rating) : numeric(b.stats[sortKey]);
+			if (aRated === null && bRated !== null) return 1;
+			if (bRated === null && aRated !== null) return -1;
+			if (aRated !== null && bRated !== null) return dir * (aRated - bRated);
+			return a.name.localeCompare(b.name);
+		});
+		return list;
+	});
+
+	// Arena votes actually feeding the Elo table — shown in the footer so the
+	// "updated in real-time" claim can be read against real volume.
+	const totalVotes = $derived(
+		feedbacks.filter((f) => f.data.rating === 1 || f.data.rating === -1).length
+	);
 
 	function calculateModelStats(
 		feedbacks: Feedback[],
@@ -209,22 +286,32 @@
 	//////////////////////
 
 	const loadEmbeddingModel = async () => {
-		// Check if the tokenizer and model are already loaded and stored in the window object
-		if (!window.tokenizer) {
-			window.tokenizer = await AutoTokenizer.from_pretrained(EMBEDDING_MODEL);
+		if (embeddingsBroken) return;
+		try {
+			// Check if the tokenizer and model are already loaded and stored in the window object
+			if (!window.tokenizer) {
+				window.tokenizer = await AutoTokenizer.from_pretrained(EMBEDDING_MODEL);
+			}
+
+			if (!window.model) {
+				window.model = await AutoModel.from_pretrained(EMBEDDING_MODEL);
+			}
+
+			// Use the tokenizer and model from the window object
+			tokenizer = window.tokenizer;
+			model = window.model;
+
+			// Pre-compute embeddings for all unique tags
+			const allTags = new Set(feedbacks.flatMap((feedback) => feedback.data.tags || []));
+			await getTagEmbeddings(Array.from(allTags));
+		} catch (err) {
+			// See the DUCT TAPE note above — HF CDN unreachable. Semantic
+			// re-ranking is off for this session; search falls back to substring.
+			embeddingsBroken = true;
+			tokenizer = null;
+			model = null;
+			console.warn('Leaderboard: embedding model unavailable, using substring search.', err);
 		}
-
-		if (!window.model) {
-			window.model = await AutoModel.from_pretrained(EMBEDDING_MODEL);
-		}
-
-		// Use the tokenizer and model from the window object
-		tokenizer = window.tokenizer;
-		model = window.model;
-
-		// Pre-compute embeddings for all unique tags
-		const allTags = new Set(feedbacks.flatMap((feedback) => feedback.data.tags || []));
-		await getTagEmbeddings(Array.from(allTags));
 	};
 
 	const getEmbeddings = async (text: string) => {
@@ -254,6 +341,7 @@
 		loadingLeaderboard = true;
 
 		if (query.trim() === '') {
+			nameQuery = '';
 			rankHandler();
 			return;
 		}
@@ -261,21 +349,38 @@
 		clearTimeout(debounceTimer);
 
 		debounceTimer = setTimeout(async () => {
-			const queryEmbedding = await getEmbeddings(query);
-			// Function-local, built then passed as a plain argument to
-			// rankHandler() -- never touches component state or Svelte's
-			// reactivity at all.
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity
-			const similarities = new Map<string, number>();
-
-			for (const feedback of feedbacks) {
-				const feedbackTags = feedback.data.tags || [];
-				const tagEmbeddings = await getTagEmbeddings(feedbackTags);
-				const maxSimilarity = calculateMaxSimilarity(queryEmbedding, tagEmbeddings);
-				similarities.set(feedback.id, maxSimilarity);
+			// Embeddings not loaded (search typed before focus finished loading,
+			// or the CDN fetch failed) — substring fallback, see DUCT TAPE note.
+			if (!tokenizer || !model) {
+				nameQuery = query.trim().toLowerCase();
+				rankHandler();
+				return;
 			}
 
-			rankHandler(similarities);
+			try {
+				const queryEmbedding = await getEmbeddings(query);
+				// Function-local, built then passed as a plain argument to
+				// rankHandler() -- never touches component state or Svelte's
+				// reactivity at all.
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity
+				const similarities = new Map<string, number>();
+
+				for (const feedback of feedbacks) {
+					const feedbackTags = feedback.data.tags || [];
+					const tagEmbeddings = await getTagEmbeddings(feedbackTags);
+					const maxSimilarity = calculateMaxSimilarity(queryEmbedding, tagEmbeddings);
+					similarities.set(feedback.id, maxSimilarity);
+				}
+
+				nameQuery = '';
+				rankHandler(similarities);
+			} catch {
+				embeddingsBroken = true;
+				tokenizer = null;
+				model = null;
+				nameQuery = query.trim().toLowerCase();
+				rankHandler();
+			}
 		}, 1500); // Debounce for 1.5 seconds
 	};
 
@@ -300,26 +405,37 @@
 		<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850"></div>
 
 		<span class="text-lg font-medium text-gray-500 dark:text-gray-300 mr-1.5"
-			>{rankedModels.length}</span
+			>{visibleModels.length}</span
 		>
 	</div>
 
-	<div class=" flex space-x-2">
-		<Tooltip content={$i18n.t('Re-rank models by topic similarity')}>
-			<div class="flex flex-1">
-				<div class=" self-center ml-1 mr-3">
-					<MagnifyingGlass className="size-3" />
+	<div class="flex items-center space-x-3">
+		<label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+			<input
+				type="checkbox"
+				class="rounded"
+				bind:checked={showUnrated}
+			/>
+			{$i18n.t('Show unrated models')}
+		</label>
+
+		<div class="flex">
+			<Tooltip content={$i18n.t('Re-rank models by topic similarity')}>
+				<div class="flex flex-1">
+					<div class=" self-center ml-1 mr-3">
+						<MagnifyingGlass className="size-3" />
+					</div>
+					<input
+						class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
+						bind:value={query}
+						placeholder={$i18n.t('Search')}
+						onfocus={() => {
+							loadEmbeddingModel();
+						}}
+					/>
 				</div>
-				<input
-					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
-					bind:value={query}
-					placeholder={$i18n.t('Search')}
-					onfocus={() => {
-						loadEmbeddingModel();
-					}}
-				/>
-			</div>
-		</Tooltip>
+			</Tooltip>
+		</div>
 	</div>
 </div>
 
@@ -331,7 +447,7 @@
 			</div>
 		</div>
 	{/if}
-	{#if (rankedModels ?? []).length === 0}
+	{#if (visibleModels ?? []).length === 0}
 		<div class="text-center text-xs text-gray-500 dark:text-gray-400 py-1">
 			{$i18n.t('No models found')}
 		</div>
@@ -345,29 +461,65 @@
 				class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-850 dark:text-gray-400 -translate-y-0.5"
 			>
 				<tr class="">
-					<th scope="col" class="px-3 py-1.5 cursor-pointer select-none w-3">
+					<th scope="col" class="px-3 py-1.5 w-3">
 						{$i18n.t('RK')}
 					</th>
-					<th scope="col" class="px-3 py-1.5 cursor-pointer select-none">
-						{$i18n.t('Model')}
+					<th
+						scope="col"
+						class="px-3 py-1.5 font-medium"
+						aria-sort={sortKey === 'model' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+					>
+						<button
+							class="uppercase hover:text-gray-900 dark:hover:text-white cursor-pointer select-none"
+							onclick={() => sortBy('model')}
+						>
+							{$i18n.t('Model')}{sortIndicator('model')}
+						</button>
 					</th>
-					<th scope="col" class="px-3 py-1.5 text-right cursor-pointer select-none w-fit">
-						{$i18n.t('Rating')}
+					<th
+						scope="col"
+						class="px-3 py-1.5 text-right font-medium w-fit"
+						aria-sort={sortKey === 'rating' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+					>
+						<button
+							class="uppercase hover:text-gray-900 dark:hover:text-white cursor-pointer select-none"
+							onclick={() => sortBy('rating')}
+						>
+							{$i18n.t('Rating')}{sortIndicator('rating')}
+						</button>
 					</th>
-					<th scope="col" class="px-3 py-1.5 text-right cursor-pointer select-none w-5">
-						{$i18n.t('Won')}
+					<th
+						scope="col"
+						class="px-3 py-1.5 text-right font-medium w-5"
+						aria-sort={sortKey === 'won' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+					>
+						<button
+							class="uppercase hover:text-gray-900 dark:hover:text-white cursor-pointer select-none"
+							onclick={() => sortBy('won')}
+						>
+							{$i18n.t('Won')}{sortIndicator('won')}
+						</button>
 					</th>
-					<th scope="col" class="px-3 py-1.5 text-right cursor-pointer select-none w-5">
-						{$i18n.t('Lost')}
+					<th
+						scope="col"
+						class="px-3 py-1.5 text-right font-medium w-5"
+						aria-sort={sortKey === 'lost' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+					>
+						<button
+							class="uppercase hover:text-gray-900 dark:hover:text-white cursor-pointer select-none"
+							onclick={() => sortBy('lost')}
+						>
+							{$i18n.t('Lost')}{sortIndicator('lost')}
+						</button>
 					</th>
 				</tr>
 			</thead>
 			<tbody class="">
-				{#each rankedModels as model, modelIdx (model.id)}
-					<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs group">
+				{#each visibleModels as model (model.id)}
+					<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs group {model.rank === null ? 'opacity-60' : ''}">
 						<td class="px-3 py-1.5 text-left font-medium text-gray-900 dark:text-white w-fit">
 							<div class=" line-clamp-1">
-								{model?.rating !== '-' ? modelIdx + 1 : '-'}
+								{model.rank ?? '-'}
 							</div>
 						</td>
 						<td class="px-3 py-1.5 flex flex-col justify-center">
@@ -427,6 +579,9 @@
 			ⓘ {$i18n.t(
 				'The evaluation leaderboard is based on the Elo rating system and is updated in real-time.'
 			)}
+		</div>
+		<div class="line-clamp-1">
+			{$i18n.t('Based on {{count}} arena votes.', { count: totalVotes })}
 		</div>
 		{$i18n.t(
 			'The leaderboard is currently in beta, and we may adjust the rating calculations as we refine the algorithm.'

@@ -67,6 +67,29 @@
 	let liveTotal = $state(0);
 	let expandedTask: string | null = $state(null);
 	let filterStatus: 'all' | 'passed' | 'failed' = $state('all');
+
+	/**
+	 * The graded-details payload concatenates one details file per benchmark
+	 * variant (e.g. humaneval AND humanevalplus), and every variant numbers
+	 * its tasks from HumanEval/0 — so a combined run contains each task_id
+	 * exactly twice. The task list is a keyed {#each}; with duplicate keys
+	 * Svelte 5 renders zero rows while the counts (computed from the same
+	 * array) still show — the exact prod symptom this fixed. Suffix repeats
+	 * with " (2)", " (3)"… so ids stay unique. Neutral on purpose: the
+	 * details files don't record which variant an entry came from, so the
+	 * suffix counts occurrences rather than claiming a benchmark name.
+	 */
+	const dedupeTaskIds = (tasks: CodeTaskDetail[]): CodeTaskDetail[] => {
+		// Function-local, built and returned synchronously -- never touches
+		// component state or Svelte's reactivity at all.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const seen = new Map<string, number>();
+		return tasks.map((t) => {
+			const n = (seen.get(t.task_id) ?? 0) + 1;
+			seen.set(t.task_id, n);
+			return n === 1 ? t : { ...t, task_id: `${t.task_id} (${n})` };
+		});
+	};
 	// When graded detail is unavailable (not synced yet / non-admin), fall back
 	// to rendering the raw streamed events instead of the pass/fail task list.
 	let codeFallback = $state(false);
@@ -214,7 +237,7 @@
 		try {
 			const data = await getCodeTestDetails(localStorage.token, resultId);
 			if (data && data.length) {
-				codeTasks = data;
+				codeTasks = dedupeTaskIds(data);
 				status = 'done';
 				return;
 			}
@@ -262,7 +285,14 @@
 		// code-eval streams task-by-task 'progress' events
 		if (event.type && event.type !== 'progress') return;
 		liveTotal = event.total || liveTotal;
-		const taskId = event.task_id || `Task ${event.index}`;
+		// Variants re-number their tasks from 0 (see dedupeTaskIds), so a
+		// combined run streams the same task_id once per benchmark variant.
+		// task_name distinguishes them when the harness reports it; without
+		// it the variants merge into one row (pre-existing fallback).
+		const taskId =
+			event.task_id && event.task_name
+				? `${event.task_id} [${event.task_name}]`
+				: event.task_id || `Task ${event.index}`;
 		const existing = codeTasks.find((t) => t.task_id === taskId);
 		if (existing) {
 			existing.prompt = event.prompt || existing.prompt;
@@ -314,7 +344,7 @@
 				loadCodeScores();
 				try {
 					const data = await getCodeTestDetails(localStorage.token, resultId);
-					if (data && data.length) codeTasks = data;
+					if (data && data.length) codeTasks = dedupeTaskIds(data);
 				} catch {
 					// keep the streamed tasks
 				}

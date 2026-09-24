@@ -20,7 +20,7 @@
 		feedbacks = await getAllFeedbacks(localStorage.token);
 		loaded = true;
 
-		const containerElement = document.getElementById('users-tabs-container');
+		const containerElement = document.getElementById('evaluations-tabs-container');
 
 		if (containerElement) {
 			containerElement.addEventListener('wheel', function (event) {
@@ -36,7 +36,7 @@
 {#if loaded}
 	<div class="flex flex-col lg:flex-row w-full h-full pb-2 lg:space-x-4">
 		<div
-			id="users-tabs-container"
+			id="evaluations-tabs-container"
 			class="tabs flex flex-row overflow-x-auto gap-2.5 max-w-full lg:gap-1 lg:flex-col lg:flex-none lg:w-40 dark:text-gray-200 text-sm font-medium text-left scrollbar-none"
 		>
 			<button
