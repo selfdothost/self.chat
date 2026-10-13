@@ -33,7 +33,12 @@
 	}: Props = $props();
 
 	let tooltipElement: HTMLDivElement | undefined = $state();
-	let tooltipInstance: Instance | undefined = $state();
+	// Deliberately a plain `let`, not `$state`: the $effect below branches on
+	// this value and assigns it on first run, so reactive state here makes the
+	// effect self-writing (the self.chat#33 infinite-loop class). Nothing reads
+	// the instance reactively -- the template never touches it -- so closure
+	// scope is all it needs.
+	let tooltipInstance: Instance | undefined;
 
 	$effect(() => {
 		if (tooltipElement && content) {

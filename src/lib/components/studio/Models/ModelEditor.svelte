@@ -741,6 +741,12 @@
 									info.meta.tags = info.meta.tags.filter((tag) => tag.name !== tagName);
 								}}
 								onAdd={(tagName) => {
+									// Tag chips render in keyed {#each}es on tag.name — a
+									// duplicate name saved here would later blank the model
+									// dropdown. Adding an existing name is a no-op.
+									if ((info?.meta?.tags ?? []).some((tag) => tag.name === tagName)) {
+										return;
+									}
 									if (!(info?.meta?.tags ?? null)) {
 										info.meta.tags = [{ name: tagName }];
 									} else {

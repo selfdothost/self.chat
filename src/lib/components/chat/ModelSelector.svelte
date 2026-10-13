@@ -8,6 +8,8 @@
 	import Tooltip from '../common/Tooltip.svelte';
 
 	import { updateUserSettings } from '$lib/apis/users';
+	import { buildModelSelectorItems } from '$lib/utils/model-selector-items';
+
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 
@@ -73,14 +75,12 @@
 		<div class="flex w-full max-w-fit">
 			<div class="overflow-hidden w-full">
 				<div class="mr-1 max-w-full">
+					<!-- items are deduped at build: the keyed {#each} on item.value
+					     blanks the whole dropdown on a duplicate id (see the builder) -->
 					<Selector
 						id={`${selectedModelIdx}`}
 						placeholder={$i18n.t('Select a model')}
-						items={$models.filter(modelFilter).map((model) => ({
-							value: model.id,
-							label: model.name,
-							model: model
-						}))}
+						items={buildModelSelectorItems($models.filter(modelFilter))}
 						showTemporaryChatControl={$user.role === 'user'
 							? ($user?.permissions?.chat?.temporary ?? true)
 							: true}

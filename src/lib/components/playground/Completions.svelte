@@ -11,6 +11,7 @@
 	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
 
 	import { splitStream } from '$lib/utils';
+	import { buildModelSelectorItems } from '$lib/utils/model-selector-items';
 	import Selector from '$lib/components/chat/ModelSelector/Selector.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
@@ -127,13 +128,11 @@
 					<div class="flex w-full">
 						<div class="overflow-hidden w-full">
 							<div class="max-w-full">
+								<!-- items are deduped at build: the keyed {#each} on
+								     item.value blanks the whole dropdown on a duplicate id -->
 								<Selector
 									placeholder={$i18n.t('Select a model')}
-									items={$models.map((model) => ({
-										value: model.id,
-										label: model.name,
-										model: model
-									}))}
+									items={buildModelSelectorItems($models)}
 									bind:value={selectedModelId}
 								/>
 							</div>

@@ -3,7 +3,6 @@
 	import type { Writable } from 'svelte/store';
 	import { DropdownMenu } from 'bits-ui';
 	import DropdownMenuContent from '$lib/components/common/DropdownMenuContent.svelte';
-	import { marked } from 'marked';
 	import Fuse from 'fuse.js';
 
 	import { onMount, getContext } from 'svelte';
@@ -17,7 +16,8 @@
 	import { user, MODEL_DOWNLOAD_POOL, models, mobile, temporaryChatEnabled, modelLoadStatus } from '$lib/stores';
 	import type { Model } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
-	import { sanitizeResponseContent, splitStream } from '$lib/utils';
+	import { splitStream } from '$lib/utils';
+	import { modelDescriptionTooltipHtml } from '$lib/utils/model-description-tooltip';
 	import { getModels } from '$lib/apis';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -76,20 +76,30 @@
 
 	let selectedModelIdx = $state(0);
 
-	const fuse = new Fuse(
-		items.map((item) => {
-			const _item = {
-				...item,
-				modelName: item.model?.name,
-				tags: item.model?.info?.meta?.tags?.map((tag) => tag.name).join(' '),
-				desc: item.model?.info?.meta?.description
-			};
-			return _item;
-		}),
-		{
-			keys: ['value', 'tags', 'modelName'],
-			threshold: 0.4
-		}
+	// $derived, NOT a one-shot `const`: this selector mounts before /api/models
+	// resolves, so the initial `items` is [] (the `models` store starts
+	// writable([]) and ModelSelector feeds it $models.filter(...).map(...)).
+	// A const index was built once from that empty list and stayed empty
+	// forever -- any search then hit a dead index and returned "No results
+	// found" even with models on screen. Deriving rebuilds the index whenever
+	// `items` changes; the Fuse options/scoring/enrichment are unchanged, only
+	// WHEN the index is built. Same shape as studio/Training.svelte's fuse.
+	let fuse = $derived(
+		new Fuse(
+			items.map((item) => {
+				const _item = {
+					...item,
+					modelName: item.model?.name,
+					tags: item.model?.info?.meta?.tags?.map((tag) => tag.name).join(' '),
+					desc: item.model?.info?.meta?.description
+				};
+				return _item;
+			}),
+			{
+				keys: ['value', 'tags', 'modelName'],
+				threshold: 0.4
+			}
+		)
 	);
 
 	let filteredItems = $derived(searchValue
@@ -437,11 +447,8 @@
 
 								{#if item.model?.info?.meta?.description}
 									<Tooltip
-										content={`${marked.parse(
-											sanitizeResponseContent(item.model?.info?.meta?.description).replaceAll(
-												'\n',
-												'<br>'
-											)
+										content={`${modelDescriptionTooltipHtml(
+											item.model?.info?.meta?.description
 										)}`}
 									>
 										<div class=" translate-y-[1px]">

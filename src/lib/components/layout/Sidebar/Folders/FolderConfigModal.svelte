@@ -8,6 +8,7 @@
 	import { getTools } from '$lib/apis/tools';
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
 	import { updateFolderPresetById } from '$lib/apis/folders';
+	import { buildModelSelectorItems } from '$lib/utils/model-selector-items';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -188,14 +189,12 @@
 					     ids whenever two modals were open -- invalid HTML, and
 					     document.getElementById returned whichever mounted first rather than
 					     the one on screen (self.chat#39). -->
+					<!-- items are deduped at build: the keyed {#each} on item.value
+					     blanks the whole dropdown on a duplicate id (see the builder) -->
 					<ModelSelectorPrimitive
 						id={`folder-config-model-${folder?.id ?? 'new'}`}
 						placeholder={$i18n.t('Select a model')}
-						items={$models.map((model) => ({
-							value: model.id,
-							label: model.name,
-							model: model
-						}))}
+						items={buildModelSelectorItems($models)}
 						className="w-full"
 						triggerClassName="text-sm dark:text-gray-100"
 						bind:value={selectedModelId}
