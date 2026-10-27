@@ -1203,6 +1203,28 @@
 		}
 	};
 
+	// Call-overlay TTS dispatch: a part is sent EXACTLY ONCE, when it is
+	// complete (the caller pops the still-streaming frontier before calling).
+	// The old design compared the last part's STRING against
+	// message.lastSentence — any splitter boundary churn mid-stream (short-
+	// sentence merging, 300-char caps, abbreviation shields arriving as text
+	// grows) changed that string and re-dispatched content that had already
+	// been spoken, re-synthesizing and REPLAYING sentence 1 on every churn
+	// (2026-10-26: "loops on the first sentence until refresh"). Index-based
+	// dispatch cannot loop by construction.
+	const dispatchSpeechParts = (message, parts) => {
+		const cursor = message.speechCursor ?? 0;
+		if (parts.length <= cursor) return;
+		for (let i = cursor; i < parts.length; i++) {
+			eventTarget.dispatchEvent(
+				new CustomEvent('chat', {
+					detail: { id: message.id, content: parts[i] }
+				})
+			);
+		}
+		message.speechCursor = parts.length;
+	};
+
 	const chatCompletionEventHandler = async (data, message, chatId) => {
 		const {
 			done,
@@ -1252,28 +1274,15 @@
 						navigator.vibrate(5);
 					}
 
-					// Emit chat event for TTS
+
+					// Emit chat event for TTS — dispatch every NEWLY completed part
+					// exactly once (index-based; see dispatchSpeechParts)
 					const messageContentParts = getMessageContentParts(
 						message.content,
 						$config?.audio?.tts?.split_on ?? 'punctuation'
 					);
 					messageContentParts.pop();
-
-					// dispatch only last sentence and make sure it hasn't been dispatched before
-					if (
-						messageContentParts.length > 0 &&
-						messageContentParts[messageContentParts.length - 1] !== message.lastSentence
-					) {
-						message.lastSentence = messageContentParts[messageContentParts.length - 1];
-						eventTarget.dispatchEvent(
-							new CustomEvent('chat', {
-								detail: {
-									id: message.id,
-									content: messageContentParts[messageContentParts.length - 1]
-								}
-							})
-						);
-					}
+					dispatchSpeechParts(message, messageContentParts);
 				}
 			}
 		}
@@ -1292,28 +1301,14 @@
 				navigator.vibrate(5);
 			}
 
-			// Emit chat event for TTS
+			// Emit chat event for TTS — dispatch every NEWLY completed part
+			// exactly once (index-based; see dispatchSpeechParts)
 			const messageContentParts = getMessageContentParts(
 				message.content,
 				$config?.audio?.tts?.split_on ?? 'punctuation'
 			);
 			messageContentParts.pop();
-
-			// dispatch only last sentence and make sure it hasn't been dispatched before
-			if (
-				messageContentParts.length > 0 &&
-				messageContentParts[messageContentParts.length - 1] !== message.lastSentence
-			) {
-				message.lastSentence = messageContentParts[messageContentParts.length - 1];
-				eventTarget.dispatchEvent(
-					new CustomEvent('chat', {
-						detail: {
-							id: message.id,
-							content: messageContentParts[messageContentParts.length - 1]
-						}
-					})
-				);
-			}
+			dispatchSpeechParts(message, messageContentParts);
 		}
 
 		if (selected_model_id) {
@@ -1348,18 +1343,11 @@
 				document.getElementById(`speak-button-${message.id}`)?.click();
 			}
 
-			// Emit chat event for TTS
-			let lastMessageContentPart =
-				getMessageContentParts(message.content, $config?.audio?.tts?.split_on ?? 'punctuation')?.at(
-					-1
-				) ?? '';
-			if (lastMessageContentPart) {
-				eventTarget.dispatchEvent(
-					new CustomEvent('chat', {
-						detail: { id: message.id, content: lastMessageContentPart }
-					})
-				);
-			}
+			// Emit chat event for TTS — drain remaining part(s), exactly once each
+			dispatchSpeechParts(
+				message,
+				getMessageContentParts(message.content, $config?.audio?.tts?.split_on ?? 'punctuation')
+			);
 			eventTarget.dispatchEvent(
 				new CustomEvent('chat:finish', {
 					detail: {

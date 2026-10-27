@@ -216,6 +216,7 @@
 	let speakingIdx: number | undefined;
 
 	let loadingSpeech = $state(false);
+	let readAborted = false;
 	let generatingImage = $state(false);
 
 	let showRateComment = $state(false);
@@ -229,28 +230,46 @@
 
 	const playAudio = (idx: number) => {
 		return new Promise<void>((res) => {
-			speakingIdx = idx;
 			const audio = audioParts[idx];
 
 			if (!audio) {
 				return res();
 			}
 
-			audio.play();
-			audio.onended = async () => {
-				await new Promise((r) => setTimeout(r, 300));
+			// 2026-10-27 postmortem round 2: a part that fails to load or decode
+			// never fires `onended` — every terminal path must release the read
+			// exactly once, or the whole read dies in silence. The speaking
+			// lifecycle is owned by the cursor scheduler in toggleSpeakMessage.
+			let settled = false;
+			const finish = (why: string) => {
+				if (settled) return;
+				settled = true;
 
-				if (Object.keys(audioParts).length - 1 === idx) {
-					speaking = false;
+				if (why !== 'ended') {
+					console.warn(`read-aloud: part ${idx} ${why} — skipping`);
 				}
 
 				res();
 			};
+
+			audio.onended = async () => {
+				await new Promise((r) => setTimeout(r, 300));
+
+				finish('ended');
+			};
+			audio.onerror = () => finish('failed to load/decode');
+
+			audio.play().catch(() => finish('play() rejected'));
 		});
 	};
 
 	const toggleSpeakMessage = async () => {
-		if (speaking) {
+		if (speaking || loadingSpeech) {
+			// Stop now works mid-read AND mid-load: the cursor scheduler checks
+			// readAborted before and after every part, fetch workers stop
+			// pulling new parts, and the playing part (if any) is paused+reset.
+			readAborted = true;
+
 			try {
 				speechSynthesis.cancel();
 
@@ -277,6 +296,7 @@
 
 		if ($config.audio.tts.engine !== '') {
 			loadingSpeech = true;
+			readAborted = false;
 
 			const messageContentParts: string[] = getMessageContentParts(
 				message.content,
@@ -302,37 +322,87 @@
 				{} as typeof audioParts
 			);
 
-			let lastPlayedAudioPromise = Promise.resolve(); // Initialize a promise that resolves immediately
+			// CURSOR SCHEDULER (2026-10-27 round 2): playback runs strictly in
+			// MESSAGE order. The arrival-ordered chain played whatever landed
+			// first — with cache hits landing within milliseconds, completion
+			// order is racy (headless repro: part 3 attached first and the read
+			// started mid-message), and one stalled link ended the read. The
+			// scheduler waits for each part's arrival signal, plays it, advances;
+			// failed parts are skipped without killing the read; Stop aborts it.
+			const voice =
+				// A per-model voice (Studio Model meta.audio.tts_voice) overrides
+				// the user/global default when this model is the one responding.
+				model?.info?.meta?.audio?.tts_voice ??
+					($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
+						? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
+						: $config?.audio?.tts?.voice);
 
-			for (const [idx, sentence] of messageContentParts.entries()) {
-				const res = await synthesizeOpenAISpeech(
-					localStorage.token,
-					// A per-model voice (Studio Model meta.audio.tts_voice) overrides
-					// the user/global default when this model is the one responding.
-					model?.info?.meta?.audio?.tts_voice ??
-						($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
-							? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
-							: $config?.audio?.tts?.voice),
-					sentence
-				).catch((error) => {
-					console.error(error);
-					toast.error(error);
-
-					speaking = false;
-					loadingSpeech = false;
+			const arrival = messageContentParts.map(() => {
+				let resolveArrival!: () => void;
+				const arrived = new Promise<void>((r) => {
+					resolveArrival = r;
 				});
+				return { arrived, resolveArrival };
+			});
 
-				if (res) {
-					const blob = await res.blob();
-					const blobUrl = URL.createObjectURL(blob);
-					const audio = new Audio(blobUrl);
-					audio.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
+			(async () => {
+				for (let idx = 0; idx < messageContentParts.length; idx++) {
+					if (readAborted) return;
 
-					audioParts[idx] = audio;
-					loadingSpeech = false;
-					lastPlayedAudioPromise = lastPlayedAudioPromise.then(() => playAudio(idx));
+					await arrival[idx].arrived;
+
+					if (readAborted) return;
+
+					if (!audioParts[idx]) continue; // failed part — skip, read survives
+
+					speakingIdx = idx;
+					// eslint-disable-next-line no-await-in-loop
+					await playAudio(idx);
 				}
-			}
+
+				speaking = false;
+				speakingIdx = undefined;
+			})();
+
+			// Fetch side stays WINDOWED (2026-10-26 postmortem): the lane is one
+			// serial worker — unbounded fan-out stacks every part behind N queued
+			// syntheses and the tail of a long read dies to core's forward
+			// timeout before its turn comes. A window of 2 keeps one part
+			// synthesizing and at most one queued. Arrival signals fire for every
+			// part — success, failure, or abort — so the scheduler never waits on
+			// a part that will never land.
+			const WINDOW = 2;
+			let cursor = 0;
+			const fetchPart = async () => {
+				while (cursor < messageContentParts.length && !readAborted) {
+					const idx = cursor++;
+					const res = await synthesizeOpenAISpeech(
+						localStorage.token,
+						voice,
+						messageContentParts[idx]
+					).catch((error) => {
+						console.error(error);
+						toast.error(error);
+						return null;
+					});
+
+					if (res && !readAborted) {
+						const blob = await res.blob();
+						const blobUrl = URL.createObjectURL(blob);
+						const audio = new Audio(blobUrl);
+						audio.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
+
+						audioParts[idx] = audio;
+					}
+
+					arrival[idx].resolveArrival();
+				}
+			};
+			await Promise.all(
+				Array.from({ length: Math.min(WINDOW, messageContentParts.length) }, fetchPart)
+			);
+
+			loadingSpeech = false;
 		} else {
 			let voices = [];
 			const getVoicesLoop = setInterval(() => {
@@ -1056,9 +1126,10 @@
 											? 'visible'
 											: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 										onclick={() => {
-											if (!loadingSpeech) {
-												toggleSpeakMessage();
-											}
+											// no loading guard: toggleSpeakMessage stops
+											// mid-load too (2026-10-27) — a stuck read must
+											// always be cancellable
+											toggleSpeakMessage();
 										}}
 									>
 										{#if loadingSpeech}

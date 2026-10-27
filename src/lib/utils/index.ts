@@ -714,9 +714,17 @@ export const removeFormattings = (str: string) => {
 			// Block elements (remove completely)
 			.replace(/(```[\s\S]*?```)/g, '') // Code blocks
 			.replace(/^\|.*\|$/gm, '') // Tables
-			// Inline elements (preserve content)
-			.replace(/(?:\*\*|__)(.*?)(?:\*\*|__)/g, '$1') // Bold
-			.replace(/(?:[*_])(.*?)(?:[*_])/g, '$1') // Italic
+			// Inline elements (preserve content). Underscore emphasis is
+			// EDGE-ANCHORED ONLY (CommonMark intraword rule): `_` inside a word
+			// (flash_attn, __init__, q4_k_m, LFM2-Audio-1.5B) is literal text,
+			// never a marker. The old patterns ate intraword underscores and
+			// paired them ACROSS words — "flash_attn … n_ctx" lost the span
+			// between the underscores — and the blanket [-*_~] strip deleted
+			// hyphens outright ("7-12" → "712", read aloud as "seven twelve").
+			.replace(/\*\*([^*\n]+)\*\*/g, '$1') // Bold (**) — any position
+			.replace(/(^|[\s(.,;:!?[ ])__(\S(?:[\s\S]*?\S)?)__(?=$|[\s).,;:!?\]])/g, '$1$2') // Bold (__) — edge-anchored
+			.replace(/\*([^*\n]+)\*/g, '$1') // Italic (*) — any position
+			.replace(/(^|[\s(.,;:!?[ ])_(\S(?:[\s\S]*?\S)?)_(?=$|[\s).,;:!?\]])/g, '$1$2') // Italic (_) — edge-anchored
 			.replace(/~~(.*?)~~/g, '$1') // Strikethrough
 			.replace(/`([^`]+)`/g, '$1') // Inline code
 
@@ -733,7 +741,9 @@ export const removeFormattings = (str: string) => {
 
 			// Cleanup
 			.replace(/\[\^[^\]]*\]/g, '') // Footnotes
-			.replace(/[-*_~]/g, '') // Remaining markers
+			// NOTE: deliberately NO blanket marker strip — hyphens, underscores
+			// and asterisks in technical prose (model names, flags, ranges)
+			// must survive to TTS.
 			.replace(/\n{2,}/g, '\n')
 	); // Multiple newlines
 };
@@ -744,6 +754,14 @@ export const cleanText = (content: string) => {
 
 // This regular expression matches code blocks marked by triple backticks
 const codeBlockRegex = /```[\s\S]*?```/g;
+
+// Periods that are NOT sentence boundaries: ellipses (soft pause), decimals
+// and version numbers (digit.digit), and common abbreviations ("e.g. RADV"
+// must not seam). Shielded before splitting so each synthesis request is a
+// real sentence — every bogus split costs an audio seam plus a full
+// reference-encode pass on the lane (2026-10-26 read-aloud postmortem).
+const TTS_ABBREVIATIONS =
+	/\b(?:e\.g|i\.e|etc|vs|cf|approx|fig|no|nr|dr|mr|mrs|ms|prof|sr|jr|v)\.(?=\s)/gi;
 
 export const extractSentences = (text: string) => {
 	const codeBlocks: string[] = [];
@@ -756,14 +774,28 @@ export const extractSentences = (text: string) => {
 		return placeholder;
 	});
 
-	// Split the modified text into sentences based on common punctuation marks, avoiding these blocks
-	let sentences = text.split(/(?<=[.!?])\s+/);
+	// Shield non-boundary periods (restored after splitting)
+	const shields: string[] = [];
+	const shield = (pattern: RegExp) => {
+		text = text.replace(pattern, (m) => {
+			shields.push(m);
+			return `\u0002${shields.length - 1}\u0002`;
+		});
+	};
+	shield(/\.{3}|…/g);
+	shield(/(?<=\d)\.(?=\d)/g);
+	shield(TTS_ABBREVIATIONS);
 
-	// Restore code blocks and process sentences
+	// Paragraph breaks are always boundaries; then sentence punctuation
+	let sentences = text.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?])\s+/));
+
+	// Restore shields, then code blocks
 	sentences = sentences.map((sentence) => {
-		// Check if the sentence includes a placeholder for a code block
-		// eslint-disable-next-line no-control-regex -- intentional code-block placeholder marker (null byte), not an accidental escape
-		return sentence.replace(/\u0000(\d+)\u0000/g, (_, idx) => codeBlocks[idx]);
+		/* eslint-disable no-control-regex -- intentional placeholder markers (STX shields, null-byte code blocks), not accidental escapes */
+		return sentence
+			.replace(/\u0002(\d+)\u0002/g, (_, i) => shields[Number(i)])
+			.replace(/\u0000(\d+)\u0000/g, (_, idx) => codeBlocks[idx]);
+		/* eslint-enable no-control-regex */
 	});
 
 	return sentences.map(cleanText).filter(Boolean);
@@ -812,6 +844,27 @@ export const extractSentencesForAudio = (text: string) => {
 	}, [] as string[]);
 };
 
+// Cap a part at `cap` chars on word boundaries. The synthesis lane chunks
+// at 300 chars server-side regardless; capping client-side keeps one part =
+// one worker pass (progress reflects reality) and paragraph/none modes can
+// never become a single 2500-char, 20-minute serial request again.
+const capParts = (parts: string[], cap = 300): string[] =>
+	parts.flatMap((part) => {
+		if (part.length <= cap) return [part];
+		const out: string[] = [];
+		let cur = '';
+		for (const word of part.split(/\s+/)) {
+			if (cur && cur.length + word.length + 1 > cap) {
+				out.push(cur);
+				cur = word;
+			} else {
+				cur = cur ? `${cur} ${word}` : word;
+			}
+		}
+		if (cur) out.push(cur);
+		return out;
+	});
+
 export const getMessageContentParts = (content: string, split_on: string = 'punctuation') => {
 	const messageContentParts: string[] = [];
 
@@ -828,7 +881,7 @@ export const getMessageContentParts = (content: string, split_on: string = 'punc
 			break;
 	}
 
-	return messageContentParts;
+	return capParts(messageContentParts);
 };
 
 export const blobToFile = (blob, fileName) => {
