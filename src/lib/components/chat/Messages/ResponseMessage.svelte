@@ -214,7 +214,6 @@
 	let audioParts: Record<number, HTMLAudioElement | null> = {};
 	let speaking = $state(false);
 	let speakingIdx: number | undefined;
-
 	let loadingSpeech = $state(false);
 	let readAborted = false;
 	let generatingImage = $state(false);
@@ -227,6 +226,14 @@
 			toast.success($i18n.t('Copying to clipboard was successful!'));
 		}
 	};
+
+	// ONE persistent element for the whole read (round 6, 2026-10-27):
+	// strict-autoplay browsers (DuckDuckGo) let the first play() ride the
+	// click gesture but reject play() on FRESH elements created later from
+	// onended callbacks — a read got exactly one block there. Swapping src on
+	// an element the gesture already unlocked is the pattern that survives
+	// every browser's policy (same trick as web radio players).
+	let readAloudEl: HTMLAudioElement | null = null;
 
 	const playAudio = (idx: number) => {
 		return new Promise<void>((res) => {
@@ -252,18 +259,21 @@
 				res();
 			};
 
-			audio.onended = async () => {
+			const el = readAloudEl ?? (readAloudEl = new Audio());
+			el.src = audio.src;
+			el.playbackRate = audio.playbackRate;
+			el.onended = async () => {
 				await new Promise((r) => setTimeout(r, 300));
 
 				finish('ended');
 			};
-			audio.onerror = () => finish('failed to load/decode');
+			el.onerror = () => finish('failed to load/decode');
 
-			audio.play().catch(() => finish('play() rejected'));
+			el.play().catch(() => finish('play() rejected'));
 		});
 	};
 
-	const toggleSpeakMessage = async () => {
+const toggleSpeakMessage = async () => {
 		if (speaking || loadingSpeech) {
 			// Stop now works mid-read AND mid-load: the cursor scheduler checks
 			// readAborted before and after every part, fetch workers stop
@@ -273,6 +283,13 @@
 			try {
 				speechSynthesis.cancel();
 
+				// the shared element is what's actually playing (round 6); the
+				// per-part audio objects only carry blob URLs now.
+				if (readAloudEl) {
+					readAloudEl.pause();
+					readAloudEl.removeAttribute('src');
+					readAloudEl.load(); // drop the buffered media immediately
+				}
 				if (speakingIdx !== undefined && audioParts[speakingIdx]) {
 					audioParts[speakingIdx]!.pause();
 					audioParts[speakingIdx]!.currentTime = 0;
@@ -322,7 +339,14 @@
 				{} as typeof audioParts
 			);
 
-			// CURSOR SCHEDULER (2026-10-27 round 2): playback runs strictly in
+			// CURSOR SCHEDULER — RESTORED 2026-10-27 round 5: the WebAudio
+			// timeline (rounds 3-4) plays silently on mobile — WebAudio rides
+			// a different audio route than <audio> elements (iOS mute switch
+			// and power policy mute it while media elements keep playing; the
+			// reporting device played the old chain fine and plays other
+			// media fine). The 4090 lane at RTF 0.08 made the streaming
+			// machinery unnecessary; <audio> per part is the mechanism that
+			// demonstrably sounds on the device. Round-2 scheduler intact: playback runs strictly in
 			// MESSAGE order. The arrival-ordered chain played whatever landed
 			// first — with cache hits landing within milliseconds, completion
 			// order is racy (headless repro: part 3 attached first and the read
@@ -387,12 +411,21 @@
 					});
 
 					if (res && !readAborted) {
-						const blob = await res.blob();
-						const blobUrl = URL.createObjectURL(blob);
-						const audio = new Audio(blobUrl);
-						audio.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
+						// .blob() can reject mid-body (connection drop): without
+						// this guard the worker died BEFORE resolving its arrival
+						// signal and the scheduler waited on a part that would
+						// never land — the read halted forever at that part
+						// (found in review 2026-10-27).
+						try {
+							const blob = await res.blob();
+							const blobUrl = URL.createObjectURL(blob);
+							const audio = new Audio(blobUrl);
+							audio.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
 
-						audioParts[idx] = audio;
+							audioParts[idx] = audio;
+						} catch (error) {
+							console.error(`read-aloud: part ${idx} body failed`, error);
+						}
 					}
 
 					arrival[idx].resolveArrival();
@@ -441,7 +474,7 @@
 		}
 	};
 
-	const editMessageHandler = async () => {
+		const editMessageHandler = async () => {
 		edit = true;
 		editedContent = message.content;
 

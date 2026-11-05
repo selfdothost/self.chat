@@ -153,6 +153,51 @@ export const synthesizeOpenAISpeech = async (
 	return res;
 };
 
+// Streaming variant of synthesizeOpenAISpeech: asks core for the lane's
+// chunked synthesis (`?stream=1`, self.ai 2026-10-27 round 4) and returns
+// the raw Response so the caller can read res.body as chunks arrive. Same
+// error contract as the buffered call: throws the server's detail on !ok.
+// A core without streaming support ignores the query param and answers
+// buffered — this still works, audio just arrives in one piece.
+export const synthesizeOpenAISpeechStream = async (
+	token: string = '',
+	speaker: string = 'alloy',
+	text: string = '',
+	model?: string,
+	signal?: AbortSignal
+) => {
+	let error = null;
+
+	const res = await fetch(`${AUDIO_API_BASE_URL}/speech?stream=1`, {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${token}`,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			input: text,
+			voice: speaker,
+			...(model && { model })
+		}),
+		signal
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res;
+		})
+		.catch((err) => {
+			error = err.detail ?? err?.error ?? null;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 interface AvailableModelsResponse {
 	models: { name: string; id: string }[] | { id: string }[];
 }
