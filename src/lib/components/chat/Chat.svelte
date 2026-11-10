@@ -2271,7 +2271,6 @@
 	</title>
 </svelte:head>
 
-<audio id="audioElement" src="" style="display: none;"></audio>
 
 <EventConfirmDialog
 	bind:show={showEventConfirmation}

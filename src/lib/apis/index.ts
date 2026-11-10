@@ -889,7 +889,12 @@ export const getBackendConfig = async () => {
 		method: 'GET',
 		credentials: 'include',
 		headers: {
-			'Content-Type': 'application/json'
+			'Content-Type': 'application/json',
+			// The signin cookie is browser-session scoped while the localStorage
+			// token is not — send the bearer so /api/config serves the authed
+			// shape (audio, default_models, file, permissions) even after a
+			// browser restart (self.chat#64).
+			...(localStorage.token ? { Authorization: `Bearer ${localStorage.token}` } : {})
 		}
 	})
 		.then(async (res) => {

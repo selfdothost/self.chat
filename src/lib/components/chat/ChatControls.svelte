@@ -3,7 +3,7 @@
 	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { Pane, PaneResizer } from 'paneforge';
 
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { browser } from '$app/environment';
 	import { showControls, showCallOverlay, showOverview, showArtifacts } from '$lib/stores';
 
@@ -216,7 +216,13 @@
 
 	$effect(() => {
 		if (!chatId) {
-			closeHandler();
+			// untrack: closeHandler reads $showCallOverlay/$showOverview/$showArtifacts,
+			// and without this the effect re-runs when the call overlay OPENS —
+			// on an unsaved chat (chatId still falsy) it then closed the overlay
+			// it had just opened. The svelte5 conversion inherited the logic from
+			// a Svelte-4 `$:` block, which did not track reads inside called
+			// functions. Depend on chatId alone.
+			untrack(() => closeHandler());
 		}
 	});
 </script>

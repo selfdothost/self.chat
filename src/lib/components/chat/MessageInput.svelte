@@ -1396,6 +1396,14 @@
 																	return;
 																}
 
+																if (!$config.audio?.stt) {
+																	toast.error(
+																		$i18n.t('Voice is not configured on this server')
+																	);
+
+																	return;
+																}
+
 																if ($config.audio.stt.engine === 'web') {
 																	toast.error(
 																		$i18n.t(

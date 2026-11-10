@@ -7,7 +7,12 @@
 
 	import { blobToFile } from '$lib/utils';
 	import { generateEmoji } from '$lib/apis';
-	import { synthesizeOpenAISpeech, transcribeAudio } from '$lib/apis/audio';
+	import { transcribeAudio, synthesizeOpenAISpeechStream } from '$lib/apis/audio';
+	import {
+		createStreamReadAloudPlayer,
+		type StreamReadAloudPlayer
+	} from '$lib/utils/readAloudStreamPlayer';
+	import { pumpSpeechStreamToPlayer } from '$lib/utils/callSpeechPump';
 
 	import { toast } from 'svelte-sonner';
 
@@ -295,7 +300,8 @@
 	};
 
 	const analyseAudio = (stream) => {
-		const audioContext = new AudioContext();
+		// shared per-call context (see callAudioCtx note above)
+		const audioContext = ensureAudioContext();
 		const audioStreamSource = audioContext.createMediaStreamSource(stream);
 
 		const analyser = audioContext.createAnalyser();
@@ -369,7 +375,6 @@
 		detectSound();
 	};
 
-	let finishedMessages = {};
 	let currentMessageId = null;
 	let currentUtterance = null;
 
@@ -409,35 +414,6 @@
 		}
 	};
 
-	const playAudio = (audio) => {
-		if ($showCallOverlay) {
-			return new Promise((resolve) => {
-				const audioElement = document.getElementById('audioElement') as HTMLAudioElement;
-
-				if (audioElement) {
-					audioElement.src = audio.src;
-					audioElement.muted = true;
-					audioElement.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
-
-					audioElement
-						.play()
-						.then(() => {
-							audioElement.muted = false;
-						})
-						.catch((error) => {
-							console.error(error);
-						});
-
-					audioElement.onended = async (e) => {
-						await new Promise((r) => setTimeout(r, 100));
-						resolve(e);
-					};
-				}
-			});
-		} else {
-			return Promise.resolve();
-		}
-	};
 
 	const stopAllAudio = async () => {
 		assistantSpeaking = false;
@@ -451,119 +427,99 @@
 			currentUtterance = null;
 		}
 
-		const audioElement = document.getElementById('audioElement') as HTMLAudioElement;
-		if (audioElement) {
-			audioElement.muted = true;
-			audioElement.pause();
-			audioElement.currentTime = 0;
-		}
+		// hard-stop the gapless timeline; a fresh one is built on the next turn
+		streamPlayer?.stop();
+		streamPlayer = null;
 	};
 
 	let audioAbortController = new AbortController();
 
-	// Audio cache map where key is the content and value is the Audio object.
-	// Both are mutated in place via .has()/.get()/.set() but never read by
-	// the template or a $: block -- Svelte never needs to observe these
-	// mutations, so SvelteMap would add proxy overhead for no benefit.
+	// One AudioContext for the whole call (VAD + playback). Browsers cap
+	// concurrent contexts (~6), so the old per-turn analyseAudio() contexts
+	// were a leak waiting to happen. Created on mount — inside the call-open
+	// click gesture chain, which keeps the autoplay policy happy — and closed
+	// on destroy.
+	let callAudioCtx: AudioContext | null = null;
+
+	// One gapless player per assistant turn: sentence chunks are scheduled
+	// back to back on the WebAudio timeline, so audio starts as the first
+	// bytes land and flows at synthesis speed instead of waiting for whole
+	// per-sentence blobs. Barge-in = player.stop().
+	let streamPlayer: StreamReadAloudPlayer | null = null;
+
+	// In-flight sentence synthesis pumps for the current turn. Mutated via
+	// add()/delete() and spread-read only inside handlers — never read by the
+	// template or a $: block, so SvelteSet would add proxy overhead for no
+	// benefit (same reasoning as emojiCache below).
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
-	const audioCache = new Map();
+	const pendingSentences = new Set<Promise<void>>();
+
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const emojiCache = new Map();
 
-	const fetchAudio = async (content) => {
-		if (!audioCache.has(content)) {
-			try {
-				// Set the emoji for the content if needed
-				if ($settings?.showEmojiInCall ?? false) {
-					const emoji = await generateEmoji(localStorage.token, modelId, content, chatId);
-					if (emoji) {
-						emojiCache.set(content, emoji);
-					}
-				}
-
-				if ($config.audio.tts.engine !== '') {
-					const res = await synthesizeOpenAISpeech(
-						localStorage.token,
-						// Per-model voice (Studio Model meta.audio.tts_voice) overrides the
-						// user/global default for the model driving this voice call.
-						model?.info?.meta?.audio?.tts_voice ??
-							($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
-								? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
-								: $config?.audio?.tts?.voice),
-						content
-					).catch((error) => {
-						console.error(error);
-						return null;
-					});
-
-					if (res) {
-						const blob = await res.blob();
-						const blobUrl = URL.createObjectURL(blob);
-						audioCache.set(content, new Audio(blobUrl));
-					}
-				} else {
-					audioCache.set(content, true);
-				}
-			} catch (error) {
-				console.error('Error synthesizing speech:', error);
-			}
+	const ensureAudioContext = () => {
+		if (!callAudioCtx) {
+			callAudioCtx = new AudioContext();
 		}
-
-		return audioCache.get(content);
+		if (callAudioCtx.state === 'suspended') {
+			void callAudioCtx.resume();
+		}
+		return callAudioCtx;
 	};
 
-	let messages = {};
+	// Per-model voice (Studio Model meta.audio.tts_voice) overrides the
+	// user/global default for the model driving this voice call.
+	const resolveVoice = () =>
+		model?.info?.meta?.audio?.tts_voice ??
+		($settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
+			? ($settings?.audio?.tts?.voice ?? $config?.audio?.tts?.voice)
+			: $config?.audio?.tts?.voice);
 
-	const monitorAndPlayAudio = async (id, signal) => {
-		while (!signal.aborted) {
-			if (messages[id] && messages[id].length > 0) {
-				// Retrieve the next content string from the queue
-				const content = messages[id].shift(); // Dequeues the content for playing
-
-				if (audioCache.has(content)) {
-					// If content is available in the cache, play it
-
-					// Set the emoji for the content if available
-					if (($settings?.showEmojiInCall ?? false) && emojiCache.has(content)) {
-						emoji = emojiCache.get(content);
-					} else {
-						emoji = null;
-					}
-
-					if ($config.audio.tts.engine !== '') {
-						try {
-							console.log(
-								'%c%s',
-								'color: red; font-size: 20px;',
-								`Playing audio for content: ${content}`
-							);
-
-							const audio = audioCache.get(content);
-							await playAudio(audio); // Here ensure that playAudio is indeed correct method to execute
-							console.log(`Played audio for content: ${content}`);
-							await new Promise((resolve) => setTimeout(resolve, 200)); // Wait before retrying to reduce tight loop
-						} catch (error) {
-							console.error('Error playing audio:', error);
-						}
-					} else {
-						await speakSpeechSynthesisHandler(content);
-					}
-				} else {
-					// If not available in the cache, push it back to the queue and delay
-					messages[id].unshift(content); // Re-queue the content at the start
-					console.log(`Audio for "${content}" not yet available in the cache, re-queued...`);
-					await new Promise((resolve) => setTimeout(resolve, 200)); // Wait before retrying to reduce tight loop
+	const speakSentence = (content: string) => {
+		// per-sentence emoji stays non-blocking decoration, never ahead of audio
+		if ($settings?.showEmojiInCall ?? false) {
+			void generateEmoji(localStorage.token, modelId, content, chatId).then((e) => {
+				if (e && assistantSpeaking) {
+					emojiCache.set(content, e);
+					emoji = e;
 				}
-			} else if (finishedMessages[id] && messages[id] && messages[id].length === 0) {
-				// If the message is finished and there are no more messages to process, break the loop
-				assistantSpeaking = false;
-				break;
-			} else {
-				// No messages to process, sleep for a bit
-				await new Promise((resolve) => setTimeout(resolve, 200));
-			}
+			});
 		}
-		console.log(`Audio monitoring and playing stopped for message ID ${id}`);
+
+		if ($config.audio.tts.engine === '' || !callAudioCtx || !streamPlayer) {
+			// no lane (or no context yet): the browser's speech queue serializes
+			// utterances; track them so the turn only ends once spoken
+			const spoken: Promise<void> = (async () => {
+				await speakSpeechSynthesisHandler(content);
+			})();
+			pendingSentences.add(spoken);
+			void spoken.finally(() => pendingSentences.delete(spoken));
+			return;
+		}
+
+		const player = streamPlayer;
+		const ctx = callAudioCtx;
+		const rate = $settings.audio?.tts?.playbackRate ?? 1;
+		const signal = audioAbortController.signal;
+		const pump = (async () => {
+			try {
+				const res = await synthesizeOpenAISpeechStream(
+					localStorage.token,
+					resolveVoice(),
+					content,
+					undefined,
+					signal
+				);
+				if (!res || !res.body) {
+					return;
+				}
+				await pumpSpeechStreamToPlayer(res.body, player, ctx, rate);
+			} catch (err) {
+				console.error('call tts: sentence failed:', err);
+			}
+		})();
+		pendingSentences.add(pump);
+		void pump.finally(() => pendingSentences.delete(pump));
 	};
 
 	const chatStartHandler = async (e) => {
@@ -572,51 +528,55 @@
 		chatStreaming = true;
 
 		if (currentMessageId !== id) {
-			console.log(`Received chat start event for message ID ${id}`);
-
 			currentMessageId = id;
 			if (audioAbortController) {
 				audioAbortController.abort();
 			}
 			audioAbortController = new AbortController();
 
+			// fresh gapless timeline for this turn (barge-in may have stopped the old one)
+			const ctx = ensureAudioContext();
+			if (streamPlayer) {
+				streamPlayer.stop();
+			}
+			streamPlayer = createStreamReadAloudPlayer(ctx);
+			emoji = null;
 			assistantSpeaking = true;
-			// Start monitoring and playing audio for the message ID
-			monitorAndPlayAudio(id, audioAbortController.signal);
 		}
 	};
 
 	const chatEventHandler = async (e) => {
 		const { id, content } = e.detail;
-		// "id" here is message id
-		// if "id" is not the same as "currentMessageId" then do not process
-		// "content" here is a sentence from the assistant,
+		// "id" here is message id, "content" a sentence of the assistant reply;
 		// there will be many sentences for the same "id"
 
 		if (currentMessageId === id) {
-			console.log(`Received chat event for message ID ${id}: ${content}`);
-
-			try {
-				if (messages[id] === undefined) {
-					messages[id] = [content];
-				} else {
-					messages[id].push(content);
-				}
-
-				console.log(content);
-
-				fetchAudio(content);
-			} catch (error) {
-				console.error('Failed to fetch or play audio:', error);
-			}
+			speakSentence(content);
 		}
 	};
 
 	const chatFinishHandler = async (e) => {
 		const { id } = e.detail;
-		finishedMessages[id] = true;
 
 		chatStreaming = false;
+
+		if (currentMessageId !== id) {
+			return;
+		}
+		const player = streamPlayer;
+		if (!player) {
+			assistantSpeaking = false;
+			return;
+		}
+		// every sentence stream has landed on the timeline — close it and
+		// wait out the tail. A barge-in replacing the player resolves this
+		// via stop() instead.
+		await Promise.allSettled([...pendingSentences]);
+		player.markInputDone();
+		await player.whenDone;
+		if (streamPlayer === player) {
+			assistantSpeaking = false;
+		}
 	};
 
 	onMount(async () => {
@@ -650,6 +610,9 @@
 
 		model = $models.find((m) => m.id === modelId);
 
+		// inside the call-open gesture chain: the context must exist before the
+		// first turn so sentence pumps never fall back on a missing context
+		ensureAudioContext();
 		startRecording();
 
 		eventTarget.addEventListener('chat:start', chatStartHandler);
@@ -674,6 +637,9 @@
 		eventTarget.removeEventListener('chat', chatEventHandler);
 		eventTarget.removeEventListener('chat:finish', chatFinishHandler);
 		audioAbortController.abort();
+		pendingSentences.clear();
+		callAudioCtx?.close();
+		callAudioCtx = null;
 
 		await tick();
 
